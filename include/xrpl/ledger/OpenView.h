@@ -82,7 +82,7 @@ private:
         monotonic_resource_;
     txs_map txs_;
     Rules rules_;
-    LedgerHeader info_;
+    LedgerHeader header_;
     ReadView const* base_;
     detail::RawStateTable items_;
     std::shared_ptr<void const> hold_;
@@ -189,7 +189,7 @@ public:
     // ReadView
 
     LedgerHeader const&
-    info() const override;
+    header() const override;
 
     Fees const&
     fees() const override;
