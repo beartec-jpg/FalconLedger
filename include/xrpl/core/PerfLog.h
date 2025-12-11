@@ -17,7 +17,7 @@ namespace beast {
 class Journal;
 }
 
-namespace ripple {
+namespace xrpl {
 class Application;
 namespace perf {
 
@@ -187,6 +187,6 @@ measureDurationAndLog(
 }
 
 }  // namespace perf
-}  // namespace ripple
+}  // namespace xrpl
 
 #endif  // XRPL_CORE_PERFLOG_H

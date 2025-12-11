@@ -7,7 +7,7 @@
 
 #include <boost/asio/io_context.hpp>
 
-namespace ripple {
+namespace xrpl {
 
 /** Subscription object for JSON RPC. */
 class RPCSub : public InfoSub
@@ -33,6 +33,6 @@ make_RPCSub(
     std::string const& strPassword,
     Logs& logs);
 
-}  // namespace ripple
+}  // namespace xrpl
 
 #endif

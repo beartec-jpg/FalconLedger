@@ -35,7 +35,7 @@
 #include <memory>
 #include <stdexcept>
 
-namespace ripple {
+namespace xrpl {
 
 class Peer;
 class LedgerMaster;
@@ -1276,4 +1276,4 @@ make_ServerHandler(
         cm);
 }
 
-}  // namespace ripple
+}  // namespace xrpl

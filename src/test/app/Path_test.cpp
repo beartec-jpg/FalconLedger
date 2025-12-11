@@ -23,7 +23,7 @@
 #include <string>
 #include <thread>
 
-namespace ripple {
+namespace xrpl {
 namespace test {
 
 //------------------------------------------------------------------------------
@@ -2114,7 +2114,7 @@ public:
     }
 };
 
-BEAST_DEFINE_TESTSUITE(Path, app, ripple);
+BEAST_DEFINE_TESTSUITE(Path, app, xrpl);
 
 }  // namespace test
-}  // namespace ripple
+}  // namespace xrpl

@@ -28,7 +28,7 @@ namespace sqlite_api {
 struct sqlite3;
 }
 
-namespace ripple {
+namespace xrpl {
 
 class BasicConfig;
 
@@ -121,7 +121,7 @@ makeCheckpointer(
     JobQueue&,
     Logs&);
 
-}  // namespace ripple
+}  // namespace xrpl
 
 #if defined(__clang__)
 #pragma clang diagnostic pop

@@ -17,7 +17,7 @@ namespace soci {
 class session;
 }
 
-namespace ripple {
+namespace xrpl {
 
 class LockedSociSession
 {
@@ -83,7 +83,7 @@ public:
         {
             XRPL_ASSERT(
                 !useGlobalPragma || globalPragma,
-                "ripple::DatabaseCon::Setup::commonPragma : consistent global "
+                "xrpl::DatabaseCon::Setup::commonPragma : consistent global "
                 "pragma");
             return useGlobalPragma && globalPragma ? globalPragma.get()
                                                    : nullptr;
@@ -242,6 +242,6 @@ setup_DatabaseCon(
     Config const& c,
     std::optional<beast::Journal> j = std::nullopt);
 
-}  // namespace ripple
+}  // namespace xrpl
 
 #endif

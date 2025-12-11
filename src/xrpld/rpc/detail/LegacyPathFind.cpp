@@ -6,7 +6,7 @@
 #include <xrpl/core/Job.h>
 #include <xrpl/core/JobQueue.h>
 
-namespace ripple {
+namespace xrpl {
 namespace RPC {
 
 LegacyPathFind::LegacyPathFind(bool isAdmin, Application& app) : m_isOk(false)
@@ -50,4 +50,4 @@ LegacyPathFind::~LegacyPathFind()
 std::atomic<int> LegacyPathFind::inProgress(0);
 
 }  // namespace RPC
-}  // namespace ripple
+}  // namespace xrpl
