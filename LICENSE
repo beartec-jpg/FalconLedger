@@ -1,0 +1,40 @@
+Copyright (c) 2026 qXRP Team. All rights reserved.
+
+qXRP Two-Year Source Protection License Notice
+==============================================
+
+This repository contains two classes of material:
+
+1. Upstream XRPL code, which remains governed by the original ISC license in [LICENSE.md](LICENSE.md).
+2. qXRP-original files and qXRP-specific modifications, which are governed by this notice and the policy in [COPYRIGHT.md](COPYRIGHT.md).
+
+Policy Summary
+--------------
+
+qXRP-original files and modifications are intended to be released with the following policy:
+
+- For the first 2 years after first public release, the material is intended to be distributed under AGPL-3.0 terms.
+- After the 2-year protection period, the project intends to make the same material available under MIT terms.
+- Contributors agree that their qXRP-original submissions may be redistributed under this policy.
+
+Scope
+-----
+
+This notice applies only to qXRP-original files and qXRP-specific modifications that clearly carry qXRP authorship or attribution. It does not replace or alter the upstream ISC license for inherited XRPL code.
+
+If a file contains both upstream ISC code and qXRP-original contributions, the applicable license for each portion is determined by the file history, header notices, and project attribution records.
+
+No Warranty
+-----------
+
+This material is provided as-is, without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and noninfringement.
+
+Limitation of Liability
+----------------------
+
+In no event shall the qXRP Team, contributors, or distributors be liable for any claim, damages, or other liability arising from the use of this material.
+
+Implementation Note
+-------------------
+
+This file is a project policy notice and distribution statement. It is not a substitute for legal advice, and the project should have all license text reviewed by counsel before release.

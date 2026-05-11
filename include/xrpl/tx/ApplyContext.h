@@ -97,11 +97,7 @@ public:
             std::shared_ptr<SLE const> const& after)> const& func);
 
     void
-    destroyXRP(XRPAmount const& fee)
-    {
-        // NOLINTNEXTLINE(bugprone-unchecked-optional-access) view_ emplaced in constructor
-        view_->rawDestroyXRP(fee);
-    }
+    destroyXRP(XRPAmount const& fee);
 
     /** Applies all invariant checkers one by one.
 

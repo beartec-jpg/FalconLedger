@@ -85,6 +85,11 @@ enum class LedgerNameSpace : std::uint16_t {
     LoanBroker = 'l',  // lower-case L
     Loan = 'L',
 
+    // qXRP namespaces
+    ValidatorBond    = 0xB0,  // per-validator bond object
+    RewardEpoch      = 0xB1,  // singleton epoch tracker
+    GovernanceParams = 0xB2,  // singleton governance param store
+
     // No longer used or supported. Left here to reserve the space to avoid accidental reuse.
     Contract [[deprecated]] = 'c',
     Generator [[deprecated]] = 'g',
@@ -575,6 +580,32 @@ Keylet
 permissionedDomain(uint256 const& domainID) noexcept
 {
     return {ltPERMISSIONED_DOMAIN, domainID};
+}
+
+// ─── qXRP keylets ────────────────────────────────────────────────────────────
+
+Keylet
+validatorBond(AccountID const& validatorID) noexcept
+{
+    return {ltVALIDATOR_BOND, indexHash(LedgerNameSpace::ValidatorBond, validatorID)};
+}
+
+Keylet const&
+rewardEpoch() noexcept
+{
+    static Keylet const kEPOCH{
+        ltREWARD_EPOCH,
+        indexHash(LedgerNameSpace::RewardEpoch, std::uint32_t{0})};
+    return kEPOCH;
+}
+
+Keylet const&
+governanceParams() noexcept
+{
+    static Keylet const kGOV{
+        ltGOVERNANCE_PARAMS,
+        indexHash(LedgerNameSpace::GovernanceParams, std::uint32_t{0})};
+    return kGOV;
 }
 
 }  // namespace keylet

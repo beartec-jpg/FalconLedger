@@ -342,6 +342,28 @@ permissionedDomain(AccountID const& account, std::uint32_t seq) noexcept;
 
 Keylet
 permissionedDomain(uint256 const& domainID) noexcept;
+
+// ─── qXRP keylets ────────────────────────────────────────────────────────────
+
+/** The validator bond object for a specific validator account.
+    One object per registered validator (keyed by AccountID). */
+Keylet
+validatorBond(AccountID const& validatorID) noexcept;
+
+inline Keylet
+validatorBond(uint256 const& key) noexcept
+{
+    return {ltVALIDATOR_BOND, key};
+}
+
+/** The singleton reward epoch tracking object. */
+Keylet const&
+rewardEpoch() noexcept;
+
+/** The singleton governance parameter store. */
+Keylet const&
+governanceParams() noexcept;
+
 }  // namespace keylet
 
 // Everything below is deprecated and should be removed in favor of keylets:

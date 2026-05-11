@@ -606,5 +606,55 @@ LEDGER_ENTRY(ltLOAN, 0x0089, Loan, loan, ({
     {sfLoanScale,                SoeDefault},
 }))
 
+/** qXRP: per-validator bond object.  Created by ValidatorRegister, upgraded
+    to bonded by ValidatorBond, and released by ValidatorUnbond or slashing.
+
+    \sa keylet::validatorBond
+ */
+LEDGER_ENTRY(ltVALIDATOR_BOND, 0x0091, ValidatorBond, validator_bond, ({
+    {sfAccount,              SoeRequired},  // validator account
+    {sfBondedAmount,         SoeRequired},  // drops locked (0 when registered/unbonding)
+    {sfBondStatus,           SoeRequired},  // 0=registered 1=bonded 2=unbonding
+    {sfUptimeBps,            SoeDefault},   // 0..10000
+    {sfVoteAccuracyBps,      SoeDefault},
+    {sfLatencyScoreBps,      SoeDefault},
+    {sfConsistencyBps,       SoeDefault},
+    {sfSlashMultiplier,      SoeRequired},  // starts at 10000, decremented on slash
+    {sfCompositeScore,       SoeDefault},   // computed from weighted signals
+    {sfSlashCount,           SoeDefault},
+    {sfLastClaimedEpoch,     SoeDefault},
+    {sfUnbondingStartLedger, SoeDefault},   // set when status = unbonding
+    {sfOwnerNode,            SoeRequired},
+    {sfPreviousTxnID,        SoeRequired},
+    {sfPreviousTxnLgrSeq,    SoeRequired},
+}))
+
+/** qXRP: singleton reward epoch tracking object.
+
+    \sa keylet::rewardEpoch
+ */
+LEDGER_ENTRY(ltREWARD_EPOCH, 0x0092, RewardEpoch, reward_epoch, ({
+    {sfEpochNumber,          SoeRequired},
+    {sfEpochStartLedger,     SoeRequired},
+    {sfEpochPoolBalance,     SoeRequired},  // drops available in pool
+    {sfEmissionRate,         SoeRequired},  // drops emitted per epoch
+    {sfCurrentBurnBps,       SoeRequired},  // burn fraction for this epoch
+    {sfFeeVolumeEMA,         SoeDefault},   // smoothed fee volume
+    {sfAggregateCompositeScore, SoeDefault}, // sum of all bonded scores
+    {sfPreviousTxnID,        SoeRequired},
+    {sfPreviousTxnLgrSeq,    SoeRequired},
+}))
+
+/** qXRP: on-chain governance parameter store.  Written when a proposal
+    passes a 67 % weighted supermajority vote.
+
+    \sa keylet::governanceParams
+ */
+LEDGER_ENTRY(ltGOVERNANCE_PARAMS, 0x0093, GovernanceParams, governance_params, ({
+    {sfCurrentBurnBps,       SoeDefault},   // overrides kFEE_BURN_DEFAULT_BPS when present
+    {sfPreviousTxnID,        SoeRequired},
+    {sfPreviousTxnLgrSeq,    SoeRequired},
+}))
+
 #undef EXPAND
 #undef LEDGER_ENTRY_DUPLICATE

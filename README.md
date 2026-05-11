@@ -1,71 +1,171 @@
 [![codecov](https://codecov.io/gh/XRPLF/rippled/graph/badge.svg?token=WyFr5ajq3O)](https://codecov.io/gh/XRPLF/rippled)
 
-# The XRP Ledger
+# qXRP
 
-The [XRP Ledger](https://xrpl.org/) is a decentralized cryptographic ledger powered by a network of peer-to-peer nodes. The XRP Ledger uses a novel Byzantine Fault Tolerant consensus algorithm to settle and record transactions in a secure distributed database without a central operator.
+Copyright (c) 2026 qXRP Team. This repository contains upstream XRPL code under its original ISC license and qXRP-original work under the project policy described in [LICENSE](LICENSE) and [COPYRIGHT.md](COPYRIGHT.md).
 
-## XRP
+qXRP is a quantum-resistant fork of the XRP Ledger that keeps RPCA consensus, fast finality, and low operating costs while adding post-quantum signatures, validator-aligned incentives, and a fixed-supply token model built for long-term sustainability.
 
-[XRP](https://xrpl.org/xrp.html) is a public, counterparty-free crypto-asset native to the XRP Ledger, and is designed as a gas token for network services and to bridge different currencies. XRP is traded on the open-market and is available for anyone to access. The XRP Ledger was created in 2012 with a finite supply of 100 billion units of XRP.
+## Vision
 
-## xrpld
+qXRP is designed to combine three properties that usually conflict:
 
-The server software that powers the XRP Ledger is called `xrpld` and is available in this repository under the permissive [ISC open-source license](LICENSE.md). The `xrpld` server software is written primarily in C++ and runs on a variety of platforms. The `xrpld` server software can run in several modes depending on its [configuration](https://xrpl.org/rippled-server-modes.html).
+1. Fast consensus and low fees from the XRP Ledger architecture.
+2. Strong post-quantum cryptography, with Falcon as the default recommended signature scheme.
+3. Sustainable tokenomics that reward reliable validators instead of relying on large premine allocations.
 
-If you are interested in running an **API Server** (including a **Full History Server**), take a look at [Clio](https://github.com/XRPLF/clio). (xrpld Reporting Mode has been replaced by Clio.)
+The goal is a network where security, decentralization, and participation incentives reinforce each other on-chain.
 
-### Build from Source
+## Key Differentiators
 
-- [Read the build instructions in `BUILD.md`](BUILD.md)
-- If you encounter any issues, please [open an issue](https://github.com/XRPLF/rippled/issues)
+- Post-quantum security with Falcon support as a first-class signature type.
+- Hybrid signature support during migration, including Falcon plus ed25519 where needed.
+- Proof-of-Participation style rewards for active validators with deterministic, on-ledger scoring.
+- Fixed total supply of 200 billion qXRP.
+- Minimal genesis allocation, with the protocol-controlled treasury holding the bulk of supply.
+- Dynamic fee splitting that burns part of the fee and routes part to validators.
+- On-chain bonding, slashing, and governance for bounded protocol parameters.
+- RPCA consensus remains in place; qXRP evolves the economic and cryptographic layers around it.
 
-## Key Features of the XRP Ledger
+## Tokenomics
 
-- **[Censorship-Resistant Transaction Processing][]:** No single party decides which transactions succeed or fail, and no one can "roll back" a transaction after it completes. As long as those who choose to participate in the network keep it healthy, they can settle transactions in seconds.
-- **[Fast, Efficient Consensus Algorithm][]:** The XRP Ledger's consensus algorithm settles transactions in 4 to 5 seconds, processing at a throughput of up to 1500 transactions per second. These properties put XRP at least an order of magnitude ahead of other top digital assets.
-- **[Finite XRP Supply][]:** When the XRP Ledger began, 100 billion XRP were created, and no more XRP will ever be created. The available supply of XRP decreases slowly over time as small amounts are destroyed to pay transaction fees.
-- **[Responsible Software Governance][]:** A team of full-time developers at Ripple & other organizations maintain and continually improve the XRP Ledger's underlying software with contributions from the open-source community. Ripple acts as a steward for the technology and an advocate for its interests.
-- **[Secure, Adaptable Cryptography][]:** The XRP Ledger relies on industry standard digital signature systems like ECDSA (the same scheme used by Bitcoin) but also supports modern, efficient algorithms like Ed25519. The extensible nature of the XRP Ledger's software makes it possible to add and disable algorithms as the state of the art in cryptography advances.
-- **[Modern Features][]:** Features like Escrow, Checks, and Payment Channels support financial applications atop of the XRP Ledger. This toolbox of advanced features comes with safety features like a process for amending the network and separate checks against invariant constraints.
-- **[On-Ledger Decentralized Exchange][]:** In addition to all the features that make XRP useful on its own, the XRP Ledger also has a fully-functional accounting system for tracking and trading obligations denominated in any way users want, and an exchange built into the protocol. The XRP Ledger can settle long, cross-currency payment paths and exchanges of multiple currencies in atomic transactions, bridging gaps of trust with XRP.
+qXRP uses a fixed supply and a treasury-first emission design.
 
-[Censorship-Resistant Transaction Processing]: https://xrpl.org/transaction-censorship-detection.html#transaction-censorship-detection
-[Fast, Efficient Consensus Algorithm]: https://xrpl.org/consensus-research.html#consensus-research
-[Finite XRP Supply]: https://xrpl.org/what-is-xrp.html
-[Responsible Software Governance]: https://xrpl.org/contribute-code.html#contribute-code-to-the-xrp-ledger
-[Secure, Adaptable Cryptography]: https://xrpl.org/cryptographic-keys.html#cryptographic-keys
-[Modern Features]: https://xrpl.org/use-specialized-payment-types.html
-[On-Ledger Decentralized Exchange]: https://xrpl.org/decentralized-exchange.html#decentralized-exchange
+| Parameter | Value | Notes |
+| --- | ---:| --- |
+| Total supply | 200,000,000,000 qXRP | Fixed at genesis |
+| Genesis allocation cap | 4,000,000,000 qXRP | Maximum 2% of supply |
+| Treasury allocation | 196,000,000,000 qXRP | 98% controlled by protocol emission rules |
+| Initial issuance | High bootstrap rate | Intended to bootstrap validator participation |
+| Emission schedule | Halving every 4 years | Roughly 31.5 million ledgers per period |
+| Long-tail emission horizon | About 60 to 80 years | Emissions taper toward negligible levels |
+| Base fee split | 50% to 60% burned | Deflationary component |
+| Base fee remainder | 40% to 50% to validators | Distributed to active, qualifying validators |
 
-## Source Code
+### Genesis Allocation Targets
 
-Here are some good places to start learning the source code:
+| Category | Target share | Purpose |
+| --- | ---:| --- |
+| Liquidity bootstrap | Small portion of the 2% cap | Exchange listings and initial market depth |
+| Core development | Small portion of the 2% cap | Engineering, audits, infrastructure |
+| Emergency reserve | Small portion of the 2% cap | Time-locked, multi-sig controlled reserve |
+| Reward treasury | At least 98% of supply | Emitted only by protocol rules to qualifying validators |
 
-- Read the markdown files in the source tree: `src/xrpld/**/*.md`.
-- Read [the levelization document](.github/scripts/levelization) to get an idea of the internal dependency graph.
-- In the big picture, the `main` function constructs an `ApplicationImp` object, which implements the `Application` virtual interface. Almost every component in the application takes an `Application&` parameter in its constructor, typically named `app` and stored as a member variable `app_`. This allows most components to depend on any other component.
+### Reward Eligibility Signals
 
-### Repository Contents
+Validator rewards should be based only on deterministic on-ledger metrics such as:
 
-| Folder     | Contents                                       |
-| :--------- | :--------------------------------------------- |
-| `./bin`    | Scripts and data files for XRPL developers.    |
-| `./Builds` | Platform-specific guides for building `xrpld`. |
-| `./docs`   | Source documentation files and doxygen config. |
-| `./cfg`    | Example configuration files.                   |
-| `./src`    | Source code.                                   |
+- Uptime percentage over rolling windows.
+- Vote accuracy.
+- Proposal latency.
+- Participation consistency.
+- Slashing history.
+- Bond status where bonding is enabled.
 
-Some of the directories under `src` are external repositories included using
-git-subtree. See those directories' README files for more details.
+These signals should be aggregated on-chain so rewards can be calculated without off-chain oracles or manual intervention.
 
-## Additional Documentation
+## Running a Validator
+
+The current target workflow is:
+
+1. Build the server from source using [BUILD.md](BUILD.md).
+2. Configure a validator node with durable storage, stable connectivity, and secure key handling.
+3. Generate a validator identity using the post-quantum key type selected for your deployment.
+4. Register the validator for reward eligibility once the `ValidatorRewards` or `ProofOfParticipation` amendment is available.
+5. Keep the node online, synced, and responsive so it can accumulate uptime, participation, and vote-quality metrics.
+6. Monitor reward and slashing status on-ledger.
+
+During early development, this section describes the intended operating model rather than a finalized production guide.
+
+## Quantum Security
+
+qXRP treats quantum resistance as a protocol requirement, not an optional add-on.
+
+### Signature Strategy
+
+- Falcon is the recommended default signature scheme for new qXRP identities.
+- Hybrid Falcon plus ed25519 support can be used during migration and interoperability periods.
+- Signature verification must remain deterministic and fully local to the node.
+- The protocol should preserve backwards compatibility where possible during the transition period.
+
+### Design Goals
+
+- Reduce long-term exposure to future quantum attacks.
+- Keep verification fast enough for consensus-critical paths.
+- Avoid dependence on external services for key translation or validation.
+- Support gradual migration instead of a forced network-wide flag day.
+
+## Technical Architecture
+
+qXRP keeps the XRP Ledger consensus model and layers new economic and cryptographic behavior around it.
+
+| Layer | Responsibility |
+| --- | --- |
+| Consensus | Keep RPCA and existing validator communication patterns |
+| Cryptography | Add Falcon and hybrid signature verification |
+| Genesis | Create protocol treasury and initial distribution objects |
+| Fees | Apply dynamic base-fee burn and validator reward split |
+| Rewards | Compute validator emissions from on-chain performance metrics |
+| Bonding | Allow optional validator bond locking for full rewards and voting weight |
+| Slashing | Penalize provable misbehavior and sustained underperformance |
+| Governance | Allow bounded, automated parameter updates by bonded validators |
+
+The primary implementation goal is to make each new system deterministic, auditable, and fully enforceable by ledger state.
+
+## Roadmap
+
+### Short Term
+
+- Add first-class Falcon support.
+- Define the `ValidatorRewards` or `ProofOfParticipation` amendment.
+- Introduce the treasury account and reward emission plumbing.
+- Add fee split logic for burn plus validator distribution.
+- Build test coverage for reward scoring, bonding, and slashing rules.
+
+### Long Term
+
+- Replace static trust assumptions with performance-weighted validator influence.
+- Expand on-chain governance for bounded protocol parameters.
+- Harden the reward model with long-horizon simulations and adversarial testing.
+- Add migration tooling for hybrid identities and legacy validator operators.
+- Prepare production audit packages and operator tooling.
+
+## Contributing
+
+Contributions should focus on correctness, determinism, and protocol safety.
+
+- Open a focused issue or design note before implementing consensus, reward, or signature changes.
+- Prefer small, reviewable pull requests.
+- Add tests for every protocol rule you touch.
+- Keep cryptographic changes isolated and explicitly documented.
+- Do not assume off-chain services can be part of consensus behavior.
+
+Please read [COPYRIGHT.md](COPYRIGHT.md) before submitting code.
+
+## Licensing And Protection Notice
+
+Upstream XRPL code in this repository remains under its original ISC license as documented in [LICENSE.md](LICENSE.md).
+
+qXRP-original files and qXRP-specific modifications are intended to follow the protection policy described in [LICENSE](LICENSE) and [COPYRIGHT.md](COPYRIGHT.md):
+
+- New qXRP work is intended to be distributed under AGPL-3.0 terms for the first 2 years after first public release.
+- After that period, the project intends to offer the same material under MIT terms.
+- File headers should clearly identify qXRP-original contributions.
+
+This notice is a project policy summary. Contributors should review the full policy text in [LICENSE](LICENSE) before submitting work.
+
+## Links
+
+- Documentation: https://docs.qxrp.example/
+- GitHub: https://github.com/XRPLF/rippled
+- Discord: https://discord.gg/qxrp
+- Telegram: https://t.me/qxrp
+
+## Existing XRPL Resources
+
+The upstream XRP Ledger project documentation remains a useful reference for architecture, deployment, and background reading:
 
 - [XRP Ledger Dev Portal](https://xrpl.org/)
 - [Setup and Installation](https://xrpl.org/install-rippled.html)
 - [Source Documentation (Doxygen)](https://xrplf.github.io/rippled/)
-
-## See Also
-
 - [Clio API Server for the XRP Ledger](https://github.com/XRPLF/clio)
-- [Mailing List for Release Announcements](https://groups.google.com/g/ripple-server)
-- [Learn more about the XRP Ledger (YouTube)](https://www.youtube.com/playlist?list=PLJQ55Tj1hIVZtJ_JdTvSum2qMTsedWkNi)

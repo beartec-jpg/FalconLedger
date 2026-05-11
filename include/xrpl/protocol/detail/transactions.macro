@@ -1076,6 +1076,58 @@ TRANSACTION(ttLOAN_PAY, 84, LoanPay,
     {sfAmount, SoeRequired, SoeMptSupported},
 }))
 
+/** qXRP: Register a validator on-ledger, creating a bond object in the
+    registered (not yet bonded) state.  Requires ProofOfParticipation. */
+#if TRANSACTION_INCLUDE
+#   include <xrpl/tx/transactors/qxrp/ValidatorRegister.h>
+#endif
+TRANSACTION(ttVALIDATOR_REGISTER, 85, ValidatorRegister,
+    Delegation::NotDelegable,
+    featureProofOfParticipation,
+    NoPriv,
+    ({
+    // No additional fields; the signing account becomes the validator.
+}))
+
+/** qXRP: Lock bond capital, transitioning the validator to bonded status
+    and making it reward-eligible.  Requires ProofOfParticipation. */
+#if TRANSACTION_INCLUDE
+#   include <xrpl/tx/transactors/qxrp/ValidatorBond.h>
+#endif
+TRANSACTION(ttVALIDATOR_BOND, 86, ValidatorBond,
+    Delegation::NotDelegable,
+    featureProofOfParticipation,
+    NoPriv,
+    ({
+    {sfBondedAmount, SoeRequired},
+}))
+
+/** qXRP: Begin the unbonding countdown, releasing bond capital after the
+    lock period.  Requires ProofOfParticipation. */
+#if TRANSACTION_INCLUDE
+#   include <xrpl/tx/transactors/qxrp/ValidatorUnbond.h>
+#endif
+TRANSACTION(ttVALIDATOR_UNBOND, 87, ValidatorUnbond,
+    Delegation::NotDelegable,
+    featureProofOfParticipation,
+    NoPriv,
+    ({
+    // No additional fields; the caller's bond object is looked up by account.
+}))
+
+/** qXRP: Claim accumulated reward drops from the treasury for the
+    current epoch.  Requires ProofOfParticipation. */
+#if TRANSACTION_INCLUDE
+#   include <xrpl/tx/transactors/qxrp/ClaimReward.h>
+#endif
+TRANSACTION(ttCLAIM_REWARD, 88, ClaimReward,
+    Delegation::NotDelegable,
+    featureProofOfParticipation,
+    NoPriv,
+    ({
+    // No additional fields; epoch and score are read from bond object.
+}))
+
 /** This system-generated transaction type is used to update the status of the various amendments.
 
     For details, see: https://xrpl.org/amendments.html
