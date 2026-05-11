@@ -8,7 +8,14 @@
 #include <xrpl/json/to_string.h>
 #include <xrpl/ledger/ApplyView.h>
 #include <xrpl/ledger/OpenView.h>
+#include <xrpl/protocol/Indexes.h>
+#include <xrpl/protocol/KeyType.h>
+#include <xrpl/protocol/PublicKey.h>
+#include <xrpl/protocol/QXRPConstants.h>
+#include <xrpl/protocol/SField.h>
 #include <xrpl/protocol/STTx.h>
+#include <xrpl/protocol/SecretKey.h>
+#include <xrpl/protocol/Seed.h>
 #include <xrpl/protocol/TER.h>
 #include <xrpl/protocol/TxMeta.h>
 #include <xrpl/protocol/XRPAmount.h>

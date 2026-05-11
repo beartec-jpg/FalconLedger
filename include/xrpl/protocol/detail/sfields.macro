@@ -114,6 +114,23 @@ TYPED_SFIELD(sfLateInterestRate,         UINT32,    66) // 1/10 basis points (bi
 TYPED_SFIELD(sfCloseInterestRate,        UINT32,    67) // 1/10 basis points (bips)
 TYPED_SFIELD(sfOverpaymentInterestRate,  UINT32,    68) // 1/10 basis points (bips)
 
+// qXRP: 32-bit fields (70-89 reserved for qXRP)
+TYPED_SFIELD(sfBondStatus,               UINT32,    70) // 0=registered 1=bonded 2=unbonding
+TYPED_SFIELD(sfCurrentBurnBps,           UINT32,    71) // dynamic burn fraction in bps
+TYPED_SFIELD(sfEpochNumber,              UINT32,    72) // monotonic epoch counter
+TYPED_SFIELD(sfUptimeBps,                UINT32,    73) // uptime score in bps
+TYPED_SFIELD(sfVoteAccuracyBps,          UINT32,    74) // vote accuracy score in bps
+TYPED_SFIELD(sfLatencyScoreBps,          UINT32,    75) // proposal latency score in bps
+TYPED_SFIELD(sfConsistencyBps,           UINT32,    76) // participation consistency in bps
+TYPED_SFIELD(sfSlashMultiplier,          UINT32,    77) // penalty multiplier 0-10000
+TYPED_SFIELD(sfCompositeScore,           UINT32,    78) // weighted composite score in bps
+TYPED_SFIELD(sfSlashCount,               UINT32,    79) // total slash events on this bond
+TYPED_SFIELD(sfLastClaimedEpoch,         UINT32,    80) // last epoch from which reward claimed
+TYPED_SFIELD(sfUnbondingStartLedger,     UINT32,    81) // ledger at which unbonding began
+TYPED_SFIELD(sfEpochStartLedger,         UINT32,    82) // ledger at which this epoch started
+TYPED_SFIELD(sfFeeVolumeEMA,             UINT32,    83) // smoothed fee volume (EMA, drops/ledger)
+TYPED_SFIELD(sfAggregateCompositeScore,  UINT32,    84) // sum of all bonded composite scores
+
 // 64-bit integers (common)
 TYPED_SFIELD(sfIndexNext,                UINT64,     1)
 TYPED_SFIELD(sfIndexPrevious,            UINT64,     2)
@@ -206,6 +223,9 @@ TYPED_SFIELD(sfLoanBrokerID,             UINT256,   37,
     SField::kSMD_PSEUDO_ACCOUNT | SField::kSMD_DEFAULT)
 TYPED_SFIELD(sfLoanID,                   UINT256,   38)
 
+// qXRP: 256-bit fields (40-49 reserved for qXRP)
+TYPED_SFIELD(sfValidatorBondID,          UINT256,   40) // keylet index of ltVALIDATOR_BOND
+
 // number (common)
 TYPED_SFIELD(sfNumber,                   NUMBER,     1)
 TYPED_SFIELD(sfAssetsAvailable,          NUMBER,     2, SField::kSMD_NEEDS_ASSET | SField::kSMD_DEFAULT)
@@ -264,6 +284,12 @@ TYPED_SFIELD(sfPrice,                    AMOUNT,    28)
 TYPED_SFIELD(sfSignatureReward,          AMOUNT,    29)
 TYPED_SFIELD(sfMinAccountCreateAmount,   AMOUNT,    30)
 TYPED_SFIELD(sfLPTokenBalance,           AMOUNT,    31)
+
+// qXRP: AMOUNT fields (33-39 reserved for qXRP)
+TYPED_SFIELD(sfBondedAmount,             AMOUNT,    33) // drops locked as validator bond
+TYPED_SFIELD(sfEpochPoolBalance,         AMOUNT,    34) // drops in reward pool for this epoch
+TYPED_SFIELD(sfEmissionRate,             AMOUNT,    35) // drops emitted per epoch
+TYPED_SFIELD(sfLastEpochDrop,            AMOUNT,    36) // total drops emitted in previous epoch
 
 // variable length (common)
 TYPED_SFIELD(sfPublicKey,                VL,         1)

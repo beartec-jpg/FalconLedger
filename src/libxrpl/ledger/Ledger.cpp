@@ -29,6 +29,7 @@
 #include <xrpl/protocol/SecretKey.h>
 #include <xrpl/protocol/Seed.h>
 #include <xrpl/protocol/Serializer.h>
+#include <xrpl/protocol/QXRPConstants.h>
 #include <xrpl/protocol/SystemParameters.h>
 #include <xrpl/shamap/Family.h>
 #include <xrpl/shamap/SHAMap.h>
@@ -162,13 +163,31 @@ Ledger::Ledger(
     header_.drops = kINITIAL_XRP;
     header_.closeTimeResolution = kLEDGER_GENESIS_TIME_RESOLUTION;
 
+    // Genesis root account ("masterpassphrase" seed) — receives the small
+    // initial circulating allocation (kQXRP_GENESIS_ALLOCATION = 4 B qXRP).
     static auto const kID =
         calcAccountID(generateKeyPair(KeyType::Secp256k1, generateSeed("masterpassphrase")).first);
     {
         auto const sle = std::make_shared<SLE>(keylet::account(kID));
         sle->setFieldU32(sfSequence, 1);
         sle->setAccountID(sfAccount, kID);
-        sle->setFieldAmount(sfBalance, header_.drops);
+        sle->setFieldAmount(sfBalance, kQXRP_GENESIS_ALLOCATION);
+        rawInsert(sle);
+    }
+
+    // qXRP treasury account — holds 98 % of the total supply at genesis.
+    // Controlled exclusively by the ProofOfParticipation amendment logic;
+    // no private key controls this account.
+    static auto const kTreasuryID =
+        calcAccountID(generateKeyPair(KeyType::Secp256k1, generateSeed(kQXRP_TREASURY_SEED)).first);
+    {
+        auto const sle = std::make_shared<SLE>(keylet::account(kTreasuryID));
+        sle->setFieldU32(sfSequence, 1);
+        sle->setAccountID(sfAccount, kTreasuryID);
+        sle->setFieldAmount(sfBalance, kQXRP_TREASURY_ALLOCATION);
+        // Disallow external payments into the treasury; only the protocol
+        // itself (via reward epoch processing) may transfer from this account.
+        sle->setFieldU32(sfFlags, lsfDisallowXRP);
         rawInsert(sle);
     }
 

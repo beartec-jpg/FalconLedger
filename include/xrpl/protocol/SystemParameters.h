@@ -20,9 +20,9 @@ systemName()
 
 /** Configure the native currency. */
 
-/** Number of drops in the genesis account. */
-constexpr XRPAmount kINITIAL_XRP{100'000'000'000 * kDROPS_PER_XRP};
-static_assert(kINITIAL_XRP.drops() == 100'000'000'000'000'000);
+/** Number of drops in the genesis account (qXRP: 200 billion). */
+constexpr XRPAmount kINITIAL_XRP{200'000'000'000 * kDROPS_PER_XRP};
+static_assert(kINITIAL_XRP.drops() == 200'000'000'000'000'000);
 static_assert(Number::kMAX_REP >= kINITIAL_XRP.drops());
 
 /** Returns true if the amount does not exceed the initial XRP in existence. */

@@ -95,6 +95,20 @@ find_package(SOCI REQUIRED)
 find_package(SQLite3 REQUIRED)
 find_package(xxHash REQUIRED)
 
+# Optional: liboqs for post-quantum Falcon signatures.
+# Pass -Dliboqs=ON (default OFF) to enable.
+option(liboqs "Enable post-quantum Falcon signatures via liboqs" OFF)
+if(liboqs)
+    find_package(liboqs QUIET)
+    if(liboqs_FOUND)
+        message(STATUS "liboqs found: PQ Falcon signatures enabled")
+        add_compile_definitions(XRPL_HAS_LIBOQS)
+        target_link_libraries(xrpl_libs INTERFACE OQS::oqs)
+    else()
+        message(WARNING "liboqs not found: Falcon signatures will be stubs (amendment won't activate)")
+    endif()
+endif()
+
 target_link_libraries(
     xrpl_libs
     INTERFACE
