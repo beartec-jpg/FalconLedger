@@ -86,9 +86,10 @@ enum class LedgerNameSpace : std::uint16_t {
     Loan = 'L',
 
     // qXRP namespaces
-    ValidatorBond    = 0xB0,  // per-validator bond object
-    RewardEpoch      = 0xB1,  // singleton epoch tracker
-    GovernanceParams = 0xB2,  // singleton governance param store
+    ValidatorBond       = 0xB0,  // per-validator bond object
+    RewardEpoch         = 0xB1,  // singleton epoch tracker
+    GovernanceParams    = 0xB2,  // singleton governance param store
+    GovernanceProposal  = 0xB3,  // per-proposal governance object
 
     // No longer used or supported. Left here to reserve the space to avoid accidental reuse.
     Contract [[deprecated]] = 'c',
@@ -606,6 +607,12 @@ governanceParams() noexcept
         ltGOVERNANCE_PARAMS,
         indexHash(LedgerNameSpace::GovernanceParams, std::uint32_t{0})};
     return kGOV;
+}
+
+Keylet
+governanceProposal(AccountID const& proposer, std::uint32_t seq) noexcept
+{
+    return {ltGOVERNANCE_PROPOSAL, indexHash(LedgerNameSpace::GovernanceProposal, proposer, seq)};
 }
 
 }  // namespace keylet

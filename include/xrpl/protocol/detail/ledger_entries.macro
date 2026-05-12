@@ -641,6 +641,7 @@ LEDGER_ENTRY(ltREWARD_EPOCH, 0x0092, RewardEpoch, reward_epoch, ({
     {sfCurrentBurnBps,       SoeRequired},  // burn fraction for this epoch
     {sfFeeVolumeEMA,         SoeDefault},   // smoothed fee volume
     {sfAggregateCompositeScore, SoeDefault}, // sum of all bonded scores
+    {sfProposals,            SoeDefault},   // keys of currently open governance proposals
     {sfPreviousTxnID,        SoeRequired},
     {sfPreviousTxnLgrSeq,    SoeRequired},
 }))
@@ -652,6 +653,27 @@ LEDGER_ENTRY(ltREWARD_EPOCH, 0x0092, RewardEpoch, reward_epoch, ({
  */
 LEDGER_ENTRY(ltGOVERNANCE_PARAMS, 0x0093, GovernanceParams, governance_params, ({
     {sfCurrentBurnBps,       SoeDefault},   // overrides kFEE_BURN_DEFAULT_BPS when present
+    {sfPreviousTxnID,        SoeRequired},
+    {sfPreviousTxnLgrSeq,    SoeRequired},
+}))
+
+/** qXRP: a single on-chain governance proposal.  Created by GovernanceProposal,
+    voted on by GovernanceVote.  Passes with a 67 % weighted supermajority of
+    sfAggregateCompositeScore.  At expiry, the proposal is evaluated and either
+    writes the new parameter to ltGOVERNANCE_PARAMS or is marked rejected.
+
+    \sa keylet::governanceProposal
+ */
+LEDGER_ENTRY(ltGOVERNANCE_PROPOSAL, 0x0094, GovernanceProposal, governance_proposal, ({
+    {sfAccount,              SoeRequired},  // proposer
+    {sfProposalType,         SoeRequired},  // 1=burnBps
+    {sfProposalValue,        SoeRequired},  // proposed new value
+    {sfProposalExpiry,       SoeRequired},  // ledger seq at which voting closes
+    {sfProposalState,        SoeRequired},  // 0=open 1=passed 2=rejected
+    {sfVotedFor,             SoeDefault},   // accumulated composite-score weight (yes)
+    {sfVotedAgainst,         SoeDefault},   // accumulated composite-score weight (no)
+    {sfVoterList,            SoeDefault},   // packed 20-byte AccountIDs that already voted
+    {sfOwnerNode,            SoeRequired},
     {sfPreviousTxnID,        SoeRequired},
     {sfPreviousTxnLgrSeq,    SoeRequired},
 }))

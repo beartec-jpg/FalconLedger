@@ -127,4 +127,15 @@ constexpr std::uint32_t kSLASH_ABSENCE_BPS      = 2'500;       // 25 %
 /// Fraction of bond slashed for invalid vote (bps).
 constexpr std::uint32_t kSLASH_INVALID_VOTE_BPS = 5'000;       // 50 %
 
+// ─── On-chain governance ──────────────────────────────────────────────────────
+
+/// Governance proposal types (sfProposalType values)
+constexpr std::uint32_t kPROPOSAL_TYPE_BURN_BPS = 1;  ///< Change sfCurrentBurnBps
+
+/// Voting threshold: 67 % of sfAggregateCompositeScore must vote YES.
+constexpr std::uint32_t kGOVERNANCE_SUPERMAJORITY_BPS = 6'700;
+
+/// Governance voting window in ledgers (~7 days).
+constexpr std::uint32_t kGOVERNANCE_VOTING_LEDGERS = 172'800;
+
 }  // namespace xrpl
