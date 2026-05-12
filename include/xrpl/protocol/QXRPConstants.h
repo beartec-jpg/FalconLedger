@@ -114,4 +114,17 @@ static_assert(
 /// Value in bps (out of 10 000). Default: 500 bps = 5 %.
 constexpr std::uint32_t kMIN_COMPOSITE_SCORE_BPS = 500;
 
+// ─── Slash offense codes ──────────────────────────────────────────────────────
+
+constexpr std::uint32_t kSLASH_OFFENSE_DOUBLE_SIGN   = 1;  ///< Two diverging validations
+constexpr std::uint32_t kSLASH_OFFENSE_ABSENCE        = 2;  ///< Sustained absence (3+ epochs)
+constexpr std::uint32_t kSLASH_OFFENSE_INVALID_VOTE   = 3;  ///< Proven invalid vote
+
+/// Fraction of bond slashed for double-sign (bps of current bonded amount).
+constexpr std::uint32_t kSLASH_DOUBLE_SIGN_BPS  = kBPS_DENOM;  // 100 % — full slash
+/// Fraction of bond slashed for sustained absence (bps).
+constexpr std::uint32_t kSLASH_ABSENCE_BPS      = 2'500;       // 25 %
+/// Fraction of bond slashed for invalid vote (bps).
+constexpr std::uint32_t kSLASH_INVALID_VOTE_BPS = 5'000;       // 50 %
+
 }  // namespace xrpl

@@ -1128,6 +1128,26 @@ TRANSACTION(ttCLAIM_REWARD, 88, ClaimReward,
     // No additional fields; epoch and score are read from bond object.
 }))
 
+/** qXRP: Submit proof-of-misbehavior to slash a validator bond.
+    The submitter provides two diverging signed validation messages from the
+    same validator key.  On success the bond is partially or fully slashed
+    (burned), the bond status is set to unbonding, and the submitter receives
+    no reward (slashed amounts are destroyed, not redistributed).
+    Requires ProofOfParticipation. */
+#if TRANSACTION_INCLUDE
+#   include <xrpl/tx/transactors/qxrp/ValidatorSlash.h>
+#endif
+TRANSACTION(ttVALIDATOR_SLASH, 89, ValidatorSlash,
+    Delegation::NotDelegable,
+    featureProofOfParticipation,
+    NoPriv,
+    ({
+    {sfSlashTarget,    SoeRequired},   // AccountID of the validator to slash
+    {sfSlashOffense,   SoeRequired},   // 1=double-sign 2=absence 3=invalid-vote
+    {sfSlashEvidence1, SoeOptional},   // first diverging signature (double-sign proof)
+    {sfSlashEvidence2, SoeOptional},   // second diverging signature (double-sign proof)
+}))
+
 /** This system-generated transaction type is used to update the status of the various amendments.
 
     For details, see: https://xrpl.org/amendments.html

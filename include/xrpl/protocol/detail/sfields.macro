@@ -130,6 +130,7 @@ TYPED_SFIELD(sfUnbondingStartLedger,     UINT32,    81) // ledger at which unbon
 TYPED_SFIELD(sfEpochStartLedger,         UINT32,    82) // ledger at which this epoch started
 TYPED_SFIELD(sfFeeVolumeEMA,             UINT32,    83) // smoothed fee volume (EMA, drops/ledger)
 TYPED_SFIELD(sfAggregateCompositeScore,  UINT32,    84) // sum of all bonded composite scores
+TYPED_SFIELD(sfSlashOffense,             UINT32,    85) // 1=double-sign 2=absence 3=invalid-vote
 
 // 64-bit integers (common)
 TYPED_SFIELD(sfIndexNext,                UINT64,     1)
@@ -324,6 +325,9 @@ TYPED_SFIELD(sfAssetClass,               VL,        28)
 TYPED_SFIELD(sfProvider,                 VL,        29)
 TYPED_SFIELD(sfMPTokenMetadata,          VL,        30)
 TYPED_SFIELD(sfCredentialType,           VL,        31)
+// qXRP: VL fields (32-39 reserved for qXRP)
+TYPED_SFIELD(sfSlashEvidence1,           VL,        32) // first diverging signature blob
+TYPED_SFIELD(sfSlashEvidence2,           VL,        33) // second diverging signature blob
 
 // account (common)
 TYPED_SFIELD(sfAccount,                  ACCOUNT,    1)
@@ -350,6 +354,8 @@ TYPED_SFIELD(sfIssuingChainDoor,         ACCOUNT,   23)
 TYPED_SFIELD(sfSubject,                  ACCOUNT,   24)
 TYPED_SFIELD(sfBorrower,                 ACCOUNT,   25)
 TYPED_SFIELD(sfCounterparty,             ACCOUNT,   26)
+// qXRP: ACCOUNT fields (27-29 reserved for qXRP)
+TYPED_SFIELD(sfSlashTarget,              ACCOUNT,   27) // validator account being slashed
 
 // vector of 256-bit
 TYPED_SFIELD(sfIndexes,                  VECTOR256,  1, SField::kSMD_NEVER)

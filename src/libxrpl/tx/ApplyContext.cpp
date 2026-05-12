@@ -21,6 +21,8 @@
 #include <xrpl/protocol/XRPAmount.h>
 #include <xrpl/tx/invariants/InvariantCheck.h>
 
+#include <xrpl/protocol/STLedgerEntry.h>
+
 #include <array>
 #include <cstddef>
 #include <exception>
@@ -157,6 +159,72 @@ ApplyContext::checkInvariants(TER const result, XRPAmount const fee)
 
     return checkInvariantsHelper(
         result, fee, std::make_index_sequence<std::tuple_size_v<InvariantChecks>>{});
+}
+
+void
+ApplyContext::destroyXRP(XRPAmount const& fee)
+{
+    if (fee <= beast::zero)
+        return;
+
+    // ── Determine the burn fraction for this ledger ──────────────────────
+    //
+    // Read sfCurrentBurnBps from the singleton ltREWARD_EPOCH object.  If the
+    // epoch object does not exist yet (genesis, or ProofOfParticipation not
+    // yet active) fall back to kFEE_BURN_DEFAULT_BPS (55 %).
+    //
+    // Two pressure signals adjust the burn fraction each epoch close, but the
+    // per-tx path here only reads – it never writes to the epoch object.
+    //
+    // All arithmetic is integer; no floating point.
+
+    std::uint32_t burnBps = kFEE_BURN_DEFAULT_BPS;  // 5 500 = 55 %
+
+    if (auto sleEpoch =
+            view_->read(keylet::rewardEpoch()))  // NOLINT(bugprone-unchecked-optional-access)
+    {
+        auto const stored = sleEpoch->getFieldU32(sfCurrentBurnBps);
+        if (stored >= kFEE_BURN_MIN_BPS && stored <= kFEE_BURN_MAX_BPS)
+            burnBps = stored;
+    }
+
+    // burnDrops  = fee * burnBps / kBPS_DENOM
+    // treasury   = fee - burnDrops
+    auto const feeDrops     = fee.drops();
+    auto const burnDrops    = static_cast<std::int64_t>(
+        (static_cast<__int128>(feeDrops) * burnBps) / kBPS_DENOM);
+    auto const treasuryDrops = feeDrops - burnDrops;
+
+    // ── Burn the burn fraction (decrements ledger total supply) ──────────
+    // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
+    view_->rawDestroyXRP(XRPAmount{burnDrops});
+
+    // ── Credit the treasury fraction ──────────────────────────────────────
+    // The treasury account is identified by the well-known deterministic seed.
+    // If the account doesn't exist (shouldn't happen after genesis) we fall
+    // through and the treasury portion is burned as well.
+    if (treasuryDrops > 0)
+    {
+        static auto const kTreasuryID = calcAccountID(
+            generateKeyPair(KeyType::Secp256k1, generateSeed(kQXRP_TREASURY_SEED)).first);
+
+        // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
+        if (auto sleTreasury = view_->peek(keylet::account(kTreasuryID)))
+        {
+            auto const prev = sleTreasury->getFieldAmount(sfBalance);
+            sleTreasury->setFieldAmount(
+                sfBalance, prev + STAmount{XRPAmount{treasuryDrops}});
+            // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
+            view_->rawReplace(sleTreasury);
+        }
+        else
+        {
+            // Treasury account missing — burn the remaining drops too so the
+            // ledger invariant (total drops conserved) is not violated.
+            // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
+            view_->rawDestroyXRP(XRPAmount{treasuryDrops});
+        }
+    }
 }
 
 }  // namespace xrpl
