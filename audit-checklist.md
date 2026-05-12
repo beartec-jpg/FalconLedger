@@ -1,0 +1,91 @@
+# qXRP Security Audit Checklist
+
+> Status key: ✅ Done · ⚠️ Needs work · ❌ Not started · N/A Not applicable
+
+---
+
+## 1. Supply Conservation
+
+| # | Check | Status | Notes |
+|---|-------|--------|-------|
+| 1.1 | `kINITIAL_XRP` = 200 B qXRP — enforced by `static_assert` at compile time | ✅ | `QXRPConstants.h` |
+| 1.2 | `kQXRP_GENESIS_ALLOCATION + kQXRP_TREASURY_ALLOCATION == kINITIAL_XRP` — enforced by `static_assert` | ✅ | `QXRPConstants.h` |
+| 1.3 | `QXRPDropConservation` invariant fires on every transaction | ✅ | `src/libxrpl/tx/invariants/QXRPDropConservation.cpp` |
+| 1.4 | `XRPNotCreated` invariant still active (upstream) | ✅ | Inherited |
+| 1.5 | Treasury emission path (`RewardEpoch`) is the only source of new circulating drops | ⚠️ | Verify no other paths create drops from treasury |
+
+## 2. Integer Arithmetic & Overflow
+
+| # | Check | Status | Notes |
+|---|-------|--------|-------|
+| 2.1 | No floating-point in fee-split, emission, or scoring paths | ✅ | Verified in `ApplyContext.cpp`, `RewardEpoch.cpp` |
+| 2.2 | Emission bps shift never produces zero before hitting `kQXRP_MIN_EMISSION_BPS` floor | ✅ | `max()` in `RewardEpoch.cpp` |
+| 2.3 | Fee-split `rawBurnBps` clamped to `[kFEE_BURN_MIN_BPS, kFEE_BURN_MAX_BPS]` before use | ✅ | `ApplyContext.cpp` |
+| 2.4 | Composite score weight sum enforced by `static_assert` | ✅ | `QXRPConstants.h` |
+| 2.5 | No integer overflow in `validatorShare = epochEmit * score / aggregateScore` | ⚠️ | Confirm 64-bit bounds for large validator sets |
+| 2.6 | Bond slash computation `slashBps * bondAmount / kBPS_DENOM` — verify no truncation issues | ⚠️ | Review `ValidatorSlash.cpp` |
+
+## 3. Amendment Gating
+
+| # | Check | Status | Notes |
+|---|-------|--------|-------|
+| 3.1 | All 4 qXRP tx types return `temDISABLED` without `ProofOfParticipation` | ✅ | Stubs verified |
+| 3.2 | `RewardEpoch` pseudo-tx cannot be submitted by external accounts | ⚠️ | Verify privilege check |
+| 3.3 | Governance transactions gated on amendment | ✅ | `GovernanceProposal.cpp`, `GovernanceVote.cpp` |
+
+## 4. Validator Bond Security
+
+| # | Check | Status | Notes |
+|---|-------|--------|-------|
+| 4.1 | Only bond owner can call `ValidatorUnbond` | ✅ | `sfAccount` check |
+| 4.2 | `kUNBONDING_LOCK_LEDGERS` (30 days) enforced before fund release | ✅ | `ValidatorUnbond.cpp` |
+| 4.3 | Slash proof is validated before deducting bond | ⚠️ | Proof verification logic needs unit test |
+| 4.4 | Double-sign slash forces UNBONDING — validator cannot re-bond without `ReleaseBond` | ✅ | `ValidatorSlash.cpp` |
+| 4.5 | Slashed drops go to treasury (not destroyed) | ✅ | `RewardEpoch.cpp` path |
+| 4.6 | Minimum bond `kQXRP_MIN_BOND_DROPS` checked in `ValidatorBond` | ✅ | `ValidatorBond.cpp` |
+
+## 5. Governance Security
+
+| # | Check | Status | Notes |
+|---|-------|--------|-------|
+| 5.1 | Duplicate vote per `(ProposalID, AccountID)` rejected | ✅ | `GovernanceVote.cpp` |
+| 5.2 | Proposal expiry enforced — no votes after `sfExpiry` | ✅ | `GovernanceVote.cpp` |
+| 5.3 | Supermajority threshold is 67 % of aggregate score | ✅ | `kGOVERNANCE_SUPERMAJORITY_BPS` |
+| 5.4 | `sfCurrentBurnBps` bounded to `[4000, 7000]` even after governance update | ⚠️ | Verify clamp applied after governance override |
+
+## 6. Post-Quantum Crypto (Falcon)
+
+| # | Check | Status | Notes |
+|---|-------|--------|-------|
+| 6.1 | Falcon library is optional (`-Dliboqs=OFF` → stubs, amendment inactive) | ✅ | `CMakeLists.txt` |
+| 6.2 | `verifyFalcon` returns false (not crash) on malformed input | ⚠️ | Fuzz test needed |
+| 6.3 | `PQPublicKey`/`PQSecretKey` variable-length buffers bounds-checked | ⚠️ | Review deserialization |
+| 6.4 | Falcon keys not mixed with secp256k1 key slots | ⚠️ | Verify type discriminator |
+
+## 7. Consensus & Scoring
+
+| # | Check | Status | Notes |
+|---|-------|--------|-------|
+| 7.1 | Composite score written only during ledger close (not by external tx) | ✅ | `NegativeUNLVote.cpp` |
+| 7.2 | `sfAggregateCompositeScore` is sum of individual scores (no double-count) | ⚠️ | Verify accumulation logic |
+| 7.3 | Score = 0 validator cannot earn rewards | ✅ | `kMIN_COMPOSITE_SCORE_BPS` check in `ClaimReward` |
+
+## 8. Code Quality Gates (pre-audit)
+
+| # | Check | Status |
+|---|-------|--------|
+| 8.1 | ASAN+UBSAN clean (`cmake -DSANITIZE=address,undefined`) | ❌ |
+| 8.2 | Fuzz corpus: tx parsing, Falcon verify, fee-split inputs | ❌ |
+| 8.3 | Test coverage ≥ 80 % on `src/libxrpl/tx/transactors/qxrp/` | ❌ |
+| 8.4 | `cppcheck --enable=all` zero findings on qXRP files | ❌ |
+| 8.5 | Static analysis: `clang-tidy` on qXRP translation units | ❌ |
+
+---
+
+## Outstanding Action Items
+
+1. **Verify `RewardEpoch` privilege check** — ensure no external account can submit it.
+2. **Overflow audit** for `validatorShare` with large validator counts (> 1 000).
+3. **Fuzz `verifyFalcon`** with libFuzzer corpus of random byte sequences.
+4. **Governance clamp** — confirm `sfCurrentBurnBps` is clamped when read by `ApplyContext`.
+5. **ASAN run** — build with `-DSANITIZE=address,undefined` and run full regtest.

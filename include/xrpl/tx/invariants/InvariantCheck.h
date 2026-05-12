@@ -372,6 +372,31 @@ public:
     finalize(STTx const&, TER const, XRPAmount const, ReadView const&, beast::Journal const&);
 };
 
+/**
+ * @brief qXRP drop-conservation invariant.
+ *
+ * Verifies that no transaction increases the total number of drops held in
+ * account roots, payment channels, and escrow entries beyond what the fee
+ * destroyed.  New drops may only enter circulation from the treasury via the
+ * RewardEpoch pseudo-transaction; that path credits account roots and is
+ * accounted for by checking that net change <= 0 (fee already deducted).
+ *
+ * This invariant is intentionally stricter than XRPNotCreated: it also logs
+ * the absolute total-supply figure so discrepancies are immediately visible
+ * in the fatal log.
+ */
+class QXRPDropConservation
+{
+    std::int64_t drops_ = 0;
+
+public:
+    void
+    visitEntry(bool, std::shared_ptr<SLE const> const&, std::shared_ptr<SLE const> const&);
+
+    bool
+    finalize(STTx const&, TER const, XRPAmount const, ReadView const&, beast::Journal const&);
+};
+
 // additional invariant checks can be declared above and then added to this
 // tuple
 using InvariantChecks = std::tuple<
@@ -399,7 +424,8 @@ using InvariantChecks = std::tuple<
     ValidLoanBroker,
     ValidLoan,
     ValidVault,
-    ValidMPTPayment>;
+    ValidMPTPayment,
+    QXRPDropConservation>;
 
 /**
  * @brief get a tuple of all invariant checks
