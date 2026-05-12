@@ -2,6 +2,7 @@
 
 #include <xrpld/app/ledger/LedgerReplay.h>
 #include <xrpld/app/ledger/OpenLedger.h>
+#include <xrpld/app/ledger/ValidatorScoring.h>
 #include <xrpld/app/main/Application.h>
 
 #include <xrpl/basics/Log.h>
@@ -17,7 +18,9 @@
 #include <xrpl/protocol/LedgerHeader.h>
 #include <xrpl/protocol/Protocol.h>
 #include <xrpl/protocol/SystemParameters.h>
+#include <xrpl/tx/GovernanceTally.h>
 #include <xrpl/tx/RewardEpoch.h>
+#include <xrpl/protocol/STVector256.h>
 #include <xrpl/tx/apply.h>
 
 #include <cstddef>
@@ -59,6 +62,37 @@ buildLedgerImpl(
         XRPL_ASSERT(!accum.open(), "xrpl::buildLedgerImpl : valid ledger state");
         applyTxs(accum, built);
         applyRewardEpoch(accum, built->seq(), built->rules(), j);
+        applyValidatorScoring(accum, parent, built->seq(), built->rules(), app, j);
+        {
+            std::vector<uint256> proposalKeys;
+            if (auto sleEpoch = accum.read(keylet::rewardEpoch()))
+            {
+                auto const v = sleEpoch->getFieldV256(sfProposals).value();
+                proposalKeys.assign(v.begin(), v.end());
+            }
+            applyGovernanceTally(accum, built->seq(), built->rules(), j, proposalKeys);
+
+            // Prune resolved proposal keys from ltREWARD_EPOCH::sfProposals
+            if (!proposalKeys.empty())
+            {
+                if (auto sleEpoch = accum.peek(keylet::rewardEpoch()))
+                {
+                    std::vector<uint256> remaining;
+                    remaining.reserve(proposalKeys.size());
+                    for (auto const& key : proposalKeys)
+                    {
+                        auto sle = accum.read(keylet::governanceProposal(key));
+                        if (sle && sle->getFieldU32(sfProposalState) == 0)
+                            remaining.push_back(key);
+                    }
+                    if (remaining.size() != proposalKeys.size())
+                    {
+                        sleEpoch->setFieldV256(sfProposals, STVector256{remaining});
+                        accum.update(sleEpoch);
+                    }
+                }
+            }
+        }
         accum.apply(*built);
     }
 

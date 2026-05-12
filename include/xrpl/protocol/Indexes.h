@@ -364,6 +364,16 @@ rewardEpoch() noexcept;
 Keylet const&
 governanceParams() noexcept;
 
+/** A governance proposal object, keyed by proposer AccountID + proposal sequence. */
+Keylet
+governanceProposal(AccountID const& proposer, std::uint32_t seq) noexcept;
+
+inline Keylet
+governanceProposal(uint256 const& key) noexcept
+{
+    return {ltGOVERNANCE_PROPOSAL, key};
+}
+
 }  // namespace keylet
 
 // Everything below is deprecated and should be removed in favor of keylets:
