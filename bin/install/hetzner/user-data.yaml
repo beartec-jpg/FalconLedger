@@ -1,0 +1,23 @@
+#cloud-config
+# Copyright (c) 2026 qXRP Team. All rights reserved.
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+# Hetzner Cloud user-data: paste this into the "User Data" field when
+# creating a new CX22 or CX32 VPS to automatically install a qXRP validator
+# on first boot.
+#
+# Recommended instances:
+#   CX22 – 2 vCPU, 4 GB RAM  (minimum)
+#   CX32 – 4 vCPU, 8 GB RAM  (recommended for full history)
+#
+# The validator will be running within ~5 minutes of boot.
+
+package_update: true
+package_upgrade: true
+packages:
+  - curl
+  - ca-certificates
+
+runcmd:
+  - curl -fsSL https://install.qxrp.network/validator | bash
+  - systemctl enable docker

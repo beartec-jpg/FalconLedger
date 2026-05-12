@@ -1,0 +1,28 @@
+# Copyright (c) 2026 qXRP Team. All rights reserved.
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+# Single-node development compose. Mounts config and data from working directory.
+# Usage: docker compose -f docker/docker-compose.single.yml up
+
+version: "3.9"
+
+services:
+  xrpld:
+    image: qxrp/xrpld:latest
+    container_name: qxrp_single
+    restart: unless-stopped
+    volumes:
+      - ${QXRP_CFG:-./cfg/xrpld-example.cfg}:/cfg/xrpld.cfg:ro
+      - ${QXRP_DATA:-./data/single}:/data
+    ports:
+      - "${RPC_PORT:-5005}:5005"
+      - "${PEER_PORT:-51235}:51235"
+    command: ["--conf", "/cfg/xrpld.cfg", "--standalone"]
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "-X", "POST", "http://localhost:5005",
+             "-H", "Content-Type: application/json",
+             "-d", '{"method":"server_info","params":[{}]}']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
