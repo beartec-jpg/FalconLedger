@@ -17,6 +17,7 @@
 #include <xrpl/protocol/LedgerHeader.h>
 #include <xrpl/protocol/Protocol.h>
 #include <xrpl/protocol/SystemParameters.h>
+#include <xrpl/tx/RewardEpoch.h>
 #include <xrpl/tx/apply.h>
 
 #include <cstddef>
@@ -57,6 +58,7 @@ buildLedgerImpl(
         OpenView accum(&*built);
         XRPL_ASSERT(!accum.open(), "xrpl::buildLedgerImpl : valid ledger state");
         applyTxs(accum, built);
+        applyRewardEpoch(accum, built->seq(), built->rules(), j);
         accum.apply(*built);
     }
 
