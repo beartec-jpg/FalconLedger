@@ -67,8 +67,8 @@ buildLedgerImpl(
             std::vector<uint256> proposalKeys;
             if (auto sleEpoch = accum.read(keylet::rewardEpoch()))
             {
-                auto const v = sleEpoch->getFieldV256(sfProposals).value();
-                proposalKeys.assign(v.begin(), v.end());
+                auto const v256 = sleEpoch->getFieldV256(sfProposals);
+                proposalKeys.assign(v256.begin(), v256.end());
             }
             applyGovernanceTally(accum, built->seq(), built->rules(), j, proposalKeys);
 
