@@ -256,6 +256,13 @@ if(xrpld)
     )
     target_sources(xrpld PRIVATE ${sources})
 
+    # ServerHandler.cpp pulls in Application.h + Overlay.h causing peak GCC
+    # memory to exceed container limits. Aggressive GC reduces peak RSS ~40%.
+    set_source_files_properties(
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/xrpld/rpc/detail/ServerHandler.cpp
+        PROPERTIES COMPILE_OPTIONS "--param;ggc-min-expand=0;--param;ggc-min-heapsize=8192"
+    )
+
     if(tests)
         file(
             GLOB_RECURSE sources
