@@ -22,9 +22,9 @@
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/trim.hpp>
-#include <boost/process/v1/args.hpp>
-#include <boost/process/v1/child.hpp>  // IWYU pragma: keep
-#include <boost/process/v1/exe.hpp>
+#include <boost/process/args.hpp>
+#include <boost/process/child.hpp>  // IWYU pragma: keep
+#include <boost/process/exe.hpp>
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/positional_options.hpp>
 #include <boost/program_options/value_semantic.hpp>
@@ -293,7 +293,7 @@ runUnitTests(
     if (!child)
     {
         MultiRunnerParent parentRunner;
-        std::vector<boost::process::v1::child> children;
+        std::vector<boost::process::child> children;
 
         std::string const exeName = argv[0];
         std::vector<std::string> args;
@@ -308,7 +308,7 @@ runUnitTests(
         for (std::size_t i = 0; i < numJobs; ++i)
         {
             children.emplace_back(
-                boost::process::v1::exe = exeName, boost::process::v1::args = args);
+                boost::process::exe = exeName, boost::process::args = args);
         }
 
         int badChildExits = 0;

@@ -30,11 +30,15 @@ target_link_libraries(
         Boost::date_time
         Boost::filesystem
         Boost::json
-        Boost::process
         Boost::program_options
         Boost::regex
         Boost::thread
 )
+# Boost::process became a separate cmake component in Boost 1.85+.
+# In older Boost versions it is header-only – Boost::headers already covers it.
+if(TARGET Boost::process)
+    target_link_libraries(xrpl_boost INTERFACE Boost::process)
+endif()
 if(Boost_COMPILER)
     target_link_libraries(xrpl_boost INTERFACE Boost::disable_autolinking)
 endif()
