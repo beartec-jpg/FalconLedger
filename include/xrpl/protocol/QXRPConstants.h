@@ -19,6 +19,16 @@
 
 namespace xrpl {
 
+// ─── Treasury AccountID ─────────────────────────────────────────────────────
+
+/// Return the well-known deterministic treasury AccountID (singleton).
+///
+/// Prefer this over re-deriving the ID inline to ensure there is a single
+/// source of truth and to avoid repeating the key-derivation on every call.
+/// The result is computed once and cached on first call.
+[[nodiscard]] AccountID const&
+getTreasuryAccountID() noexcept;
+
 // ─── Supply split ───────────────────────────────────────────────────────────
 
 /// 2 % of 200 B = 4 B qXRP — initial circulating supply at genesis.
@@ -31,6 +41,13 @@ static_assert(
     kQXRP_GENESIS_ALLOCATION.drops() + kQXRP_TREASURY_ALLOCATION.drops() ==
         kINITIAL_XRP.drops(),
     "Genesis + Treasury must equal the total supply");
+
+// Required for the overflow-free fillBps calculation in RewardEpoch.cpp:
+//   fillBps = treasuryDrops / (kQXRP_TREASURY_ALLOCATION / kBPS_DENOM)
+// This assert confirms the division is exact so we lose no precision.
+static_assert(
+    kQXRP_TREASURY_ALLOCATION.drops() % 10'000 == 0,
+    "kQXRP_TREASURY_ALLOCATION must be exactly divisible by kBPS_DENOM (10000)");
 
 // ─── Treasury account ───────────────────────────────────────────────────────
 
@@ -45,7 +62,18 @@ constexpr char const* kQXRP_TREASURY_SEED = "qXRPTreasuryReservedSeedV1000000";
 // ─── Epoch / emission schedule ──────────────────────────────────────────────
 
 /// Number of ledgers per reward epoch (~7 days at 3.5 s/ledger).
+///
+/// Can be overridden at compile time with -DQXRP_EPOCH_LEDGERS=<N> for regtest
+/// or development builds.  Pass -Dqxrp_epoch_override=<N> to CMake and the
+/// build system will set the preprocessor define automatically.
+///
+/// Example (build a regtest binary with 10-ledger epochs):
+///   cmake .. -Dqxrp_epoch_override=10
+#ifdef QXRP_EPOCH_LEDGERS
+constexpr std::uint32_t kQXRP_LEDGERS_PER_EPOCH = QXRP_EPOCH_LEDGERS;
+#else
 constexpr std::uint32_t kQXRP_LEDGERS_PER_EPOCH = 172'800;
+#endif
 
 /// Number of epochs per halving period (roughly 4 years → 208 epochs).
 constexpr std::uint32_t kQXRP_EPOCHS_PER_HALVING = 208;

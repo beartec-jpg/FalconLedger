@@ -9,13 +9,10 @@
 #include <xrpl/ledger/ApplyView.h>
 #include <xrpl/ledger/OpenView.h>
 #include <xrpl/protocol/Indexes.h>
-#include <xrpl/protocol/KeyType.h>
-#include <xrpl/protocol/PublicKey.h>
+#include <xrpl/basics/WideArith.h>
 #include <xrpl/protocol/QXRPConstants.h>
 #include <xrpl/protocol/SField.h>
 #include <xrpl/protocol/STTx.h>
-#include <xrpl/protocol/SecretKey.h>
-#include <xrpl/protocol/Seed.h>
 #include <xrpl/protocol/TER.h>
 #include <xrpl/protocol/TxMeta.h>
 #include <xrpl/protocol/XRPAmount.h>
@@ -190,9 +187,11 @@ ApplyContext::destroyXRP(XRPAmount const& fee)
 
     // burnDrops  = fee * burnBps / kBPS_DENOM
     // treasury   = fee - burnDrops
-    auto const feeDrops     = fee.drops();
-    auto const burnDrops    = static_cast<std::int64_t>(
-        (static_cast<__int128>(feeDrops) * burnBps) / kBPS_DENOM);
+    //
+    // muldiv64 computes (a * b) / d without overflow.  Since burnBps <=
+    // kBPS_DENOM the result is always <= feeDrops (fits in int64).
+    auto const feeDrops      = fee.drops();
+    auto const burnDrops     = muldiv64(feeDrops, burnBps, kBPS_DENOM);
     auto const treasuryDrops = feeDrops - burnDrops;
 
     // ── Burn the burn fraction (decrements ledger total supply) ──────────
@@ -205,8 +204,7 @@ ApplyContext::destroyXRP(XRPAmount const& fee)
     // through and the treasury portion is burned as well.
     if (treasuryDrops > 0)
     {
-        static auto const kTreasuryID = calcAccountID(
-            generateKeyPair(KeyType::Secp256k1, generateSeed(kQXRP_TREASURY_SEED)).first);
+        static auto const& kTreasuryID = getTreasuryAccountID();
 
         // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
         if (auto sleTreasury = view_->peek(keylet::account(kTreasuryID)))

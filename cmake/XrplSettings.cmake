@@ -108,6 +108,15 @@ else()
 endif()
 
 option(jemalloc "Enables jemalloc for heap profiling" OFF)
+
+# qXRP: override epoch length for regtest / dev builds.
+# Pass -Dqxrp_epoch_override=10 to cmake for 10-ledger epochs instead of ~7 days.
+set(qxrp_epoch_override "" CACHE STRING
+    "Override kQXRP_LEDGERS_PER_EPOCH (e.g. '10' for fast regtest). Leave empty for the default 172800.")
+if(qxrp_epoch_override)
+    add_compile_definitions(QXRP_EPOCH_LEDGERS=${qxrp_epoch_override})
+    message(STATUS "qXRP: epoch length overridden to ${qxrp_epoch_override} ledgers")
+endif()
 option(werr "treat warnings as errors" OFF)
 option(
     local_protobuf
