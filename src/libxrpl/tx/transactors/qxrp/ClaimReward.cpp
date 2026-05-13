@@ -3,16 +3,13 @@
 
 #include <xrpl/tx/transactors/qxrp/ClaimReward.h>
 
+#include <xrpl/basics/WideArith.h>
 #include <xrpl/protocol/Feature.h>
 #include <xrpl/protocol/Indexes.h>
-#include <xrpl/protocol/KeyType.h>
-#include <xrpl/protocol/PublicKey.h>
 #include <xrpl/protocol/QXRPConstants.h>
 #include <xrpl/protocol/SField.h>
 #include <xrpl/protocol/STLedgerEntry.h>
 #include <xrpl/protocol/STTx.h>
-#include <xrpl/protocol/SecretKey.h>
-#include <xrpl/protocol/Seed.h>
 #include <xrpl/protocol/TER.h>
 #include <xrpl/tx/ApplyContext.h>
 
@@ -81,24 +78,17 @@ ClaimReward::doApply()
     if (aggregateScore == 0)
         return tecNO_PERMISSION;  // no eligible validators — shouldn't reach here
 
-    // Use 128-bit-safe multiply: drops * bps / bps stays within int64 range
-    // because poolBalance <= 200B * 1e6 drops ~ 2e17, compositeScore <= 1e4,
-    // ratio <= 1, so the product before division <= 2e21 — needs care.
-    // We compute: share = (poolBalance.drops() * compositeScore) / aggregateScore
-    // To avoid overflow, cap: poolBalance.drops() fits in int64 (~2e17),
-    // compositeScore <= 10000, product <= 2e21 which overflows int64.
-    // Use __int128 or sequential division to stay safe:
-    auto const poolDrops   = poolBalance.xrp().drops();
-    auto const shareDrops  = static_cast<std::int64_t>(
-        (static_cast<__int128>(poolDrops) * compositeScore) / aggregateScore);
+    // Use muldiv64: no overflow because compositeScore <= aggregateScore
+    // (one validator's score vs. the sum of all bonded validators' scores).
+    // Both arguments fit in uint32; the result fits in int64.
+    auto const poolDrops  = poolBalance.xrp().drops();
+    auto const shareDrops = muldiv64(poolDrops, compositeScore, aggregateScore);
 
     if (shareDrops <= 0)
         return tesSUCCESS;  // rounding to zero — no reward to distribute
 
     // ── Transfer: treasury → validator ───────────────────────────────────
-    // Read treasury account using the deterministic treasury seed.
-    static auto const kTreasuryID =
-        calcAccountID(generateKeyPair(KeyType::Secp256k1, generateSeed(kQXRP_TREASURY_SEED)).first);
+    auto const& kTreasuryID = getTreasuryAccountID();
 
     auto sleTreasury = ctx_.view().peek(keylet::account(kTreasuryID));
     if (!sleTreasury)

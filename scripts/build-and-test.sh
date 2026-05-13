@@ -66,6 +66,21 @@ conan remote add --index 0 xrplf https://conan.ripplex.io 2>/dev/null || \
     conan remote update xrplf --url https://conan.ripplex.io
 
 # ---------------------------------------------------------------------------
+# 3b. Export bundled secp256k1 and ed25519 recipes into the local Conan cache.
+#
+# These packages are hosted on conan.ripplex.io but may be unavailable in
+# air-gapped or offline environments.  Exporting the local recipes ensures
+# that "conan install --build missing" (step 4) can build them from source if
+# no pre-built binary is found on the remote.  The export is fast (no
+# compilation) and idempotent.
+# ---------------------------------------------------------------------------
+log "Step 3b/8 – Export bundled secp256k1 and ed25519 Conan recipes"
+conan export "$REPO/external/secp256k1-recipe" --version=0.7.1 || \
+    log "  WARN: secp256k1 recipe export failed — will rely on remote"
+conan export "$REPO/external/ed25519-recipe" --version=2015.03 || \
+    log "  WARN: ed25519 recipe export failed — will rely on remote"
+
+# ---------------------------------------------------------------------------
 # 4. conan install
 # ---------------------------------------------------------------------------
 log "Step 4/8 – conan install (this may take a while first time)"

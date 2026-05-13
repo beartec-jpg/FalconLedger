@@ -54,7 +54,7 @@ RUN mkdir -p /build \
 RUN cd /build \
     && cmake /src \
        -DCMAKE_BUILD_TYPE=Release \
-       -DCMAKE_TOOLCHAIN_FILE=generators/conan_toolchain.cmake \
+       -DCMAKE_TOOLCHAIN_FILE=build/generators/conan_toolchain.cmake \
        -DCMAKE_POLICY_DEFAULT_CMP0091=NEW \
        -Dxrpld=ON \
        -Dtests=OFF \
