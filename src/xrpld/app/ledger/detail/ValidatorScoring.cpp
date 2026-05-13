@@ -108,7 +108,7 @@ applyValidatorScoring(
         // Map UNL key → bond account.  In qXRP validators bond from the account
         // whose AccountID is derived from their validation public key.
         auto const accountID = calcAccountID(pubKey);
-        auto sleBond = view.peek(keylet::validatorBond(accountID));
+        auto sleBond = std::const_pointer_cast<SLE>(view.read(keylet::validatorBond(accountID)));
         if (!sleBond)
             continue;
 
@@ -175,7 +175,7 @@ applyValidatorScoring(
         sleBond->setFieldU32(sfConsistencyBps,   consistencyBps);
         sleBond->setFieldU32(sfCompositeScore,   compositeScore);
         sleBond->setFieldU32(sfPreviousTxnLgrSeq, seq);
-        view.update(sleBond);
+        view.rawReplace(sleBond);
 
         JLOG(j.trace()) << "qXRP ValidatorScoring: accountID=" << accountID
                         << " validations=" << validationCount
@@ -193,10 +193,10 @@ applyValidatorScoring(
     //
     // applyRewardEpoch() already created / updated this singleton earlier in
     // the same OpenView accumulation pass.
-    if (auto sleEpoch = view.peek(keylet::rewardEpoch()))
+    if (auto sleEpoch = std::const_pointer_cast<SLE>(view.read(keylet::rewardEpoch())))
     {
         sleEpoch->setFieldU32(sfAggregateCompositeScore, aggregateScore);
-        view.update(sleEpoch);
+        view.rawReplace(sleEpoch);
     }
     else
     {

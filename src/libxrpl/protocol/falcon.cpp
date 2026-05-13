@@ -3,21 +3,17 @@
 //
 // Falcon signature wrapper backed by liboqs (Open Quantum Safe).
 //
-// If the build does NOT link liboqs (i.e. if XRPL_HAS_LIBOQS is not defined),
-// all functions return failure values so that the rest of the codebase can
-// compile and run classical-key operations without the PQ dependency.
-// The amendment guard on ProofOfParticipation ensures that Falcon keys are
-// only accepted on-chain after the amendment activates, which requires all
-// validators to have a build that actually supports them.
+// liboqs is a required dependency for qXRP: Falcon post-quantum signatures
+// are not optional.  The amendment guard on ProofOfParticipation ensures
+// on-chain Falcon keys are only accepted after validator-majority upgrade,
+// but the crypto primitives are always compiled in.
 
-#include <xrpl/crypto/falcon.h>
+#include <xrpl/protocol/falcon.h>
 
 #include <xrpl/basics/contract.h>
 #include <xrpl/protocol/KeyType.h>
 
-#ifdef XRPL_HAS_LIBOQS
 #include <oqs/oqs.h>
-#endif
 
 #include <cstring>
 #include <stdexcept>
@@ -26,8 +22,6 @@ namespace xrpl {
 
 namespace {
 
-#ifdef XRPL_HAS_LIBOQS
-
 char const*
 oqsAlgName(KeyType type)
 {
@@ -35,30 +29,22 @@ oqsAlgName(KeyType type)
         return OQS_SIG_alg_falcon_512;
     if (type == KeyType::Falcon1024)
         return OQS_SIG_alg_falcon_1024;
-    Throw<std::invalid_argument>("falconAlgName: not a Falcon type");
+    Throw<std::invalid_argument>("oqsAlgName: not a Falcon type");
 }
-
-#endif  // XRPL_HAS_LIBOQS
 
 }  // anonymous namespace
 
 bool
 falconAvailable(KeyType type) noexcept
 {
-#ifdef XRPL_HAS_LIBOQS
     if (type != KeyType::Falcon512 && type != KeyType::Falcon1024)
         return false;
     return OQS_SIG_alg_is_enabled(oqsAlgName(type));
-#else
-    (void)type;
-    return false;
-#endif
 }
 
 std::optional<std::pair<PQPublicKey, PQSecretKey>>
 generateFalconKeyPair(KeyType type)
 {
-#ifdef XRPL_HAS_LIBOQS
     if (!falconAvailable(type))
         return std::nullopt;
 
@@ -78,16 +64,11 @@ generateFalconKeyPair(KeyType type)
     return std::make_pair(
         PQPublicKey(type, Slice(pubBuf.data(), pubBuf.size())),
         PQSecretKey(type, std::move(secBuf)));
-#else
-    (void)type;
-    return std::nullopt;
-#endif
 }
 
 std::vector<std::uint8_t>
 signFalcon(PQSecretKey const& sk, Slice message)
 {
-#ifdef XRPL_HAS_LIBOQS
     OQS_SIG* sig = OQS_SIG_new(oqsAlgName(sk.keyType()));
     if (!sig)
         Throw<std::runtime_error>("signFalcon: OQS_SIG_new failed");
@@ -110,18 +91,11 @@ signFalcon(PQSecretKey const& sk, Slice message)
 
     sigBuf.resize(sigLen);
     return sigBuf;
-#else
-    (void)sk;
-    (void)message;
-    Throw<std::runtime_error>(
-        "signFalcon: liboqs not available in this build");
-#endif
 }
 
 bool
 verifyFalcon(PQPublicKey const& pk, Slice message, Slice signature)
 {
-#ifdef XRPL_HAS_LIBOQS
     if (!falconAvailable(pk.keyType()))
         return false;
 
@@ -143,12 +117,6 @@ verifyFalcon(PQPublicKey const& pk, Slice message, Slice signature)
 
     OQS_SIG_free(sig);
     return rc == OQS_SUCCESS;
-#else
-    (void)pk;
-    (void)message;
-    (void)signature;
-    return false;
-#endif
 }
 
 }  // namespace xrpl

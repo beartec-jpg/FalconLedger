@@ -95,19 +95,42 @@ find_package(SOCI REQUIRED)
 find_package(SQLite3 REQUIRED)
 find_package(xxHash REQUIRED)
 
-# Optional: liboqs for post-quantum Falcon signatures.
-# Pass -Dliboqs=ON (default OFF) to enable.
-option(liboqs "Enable post-quantum Falcon signatures via liboqs" OFF)
-if(liboqs)
-    find_package(liboqs QUIET)
-    if(liboqs_FOUND)
-        message(STATUS "liboqs found: PQ Falcon signatures enabled")
-        add_compile_definitions(XRPL_HAS_LIBOQS)
-        target_link_libraries(xrpl_libs INTERFACE OQS::oqs)
-    else()
-        message(WARNING "liboqs not found: Falcon signatures will be stubs (amendment won't activate)")
-    endif()
+# liboqs: required for post-quantum Falcon signatures.
+# qXRP is a PQ-first chain — Falcon is always enabled.
+# Use ExternalProject to avoid cmake target-name collisions with the
+# liboqs-internal 'common' object library.
+find_package(liboqs QUIET)
+if(NOT liboqs_FOUND)
+    message(STATUS "liboqs not found via find_package, building from source")
+    include(ExternalProject)
+    set(LIBOQS_INSTALL_DIR ${CMAKE_BINARY_DIR}/liboqs-install)
+    ExternalProject_Add(
+        liboqs_external
+        GIT_REPOSITORY https://github.com/open-quantum-safe/liboqs.git
+        GIT_TAG        0.12.0
+        GIT_SHALLOW    TRUE
+        UPDATE_DISCONNECTED TRUE
+        CMAKE_ARGS
+            -DCMAKE_INSTALL_PREFIX=${LIBOQS_INSTALL_DIR}
+            -DBUILD_SHARED_LIBS=OFF
+            -DOQS_BUILD_ONLY_LIB=ON
+            -DOQS_ALGS_ENABLED=Falcon
+            -DOQS_PERMIT_UNSUPPORTED_ARCHITECTURE=ON
+            -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+            -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+        BUILD_BYPRODUCTS ${LIBOQS_INSTALL_DIR}/lib/liboqs.a
+    )
+    file(MAKE_DIRECTORY ${LIBOQS_INSTALL_DIR}/include)
+    add_library(OQS::oqs STATIC IMPORTED GLOBAL)
+    set_target_properties(OQS::oqs PROPERTIES
+        IMPORTED_LOCATION ${LIBOQS_INSTALL_DIR}/lib/liboqs.a
+        INTERFACE_INCLUDE_DIRECTORIES ${LIBOQS_INSTALL_DIR}/include
+    )
+    add_dependencies(OQS::oqs liboqs_external)
 endif()
+message(STATUS "liboqs: PQ Falcon signatures always enabled")
+add_compile_definitions(XRPL_HAS_LIBOQS)
+target_link_libraries(xrpl_libs INTERFACE OQS::oqs)
 
 target_link_libraries(
     xrpl_libs

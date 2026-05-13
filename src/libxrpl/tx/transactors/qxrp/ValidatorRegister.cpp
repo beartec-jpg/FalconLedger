@@ -59,13 +59,10 @@ ValidatorRegister::doApply()
     sleBond->setFieldU32(sfPreviousTxnLgrSeq, view().seq());
 
     // Add to owner directory for reserve counting.
-    auto const page = dirAdd(
-        ctx_.view(),
+    auto const page = ctx_.view().dirInsert(
         keylet::ownerDir(account),
         sleBond->key(),
-        false,
-        describeOwnerDir(account),
-        ctx_.app.journal("ValidatorRegister"));
+        describeOwnerDir(account));
     if (!page)
         return tecDIR_FULL;
 
@@ -82,6 +79,25 @@ ValidatorRegister::doApply()
     ctx_.view().update(sleAccount);
 
     return tesSUCCESS;
+}
+
+void
+ValidatorRegister::visitInvariantEntry(
+    bool,
+    std::shared_ptr<SLE const> const&,
+    std::shared_ptr<SLE const> const&)
+{
+}
+
+bool
+ValidatorRegister::finalizeInvariants(
+    STTx const&,
+    TER,
+    XRPAmount,
+    ReadView const&,
+    beast::Journal const&)
+{
+    return true;
 }
 
 }  // namespace xrpl

@@ -17,7 +17,7 @@
 // Seed corpus: generate a few valid signatures with the unit test helper and
 // place the raw (publicKey || signature || message) blobs in corpus/falcon/.
 
-#include <xrpl/crypto/falcon.h>
+#include <xrpl/protocol/falcon.h>
 #include <xrpl/basics/Slice.h>
 
 #include <cstdint>
