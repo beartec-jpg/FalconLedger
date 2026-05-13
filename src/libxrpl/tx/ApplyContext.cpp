@@ -164,7 +164,7 @@ ApplyContext::checkInvariants(TER const result, XRPAmount const fee)
 void
 ApplyContext::destroyXRP(XRPAmount const& fee)
 {
-    if (fee <= beast::zero)
+    if (fee <= beast::kZERO)
         return;
 
     // ── Determine the burn fraction for this ledger ──────────────────────

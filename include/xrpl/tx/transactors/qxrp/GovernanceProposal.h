@@ -17,7 +17,7 @@ namespace xrpl {
 class GovernanceProposal : public Transactor
 {
 public:
-    static constexpr ConsequencesFactoryType ConsequencesFactory{Blocker};
+    static constexpr auto kCONSEQUENCES_FACTORY = ConsequencesFactoryType::Blocker;
 
     explicit GovernanceProposal(ApplyContext& ctx) : Transactor(ctx) {}
 
@@ -29,6 +29,20 @@ public:
 
     TER
     doApply() override;
+
+    void
+    visitInvariantEntry(
+        bool isDelete,
+        std::shared_ptr<SLE const> const& before,
+        std::shared_ptr<SLE const> const& after) override;
+
+    [[nodiscard]] bool
+    finalizeInvariants(
+        STTx const& tx,
+        TER result,
+        XRPAmount fee,
+        ReadView const& view,
+        beast::Journal const& j) override;
 };
 
 }  // namespace xrpl

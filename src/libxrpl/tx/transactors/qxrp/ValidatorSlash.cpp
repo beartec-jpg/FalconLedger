@@ -127,7 +127,7 @@ ValidatorSlash::doApply()
     // The slashed portion is simply destroyed (burned); it is NOT credited
     // to the submitter — no incentive to trigger a competitor's slash.
     if (slashedDrops > 0)
-        ctx_.view().rawDestroyXRP(XRPAmount{slashedDrops});
+        ctx_.destroyXRP(XRPAmount{slashedDrops});
 
     if (remainderDrops > 0)
     {
@@ -140,6 +140,25 @@ ValidatorSlash::doApply()
     }
 
     return tesSUCCESS;
+}
+
+void
+ValidatorSlash::visitInvariantEntry(
+    bool,
+    std::shared_ptr<SLE const> const&,
+    std::shared_ptr<SLE const> const&)
+{
+}
+
+bool
+ValidatorSlash::finalizeInvariants(
+    STTx const&,
+    TER,
+    XRPAmount,
+    ReadView const&,
+    beast::Journal const&)
+{
+    return true;
 }
 
 }  // namespace xrpl

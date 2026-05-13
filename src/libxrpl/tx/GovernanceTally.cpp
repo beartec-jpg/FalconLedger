@@ -37,7 +37,8 @@ applyGovernanceTally(
 
     for (auto const& key : openProposalKeys)
     {
-        auto sleProposal = view.peek(keylet::governanceProposal(key));
+        auto sleProposal = std::const_pointer_cast<SLE>(
+            view.read(keylet::governanceProposal(key)));
         if (!sleProposal)
             continue;
 
@@ -65,13 +66,14 @@ applyGovernanceTally(
             auto const proposalType  = sleProposal->getFieldU32(sfProposalType);
             auto const proposalValue = sleProposal->getFieldU32(sfProposalValue);
 
-            auto sleParams = view.peek(keylet::governanceParams());
-            if (!sleParams)
+            auto sleParams = std::const_pointer_cast<SLE>(
+                view.read(keylet::governanceParams()));
+            bool const paramsIsNew = !sleParams;
+            if (paramsIsNew)
             {
                 sleParams = std::make_shared<SLE>(keylet::governanceParams());
                 sleParams->setFieldH256(sfPreviousTxnID,    key);
                 sleParams->setFieldU32(sfPreviousTxnLgrSeq, seq);
-                view.insert(sleParams);
             }
 
             if (proposalType == kPROPOSAL_TYPE_BURN_BPS)
@@ -79,7 +81,11 @@ applyGovernanceTally(
                 sleParams->setFieldU32(sfCurrentBurnBps, proposalValue);
                 sleParams->setFieldH256(sfPreviousTxnID,    key);
                 sleParams->setFieldU32(sfPreviousTxnLgrSeq, seq);
-                view.update(sleParams);
+
+                if (paramsIsNew)
+                    view.rawInsert(sleParams);
+                else
+                    view.rawReplace(sleParams);
 
                 JLOG(j.info()) << "qXRP GovernanceTally: wrote sfCurrentBurnBps="
                                << proposalValue;
@@ -90,7 +96,7 @@ applyGovernanceTally(
         sleProposal->setFieldU32(sfProposalState, passed ? 1 : 2);
         sleProposal->setFieldH256(sfPreviousTxnID,    key);
         sleProposal->setFieldU32(sfPreviousTxnLgrSeq, seq);
-        view.update(sleProposal);
+        view.rawReplace(sleProposal);
     }
 }
 

@@ -3,6 +3,7 @@
 
 #include <xrpl/tx/transactors/qxrp/GovernanceProposal.h>
 
+#include <xrpl/basics/Blob.h>
 #include <xrpl/ledger/helpers/AccountRootHelpers.h>
 #include <xrpl/ledger/helpers/DirectoryHelpers.h>
 #include <xrpl/protocol/Feature.h>
@@ -55,7 +56,7 @@ GovernanceProposal::doApply()
     auto const account    = ctx_.tx[sfAccount];
     auto const seq        = view().seq();
 
-    auto const proposalKeylet = keylet::governanceProposal(account, ctx_.tx.getSequence());
+    auto const proposalKeylet = keylet::governanceProposal(account, ctx_.tx[sfSequence]);
 
     auto sleProposal = std::make_shared<SLE>(proposalKeylet);
 
@@ -66,18 +67,15 @@ GovernanceProposal::doApply()
     sleProposal->setFieldU32(sfProposalState,  0);  // open
     sleProposal->setFieldU32(sfVotedFor,       0);
     sleProposal->setFieldU32(sfVotedAgainst,   0);
-    sleProposal->setFieldVL(sfVoterList,       {});
+    sleProposal->setFieldVL(sfVoterList,       Blob{});
     sleProposal->setFieldH256(sfPreviousTxnID,      ctx_.tx.getTransactionID());
     sleProposal->setFieldU32(sfPreviousTxnLgrSeq,   seq);
 
     // Add to proposer's owner directory for reserve accounting.
-    auto const page = dirAdd(
-        ctx_.view(),
+    auto const page = ctx_.view().dirInsert(
         keylet::ownerDir(account),
         sleProposal->key(),
-        false,
-        describeOwnerDir(account),
-        ctx_.app.journal("GovernanceProposal"));
+        describeOwnerDir(account));
     if (!page)
         return tecDIR_FULL;
 
@@ -106,6 +104,25 @@ GovernanceProposal::doApply()
     // the proposal simply won't be tallied until the next epoch creates it.
 
     return tesSUCCESS;
+}
+
+void
+GovernanceProposal::visitInvariantEntry(
+    bool,
+    std::shared_ptr<SLE const> const&,
+    std::shared_ptr<SLE const> const&)
+{
+}
+
+bool
+GovernanceProposal::finalizeInvariants(
+    STTx const&,
+    TER,
+    XRPAmount,
+    ReadView const&,
+    beast::Journal const&)
+{
+    return true;
 }
 
 }  // namespace xrpl

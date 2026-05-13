@@ -62,7 +62,7 @@ ReleaseBond::doApply()
 
     // ── Return remaining bond capital to validator ────────────────────────
     auto const bondedAmount = sleBond->getFieldAmount(sfBondedAmount);
-    if (bondedAmount > beast::zero)
+    if (bondedAmount > beast::kZERO)
     {
         auto const prev = sleAccount->getFieldAmount(sfBalance);
         sleAccount->setFieldAmount(sfBalance, prev + bondedAmount);
@@ -85,6 +85,25 @@ ReleaseBond::doApply()
     ctx_.view().erase(sleBond);
 
     return tesSUCCESS;
+}
+
+void
+ReleaseBond::visitInvariantEntry(
+    bool,
+    std::shared_ptr<SLE const> const&,
+    std::shared_ptr<SLE const> const&)
+{
+}
+
+bool
+ReleaseBond::finalizeInvariants(
+    STTx const&,
+    TER,
+    XRPAmount,
+    ReadView const&,
+    beast::Journal const&)
+{
+    return true;
 }
 
 }  // namespace xrpl

@@ -82,7 +82,7 @@ constexpr std::uint32_t kFEE_USAGE_SENSITIVITY_BPS = 500;
 // ─── Bonding ────────────────────────────────────────────────────────────────
 
 /// Minimum bond amount in drops (1 000 qXRP).
-constexpr std::int64_t kQXRP_MIN_BOND_DROPS = 1'000 * kDROPS_PER_XRP;
+constexpr std::int64_t kQXRP_MIN_BOND_DROPS = 1'000 * kDROPS_PER_XRP.drops();
 
 /// Number of ledgers a validator must wait after unbonding before funds are
 /// released (~30 days at 3.5 s/ledger).

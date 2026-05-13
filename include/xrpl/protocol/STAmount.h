@@ -52,8 +52,8 @@ public:
     static_assert(kMAX_VALUE == 9'999'999'999'999'999ull);
     constexpr static std::uint64_t kMAX_NATIVE = 9'000'000'000'000'000'000ull;
 
-    // Max native value on network.
-    constexpr static std::uint64_t kMAX_NATIVE_N = 100'000'000'000'000'000ull;
+    // Max native value on network (qXRP: 200 billion XRP in drops).
+    constexpr static std::uint64_t kMAX_NATIVE_N = 200'000'000'000'000'000ull;
     constexpr static std::uint64_t kISSUED_CURRENCY = 0x8'000'000'000'000'000ull;
     constexpr static std::uint64_t kPOSITIVE = 0x4'000'000'000'000'000ull;
     constexpr static std::uint64_t kMP_TOKEN = 0x2'000'000'000'000'000ull;
