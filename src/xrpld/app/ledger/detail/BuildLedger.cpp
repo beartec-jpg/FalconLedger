@@ -75,7 +75,7 @@ buildLedgerImpl(
             // Prune resolved proposal keys from ltREWARD_EPOCH::sfProposals
             if (!proposalKeys.empty())
             {
-                if (auto sleEpoch = accum.peek(keylet::rewardEpoch()))
+                if (auto sleEpoch = std::const_pointer_cast<SLE>(accum.read(keylet::rewardEpoch())))
                 {
                     std::vector<uint256> remaining;
                     remaining.reserve(proposalKeys.size());
@@ -88,7 +88,7 @@ buildLedgerImpl(
                     if (remaining.size() != proposalKeys.size())
                     {
                         sleEpoch->setFieldV256(sfProposals, STVector256{remaining});
-                        accum.update(sleEpoch);
+                        accum.rawReplace(sleEpoch);
                     }
                 }
             }
