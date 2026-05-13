@@ -4,17 +4,15 @@
 #include <xrpl/tx/RewardEpoch.h>
 
 #include <xrpl/basics/Log.h>
+#include <xrpl/basics/WideArith.h>
 #include <xrpl/ledger/OpenView.h>
 #include <xrpl/protocol/Feature.h>
 #include <xrpl/protocol/Indexes.h>
-#include <xrpl/protocol/KeyType.h>
 #include <xrpl/protocol/QXRPConstants.h>
 #include <xrpl/protocol/Rules.h>
 #include <xrpl/protocol/SField.h>
 #include <xrpl/protocol/STAmount.h>
 #include <xrpl/protocol/STLedgerEntry.h>
-#include <xrpl/protocol/SecretKey.h>
-#include <xrpl/protocol/Seed.h>
 
 #include <algorithm>
 #include <cstdint>
@@ -42,8 +40,7 @@ applyRewardEpoch(
 
     // ── Treasury balance ──────────────────────────────────────────────────
     // Computed once; used for both pool sizing and burn-pressure calculation.
-    static auto const kTreasuryID = calcAccountID(
-        generateKeyPair(KeyType::Secp256k1, generateSeed(kQXRP_TREASURY_SEED)).first);
+    auto const& kTreasuryID = getTreasuryAccountID();
 
     std::int64_t treasuryDrops = 0;
     if (auto const sleTreasury = view.read(keylet::account(kTreasuryID)))
@@ -74,18 +71,23 @@ applyRewardEpoch(
     // The pool is a *commitment* from the treasury for this epoch window.
     // Drops are not physically moved here; ClaimReward draws from the treasury
     // account directly and checks total claimed vs. sfEpochPoolBalance.
-    auto const poolDrops = static_cast<std::int64_t>(
-        (static_cast<__int128>(treasuryDrops) * emissionBps) / kBPS_DENOM);
+    //
+    // muldiv64(a, b, d): no overflow because emissionBps <= kBPS_DENOM.
+    auto const poolDrops = muldiv64(treasuryDrops, emissionBps, kBPS_DENOM);
 
     // ── Dynamic burn BPS from treasury fill pressure ──────────────────────
     // fillBps: fraction of the initial allocation still in the treasury.
     //   fillBps == kBPS_DENOM  → treasury is 100 % full (genesis)
     //   fillBps == 0           → treasury fully drained
     //
-    // Higher fill → higher burn fraction so deflation keeps pace with rewards.
+    // Overflow-free: since kQXRP_TREASURY_ALLOCATION is statically verified
+    // to be exactly divisible by kBPS_DENOM, we compute:
+    //   fillBps = treasuryDrops / (TREASURY / kBPS_DENOM)
+    // Both operands fit in int64_t and the quotient is in [0, kBPS_DENOM].
+    static constexpr std::int64_t kTreasuryPerBps =
+        kQXRP_TREASURY_ALLOCATION.drops() / 10'000;  // == kBPS_DENOM
     auto const fillBps = static_cast<std::uint32_t>(
-        (static_cast<__int128>(treasuryDrops) * kBPS_DENOM)
-        / kQXRP_TREASURY_ALLOCATION.drops());
+        static_cast<std::uint64_t>(treasuryDrops) / static_cast<std::uint64_t>(kTreasuryPerBps));
 
     auto const burnBps = std::clamp(
         kFEE_BURN_DEFAULT_BPS

@@ -178,16 +178,19 @@ Ledger::Ledger(
     // qXRP treasury account — holds 98 % of the total supply at genesis.
     // Controlled exclusively by the ProofOfParticipation amendment logic;
     // no private key controls this account.
-    static auto const kTreasuryID =
-        calcAccountID(generateKeyPair(KeyType::Secp256k1, generateSeed(kQXRP_TREASURY_SEED)).first);
+    auto const& kTreasuryID = getTreasuryAccountID();
     {
         auto const sle = std::make_shared<SLE>(keylet::account(kTreasuryID));
         sle->setFieldU32(sfSequence, 1);
         sle->setAccountID(sfAccount, kTreasuryID);
         sle->setFieldAmount(sfBalance, kQXRP_TREASURY_ALLOCATION);
-        // Disallow external payments into the treasury; only the protocol
-        // itself (via reward epoch processing) may transfer from this account.
-        sle->setFieldU32(sfFlags, lsfDisallowXRP);
+        // Harden the treasury against external inbound transfers:
+        //   lsfDisallowXRP   — advisory flag; wallets/clients will not send XRP here.
+        //   lsfDepositAuth   — protocol-level guard; incoming Payment transactions
+        //                      are rejected unless the sender has been pre-authorized.
+        // The reward-epoch logic uses rawReplace() which bypasses these flags,
+        // so the on-chain reward distribution is never blocked.
+        sle->setFieldU32(sfFlags, lsfDisallowXRP | lsfDepositAuth);
         rawInsert(sle);
     }
 
