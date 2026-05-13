@@ -10,7 +10,7 @@
 ## Branches
 
 For a stable release, choose the `master` branch or one of the [tagged
-releases](https://github.com/XRPLF/rippled/releases).
+releases](https://github.com/beartec-jpg/qXRP/releases).
 
 ```bash
 git checkout master
@@ -39,7 +39,8 @@ found here](./docs/build/environment.md).
 
 - [Python 3.11](https://www.python.org/downloads/), or higher
 - [Conan 2.17](https://conan.io/downloads.html)[^1], or higher
-- [CMake 3.22](https://cmake.org/download/), or higher
+- [CMake 3.16](https://cmake.org/download/), or higher (3.16 is the enforced
+  minimum; 3.22+ recommended)
 
 [^1]:
     It is possible to build with Conan 1.60+, but the instructions are
@@ -63,6 +64,57 @@ internally.
 
 Here are [sample instructions for setting up a C++ development environment on
 Linux](./docs/build/environment.md#linux).
+
+#### GitHub Codespaces
+
+The devcontainer installs Python and base Ubuntu but does **not** install a
+compiler, CMake, or Conan. Install these manually:
+
+```bash
+# Install toolchain
+sudo apt-get update
+sudo apt-get install -y gcc-13 g++-13 cmake ninja-build ccache mold
+pip install conan
+
+# Add XRPLF remote (required for patched recipes)
+conan remote add --index 0 xrplf https://conan.ripplex.io
+
+# Set up Conan profile
+conan config install conan/profiles/ -tf $(conan config home)/profiles/
+sed -i.bak 's|^compiler\.cppstd=.*$|compiler.cppstd=20|' $(conan config home)/profiles/default
+sed -i.bak 's|^compiler\.libcxx=.*$|compiler.libcxx=libstdc++11|' $(conan config home)/profiles/default
+```
+
+Recommended build commands for a 16-core Codespace (limit parallelism to avoid
+OOM conditions):
+
+```bash
+mkdir .build && cd .build
+conan install .. --output-folder . --build missing \
+  --settings build_type=Release \
+  -c tools.build:jobs=4
+
+cmake \
+  -DCMAKE_TOOLCHAIN_FILE:FILEPATH=build/generators/conan_toolchain.cmake \
+  -DCMAKE_BUILD_TYPE=Release \
+  -Dxrpld=ON \
+  -Dtests=OFF \
+  -Duse_mold=ON \
+  -G Ninja \
+  ..
+
+cmake --build . -j12
+```
+
+> [!NOTE]
+> Release builds include `-g` debug symbols by default. For a faster/smaller
+> first build, add:
+>
+> <!-- cspell:ignore DNDEBUG -->
+>
+> ```bash
+> -DCMAKE_CXX_FLAGS_RELEASE="-O2 -DNDEBUG"
+> ```
 
 ### Mac
 
@@ -357,6 +409,53 @@ C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v17
 then please install a specific version of Ccache that we know works, via: `choco
 install ccache --version 4.11.3 --allow-downgrade`.
 
+### Set Up Linker (Recommended)
+
+On Linux, `use_mold=ON` and `use_gold=ON` are default options. If `mold` is
+installed, CMake auto-detects and uses it. This can dramatically reduce link
+time (often from 10–15 minutes to 1–2 minutes for large links).
+
+Install `mold` on Ubuntu:
+
+```bash
+sudo apt-get install -y mold
+```
+
+To explicitly enable it, pass `-Duse_mold=ON` at CMake configure time.
+
+To disable linker auto-selection, pass:
+
+```bash
+-Duse_mold=OFF -Duse_gold=OFF
+```
+
+For Clang builds, `use_lld=ON` is the default. Install with:
+
+```bash
+sudo apt-get install -y lld
+```
+
+### Pre-build: liboqs
+
+qXRP is PQ-first and Falcon signatures are always enabled, so `liboqs` is a
+mandatory dependency.
+
+If `liboqs` is not already installed, CMake may clone and build it mid-build
+via `ExternalProject_Add`, which can look like a hang. Pre-build it first:
+
+```bash
+# Build and install liboqs before running cmake --build
+# This prevents a silent mid-build network clone that can appear as a hang.
+git clone --depth 1 --branch 0.12.0 https://github.com/open-quantum-safe/liboqs.git /tmp/liboqs
+cmake -S /tmp/liboqs -B /tmp/liboqs-build \
+  -DBUILD_SHARED_LIBS=OFF \
+  -DOQS_BUILD_ONLY_LIB=ON \
+  -DOQS_ALGS_ENABLED=Falcon \
+  -DCMAKE_INSTALL_PREFIX=/usr/local
+cmake --build /tmp/liboqs-build -j$(nproc)
+sudo cmake --install /tmp/liboqs-build
+```
+
 ### Build and Test
 
 1. Create a build directory and move into it.
@@ -407,16 +506,18 @@ install ccache --version 4.11.3 --allow-downgrade`.
    For example, to build Debug, in the next command, replace "Release" with "Debug"
 
    ```
-   cmake -DCMAKE_TOOLCHAIN_FILE:FILEPATH=build/generators/conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release -Dxrpld=ON -Dtests=ON ..
+   cmake -G Ninja -DCMAKE_TOOLCHAIN_FILE:FILEPATH=build/generators/conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release -Dxrpld=ON -Dtests=OFF ..
    ```
 
    Multi-config generators:
 
    ```
-   cmake -DCMAKE_TOOLCHAIN_FILE:FILEPATH=build/generators/conan_toolchain.cmake -Dxrpld=ON -Dtests=ON  ..
+   cmake -G "Ninja Multi-Config" -DCMAKE_TOOLCHAIN_FILE:FILEPATH=build/generators/conan_toolchain.cmake -Dxrpld=ON -Dtests=OFF ..
    ```
 
-   **Note:** You can pass build options for `xrpld` in this step.
+   **Note:** You can pass build options for `xrpld` in this step. Tests default
+   to `ON`, so explicitly setting `-Dtests=OFF` is recommended for a first
+   binary build to reduce build time.
 
 4. Build `xrpld`.
 
@@ -427,15 +528,17 @@ install ccache --version 4.11.3 --allow-downgrade`.
    Single-config generators:
 
    ```
-   cmake --build .
+   cmake --build . -j$(nproc)
    ```
 
    Multi-config generators:
 
    ```
-   cmake --build . --config Release
-   cmake --build . --config Debug
+   cmake --build . --config Release -j$(nproc)
+   cmake --build . --config Debug -j$(nproc)
    ```
+
+   `cmake --build .` without `-j` uses a single thread.
 
 5. Test xrpld.
 
@@ -544,15 +647,23 @@ See [Sanitizers docs](./docs/build/sanitizers.md) for more details.
 
 ## Options
 
-| Option     | Default Value | Description                                                    |
-| ---------- | ------------- | -------------------------------------------------------------- |
-| `assert`   | OFF           | Enable assertions.                                             |
-| `coverage` | OFF           | Prepare the coverage report.                                   |
-| `tests`    | OFF           | Build tests.                                                   |
-| `unity`    | OFF           | Configure a unity build.                                       |
-| `xrpld`    | OFF           | Build the xrpld application, and not just the libxrpl library. |
-| `werr`     | OFF           | Treat compilation warnings as errors                           |
-| `wextra`   | OFF           | Enable additional compilation warnings                         |
+| Option                       | Default Value              | Description                                                                  |
+| ---------------------------- | -------------------------- | ---------------------------------------------------------------------------- |
+| `assert`                     | OFF                        | Enable assertions.                                                           |
+| `coverage`                   | OFF                        | Prepare the coverage report.                                                 |
+| `tests`                      | ON                         | Build tests.                                                                 |
+| `unity`                      | OFF                        | Configure a unity build.                                                     |
+| `xrpld`                      | ON                         | Build the xrpld application, and not just the libxrpl library.               |
+| `werr`                       | OFF                        | Treat compilation warnings as errors                                         |
+| `wextra`                     | ON (GCC/Clang)             | Enable additional compilation warnings                                       |
+| `use_mold`                   | ON (Linux)                 | Enable detection and use of the mold linker                                  |
+| `use_gold`                   | ON (Linux)                 | Enable detection and use of the gold linker                                  |
+| `use_lld`                    | ON (Clang)                 | Enable detection and use of the lld linker                                   |
+| `perf`                       | OFF                        | Enable flags that assist with perf recording                                 |
+| `local_protobuf`             | OFF                        | Force a local build of protobuf instead of an installed version              |
+| `local_grpc`                 | OFF                        | Force a local build of gRPC instead of an installed version                  |
+| `qxrp_epoch_override`        | `""`                       | Override ledger epoch length (e.g. `10` for fast regtest). Default is 172800 |
+| `TRUNCATED_THREAD_NAME_LOGS` | ON (Debug) / OFF (Release) | Show warnings about truncated thread names on Linux                          |
 
 [Unity builds][5] may be faster for the first build (at the cost of much more
 memory) since they concatenate sources into fewer translation units. Non-unity
