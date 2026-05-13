@@ -90,7 +90,8 @@ cd "$BUILD_DIR"
 conan install "$REPO" \
     --output-folder . \
     --build missing \
-    --settings build_type=RelWithDebInfo \
+    --settings build_type=Release \
+    -c tools.build:jobs=4 \
     -c tools.cmake.cmake_layout:build_folder_vars="['settings.build_type']"
 
 # ---------------------------------------------------------------------------
@@ -98,17 +99,18 @@ conan install "$REPO" \
 # ---------------------------------------------------------------------------
 log "Step 5/8 – CMake configure"
 cmake "$REPO" \
+    -G Ninja \
     -DCMAKE_TOOLCHAIN_FILE:FILEPATH=build/generators/conan_toolchain.cmake \
-    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+    -DCMAKE_BUILD_TYPE=Release \
     -Dxrpld=ON \
-    -Dtests=ON \
+    -Dtests=OFF \
     -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 
 # ---------------------------------------------------------------------------
 # 6. Build
 # ---------------------------------------------------------------------------
-log "Step 6/8 – cmake --build  (using $CORES cores)"
-cmake --build . --parallel "$CORES" 2>&1 | tee "$REPO/build.log"
+log "Step 6/8 – cmake --build  (using 4 parallel jobs)"
+cmake --build . -j4 2>&1 | tee "$REPO/build.log"
 BINARY="$BUILD_DIR/xrpld"
 [[ -x "$BINARY" ]] || die "Build finished but xrpld not found at $BINARY"
 log "Binary: $BINARY  ($(du -sh "$BINARY" | cut -f1))"
