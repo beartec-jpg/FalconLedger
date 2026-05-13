@@ -505,7 +505,7 @@ ValidatorSite::processRedirect(
 {
     using namespace boost::beast::http;
     std::shared_ptr<Site::Resource> newLocation;
-    if (!res.contains(field::location) || res[field::location].empty())
+    if (!res.count(field::location) || res[field::location].empty())
     {
         JLOG(j_.warn()) << "Request for validator list at " << sites_[siteIdx].activeResource->uri
                         << " returned a redirect with no Location.";
