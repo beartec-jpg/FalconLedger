@@ -39,7 +39,8 @@ found here](./docs/build/environment.md).
 
 - [Python 3.11](https://www.python.org/downloads/), or higher
 - [Conan 2.17](https://conan.io/downloads.html)[^1], or higher
-- [CMake 3.16](https://cmake.org/download/), or higher (3.22+ recommended)
+- [CMake 3.16](https://cmake.org/download/), or higher (3.16 is the enforced
+  minimum; 3.22+ recommended)
 
 [^1]:
     It is possible to build with Conan 1.60+, but the instructions are
@@ -646,23 +647,23 @@ See [Sanitizers docs](./docs/build/sanitizers.md) for more details.
 
 ## Options
 
-| Option                       | Default Value              | Description                                                                             |
-| ---------------------------- | -------------------------- | --------------------------------------------------------------------------------------- |
-| `assert`                     | OFF                        | Enable assertions.                                                                      |
-| `coverage`                   | OFF                        | Prepare the coverage report.                                                            |
-| `tests`                      | ON                         | Build tests.                                                                            |
-| `unity`                      | OFF                        | Configure a unity build.                                                                |
-| `xrpld`                      | ON                         | Build the xrpld application, and not just the libxrpl library.                          |
-| `werr`                       | OFF                        | Treat compilation warnings as errors                                                    |
-| `wextra`                     | ON (GCC/Clang)             | Enable additional compilation warnings                                                  |
-| `use_mold`                   | ON (Linux)                 | Enable detection and use of the mold linker                                             |
-| `use_gold`                   | ON (Linux)                 | Enable detection and use of the gold linker                                             |
-| `use_lld`                    | ON (Clang)                 | Enable detection and use of the lld linker                                              |
-| `perf`                       | OFF                        | Enable flags that assist with perf recording                                            |
-| `local_protobuf`             | OFF                        | Force a local build of protobuf instead of an installed version                         |
-| `local_grpc`                 | OFF                        | Force a local build of gRPC instead of an installed version                             |
-| `qxrp_epoch_override`        | `""`                       | Override ledger epoch length in ledgers (e.g. `10` for fast regtest). Default is 172800 |
-| `TRUNCATED_THREAD_NAME_LOGS` | ON (Debug) / OFF (Release) | Show warnings about truncated thread names on Linux                                     |
+| Option                       | Default Value              | Description                                                                  |
+| ---------------------------- | -------------------------- | ---------------------------------------------------------------------------- |
+| `assert`                     | OFF                        | Enable assertions.                                                           |
+| `coverage`                   | OFF                        | Prepare the coverage report.                                                 |
+| `tests`                      | ON                         | Build tests.                                                                 |
+| `unity`                      | OFF                        | Configure a unity build.                                                     |
+| `xrpld`                      | ON                         | Build the xrpld application, and not just the libxrpl library.               |
+| `werr`                       | OFF                        | Treat compilation warnings as errors                                         |
+| `wextra`                     | ON (GCC/Clang)             | Enable additional compilation warnings                                       |
+| `use_mold`                   | ON (Linux)                 | Enable detection and use of the mold linker                                  |
+| `use_gold`                   | ON (Linux)                 | Enable detection and use of the gold linker                                  |
+| `use_lld`                    | ON (Clang)                 | Enable detection and use of the lld linker                                   |
+| `perf`                       | OFF                        | Enable flags that assist with perf recording                                 |
+| `local_protobuf`             | OFF                        | Force a local build of protobuf instead of an installed version              |
+| `local_grpc`                 | OFF                        | Force a local build of gRPC instead of an installed version                  |
+| `qxrp_epoch_override`        | `""`                       | Override ledger epoch length (e.g. `10` for fast regtest). Default is 172800 |
+| `TRUNCATED_THREAD_NAME_LOGS` | ON (Debug) / OFF (Release) | Show warnings about truncated thread names on Linux                          |
 
 [Unity builds][5] may be faster for the first build (at the cost of much more
 memory) since they concatenate sources into fewer translation units. Non-unity
