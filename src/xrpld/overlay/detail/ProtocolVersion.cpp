@@ -124,8 +124,12 @@ negotiateProtocolVersion(std::vector<ProtocolVersion> const& versions)
     std::function<void(ProtocolVersion const&)> const pickVersion =
         [&result](ProtocolVersion const& v) { result = v; };
 
-    std::ranges::set_intersection(
-        versions, kSUPPORTED_PROTOCOL_LIST, boost::make_function_output_iterator(pickVersion));
+    std::set_intersection(
+        versions.begin(),
+        versions.end(),
+        std::begin(kSUPPORTED_PROTOCOL_LIST),
+        std::end(kSUPPORTED_PROTOCOL_LIST),
+        boost::make_function_output_iterator(pickVersion));
 
     return result;
 }

@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 3.18)
 # Note, version set explicitly by xrpld project
 project(antithesis-sdk-cpp VERSION 0.4.4 LANGUAGES CXX)
 
+include(GNUInstallDirs)
+
 add_library(antithesis-sdk-cpp INTERFACE antithesis_sdk.h)
 
 # Note, both sections below created by xrpld project
