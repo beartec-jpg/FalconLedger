@@ -821,6 +821,50 @@ parseXChainOwnedCreateAccountClaimID(
     return keylet.key;
 }
 
+static Expected<uint256, json::Value>
+parseValidatorBond(
+    json::Value const& params,
+    json::StaticString const fieldName,
+    [[maybe_unused]] unsigned const apiVersion)
+{
+    if (!params.isObject())
+    {
+        return parseObjectID(params, fieldName);
+    }
+
+    auto const id = LedgerEntryHelpers::requiredAccountID(params, jss::account, "malformedAddress");
+    if (!id)
+        return Unexpected(id.error());
+
+    return keylet::validatorBond(*id).key;
+}
+
+auto const parseRewardEpoch = fixed(keylet::rewardEpoch());
+
+auto const parseGovernanceParams = fixed(keylet::governanceParams());
+
+static Expected<uint256, json::Value>
+parseGovernanceProposal(
+    json::Value const& params,
+    json::StaticString const fieldName,
+    [[maybe_unused]] unsigned const apiVersion)
+{
+    if (!params.isObject())
+    {
+        return parseObjectID(params, fieldName);
+    }
+
+    auto const id = LedgerEntryHelpers::requiredAccountID(params, jss::account, "malformedAddress");
+    if (!id)
+        return Unexpected(id.error());
+
+    auto const seq = LedgerEntryHelpers::requiredUInt32(params, jss::seq, "malformedRequest");
+    if (!seq)
+        return Unexpected(seq.error());
+
+    return keylet::governanceProposal(*id, *seq).key;
+}
+
 struct LedgerEntry
 {
     json::StaticString fieldName;
