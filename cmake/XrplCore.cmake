@@ -256,12 +256,23 @@ if(xrpld)
     )
     target_sources(xrpld PRIVATE ${sources})
 
-    # ServerHandler.cpp pulls in Application.h + Overlay.h causing peak GCC
-    # memory to exceed container limits. Aggressive GC reduces peak RSS ~40%.
-    set_source_files_properties(
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/xrpld/rpc/detail/ServerHandler.cpp
-        PROPERTIES COMPILE_OPTIONS "--param;ggc-min-expand=0;--param;ggc-min-heapsize=8192"
-    )
+    # ServerHandler.cpp pulls in Application.h + Overlay.h, which triggers
+    # pathological template expansion under -O3 (140+ min, 864 MB RSS observed).
+    # Override to -O2 for non-Debug builds to make compilation tractable.
+    # For GCC also tune the GC aggressiveness to further cap peak memory.
+    if(NOT is_msvc)
+        set(_serverhandler_flags "$<$<NOT:$<CONFIG:Debug>>:-O2>")
+        if(is_gcc)
+            set(_serverhandler_flags
+                "${_serverhandler_flags};--param;ggc-min-expand=0;--param;ggc-min-heapsize=8192"
+            )
+        endif()
+        set_source_files_properties(
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/xrpld/rpc/detail/ServerHandler.cpp
+            PROPERTIES COMPILE_OPTIONS "${_serverhandler_flags}"
+        )
+        unset(_serverhandler_flags)
+    endif()
 
     if(tests)
         file(
