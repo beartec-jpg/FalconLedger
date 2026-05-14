@@ -121,8 +121,11 @@ applyRewardEpoch(
     sleEpoch->setFieldAmount(
         sfEmissionRate, STAmount{XRPAmount{poolDrops}});
     sleEpoch->setFieldU32(sfCurrentBurnBps, burnBps);
-    sleEpoch->setFieldU32(sfFeeVolumeEMA, prevFeeVolumeEMA);
-    sleEpoch->setFieldU32(sfAggregateCompositeScore, 0);
+    // sfFeeVolumeEMA and sfAggregateCompositeScore are SoeDefault (default=0).
+    // Do NOT explicitly set them to 0 — applyTemplate will reject it.
+    if (prevFeeVolumeEMA != 0)
+        sleEpoch->setFieldU32(sfFeeVolumeEMA, prevFeeVolumeEMA);
+    // sfAggregateCompositeScore intentionally left unset (defaults to 0).
     // Synthetic protocol operation — no driving transaction.
     sleEpoch->setFieldH256(sfPreviousTxnID, uint256{});
     sleEpoch->setFieldU32(sfPreviousTxnLgrSeq, seq);

@@ -1,0 +1,315 @@
+#!/usr/bin/env python3
+# Copyright (c) 2026 qXRP Team.
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+# Fund each validator account from genesis and submit ValidatorRegister +
+# ValidatorBond so the 5-node regtest network starts earning rewards.
+#
+# Usage:
+#   python3 scripts/bond-validators.py              # bond all validators
+#   python3 scripts/bond-validators.py --monitor    # watch epoch progress after bonding
+#   python3 scripts/bond-validators.py --claim      # claim rewards for all validators
+#
+# Prerequisites:
+#   • start-regtest.sh must already be running (data/regtest/seeds.txt present)
+#   • The binary must have been built with -Dqxrp_epoch_override=100
+
+import argparse
+import json
+import os
+import sys
+import time
+import urllib.error
+import urllib.request
+
+# ── constants ──────────────────────────────────────────────────────────────────
+DROPS_PER_QXRP = 1_000_000
+MIN_BOND_DROPS = 1_000 * DROPS_PER_QXRP   # 1 000 qXRP minimum bond
+FUND_DROPS     = 2_000 * DROPS_PER_QXRP   # 2 000 qXRP per validator (reserves + bond + fees)
+BASE_PORT      = 5005
+N_VALIDATORS   = 5
+
+GENESIS_SECRET  = "masterpassphrase"
+GENESIS_ACCOUNT = "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh"
+
+REPO_ROOT   = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
+SEEDS_FILE  = os.path.join(REPO_ROOT, "data", "regtest", "seeds.txt")
+
+
+# ── RPC helpers ────────────────────────────────────────────────────────────────
+def rpc(port, method, params=None):
+    url  = f"http://127.0.0.1:{port}"
+    body = json.dumps({"method": method, "params": [params or {}]}).encode()
+    req  = urllib.request.Request(
+        url, data=body, headers={"Content-Type": "application/json"}
+    )
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        return json.loads(resp.read())
+
+
+def sign_and_submit(port, tx_json, secret):
+    """Sign a transaction with *secret* and submit it; return the result dict."""
+    r = rpc(port, "submit", {"tx_json": tx_json, "secret": secret})
+    return r["result"]
+
+
+def wait_validated(port, tx_hash, timeout=60):
+    """Block until *tx_hash* appears in a validated ledger; return engine_result."""
+    for _ in range(timeout):
+        try:
+            r = rpc(port, "tx", {"transaction": tx_hash, "binary": False})
+            res = r.get("result", {})
+            if res.get("validated"):
+                return res.get("meta", {}).get("TransactionResult", "UNKNOWN")
+        except Exception:
+            pass
+        time.sleep(1)
+    return "TIMEOUT"
+
+
+def account_exists(port, address):
+    try:
+        r = rpc(port, "account_info", {"account": address, "ledger_index": "current"})
+        return "account_data" in r.get("result", {})
+    except Exception:
+        return False
+
+
+def bond_status(port, address):
+    """Return the validator bond status dict, or None if not registered."""
+    try:
+        r = rpc(port, "ledger_entry", {
+            "validator_bond": {"account": address},
+            "ledger_index": "current",
+        })
+        result = r.get("result", {})
+        # ledger_entry returns error in result when entry not found
+        if "error" in result or "node" not in result:
+            return None
+        node = result["node"]
+        return {
+            "status":          node.get("BondStatus"),
+            "bonded_amount":   node.get("BondedAmount"),
+            "composite_score": node.get("CompositeScore"),
+            "reward_accum":    node.get("RewardAccumulator"),
+        }
+    except Exception:
+        return None
+
+
+# ── bond flow ──────────────────────────────────────────────────────────────────
+def do_bond(seeds):
+    print("=== Funding + Bonding validators ===\n")
+
+    # Wait for network
+    print("Waiting for network (v1, port 5005)...", end="", flush=True)
+    for _ in range(60):
+        try:
+            state = rpc(BASE_PORT, "server_info")["result"]["info"]["server_state"]
+            if state in ("proposing", "full"):
+                print(f" ready ({state})")
+                break
+        except Exception:
+            pass
+        print(".", end="", flush=True)
+        time.sleep(2)
+    else:
+        print("\nERROR: network did not become ready in time")
+        sys.exit(1)
+
+    # Genesis sequence
+    genesis_seq = rpc(BASE_PORT, "account_info", {
+        "account": GENESIS_ACCOUNT, "ledger_index": "current",
+    })["result"]["account_data"]["Sequence"]
+    print(f"Genesis sequence : {genesis_seq}\n")
+
+    for i, seed in enumerate(seeds):
+        vnum = i + 1
+        port = BASE_PORT + i
+        print(f"── Validator {vnum} ──────────────────────────────────")
+
+        # Derive account from seed
+        wp      = rpc(BASE_PORT, "wallet_propose", {"seed": seed, "key_type": "secp256k1"})["result"]
+        address = wp["account_id"]
+        print(f"  account  : {address}")
+
+        # Fund if the account doesn't exist yet
+        if not account_exists(BASE_PORT, address):
+            print(f"  funding  : {FUND_DROPS} drops ({FUND_DROPS // DROPS_PER_QXRP} qXRP)…")
+            r = sign_and_submit(BASE_PORT, {
+                "TransactionType": "Payment",
+                "Account":         GENESIS_ACCOUNT,
+                "Destination":     address,
+                "Amount":          str(FUND_DROPS),
+                "Sequence":        genesis_seq,
+                "Fee":             "12",
+            }, GENESIS_SECRET)
+            eng = r["engine_result"]
+            if eng not in ("tesSUCCESS", "terQUEUED"):
+                print(f"  ERROR funding: {eng} — {r.get('engine_result_message', '')}")
+                sys.exit(1)
+            tx_hash = r["tx_json"]["hash"]
+            genesis_seq += 1
+            result = wait_validated(BASE_PORT, tx_hash)
+            print(f"  fund tx  : {tx_hash[:16]}… → {result}")
+        else:
+            print("  account already funded")
+
+        # ValidatorRegister — idempotent (tecDUPLICATE = already registered)
+        print("  ValidatorRegister…")
+        r = sign_and_submit(port, {
+            "TransactionType": "ValidatorRegister",
+            "Account":         address,
+            "Fee":             "12",
+        }, seed)
+        eng = r["engine_result"]
+        if eng not in ("tesSUCCESS", "tecDUPLICATE"):
+            print(f"  ERROR register: {eng} — {r.get('engine_result_message', '')}")
+            sys.exit(1)
+        if eng == "tesSUCCESS":
+            wait_validated(port, r["tx_json"]["hash"])
+        print(f"  register : {eng}")
+
+        # ValidatorBond — tecNO_PERMISSION = already bonded/unbonding (skip)
+        print(f"  ValidatorBond ({MIN_BOND_DROPS} drops = 1 000 qXRP)…")
+        r = sign_and_submit(port, {
+            "TransactionType": "ValidatorBond",
+            "Account":         address,
+            "BondedAmount":    str(MIN_BOND_DROPS),
+            "Fee":             "12",
+        }, seed)
+        eng = r["engine_result"]
+        if eng == "tecNO_PERMISSION":
+            print("  bond     : already bonded ✓")
+        elif eng != "tesSUCCESS":
+            print(f"  ERROR bond: {eng} — {r.get('engine_result_message', '')}")
+            sys.exit(1)
+        else:
+            wait_validated(port, r["tx_json"]["hash"])
+            print(f"  bond     : {eng}")
+
+    print("\n═══════════════════════════════════════════════")
+    print("  All validators registered and bonded!")
+    print(f"  Epochs fire every 100 ledgers (~6 min at 3.5 s/ledger).")
+    print(f"  After ledger 100: scores set, rewards accumulate.")
+    print(f"  Run with --monitor to watch epoch progress.")
+    print(f"  Run with --claim  to collect rewards after epoch 1.")
+    print("═══════════════════════════════════════════════")
+
+
+# ── monitor flow ───────────────────────────────────────────────────────────────
+def do_monitor(seeds):
+    addresses = []
+    for seed in seeds:
+        wp = rpc(BASE_PORT, "wallet_propose", {"seed": seed, "key_type": "secp256k1"})["result"]
+        addresses.append(wp["account_id"])
+
+    print("Monitoring epoch progress (Ctrl-C to stop)\n")
+    last_epoch = -1
+
+    while True:
+        try:
+            info    = rpc(BASE_PORT, "server_info")["result"]["info"]
+            state   = info["server_state"]
+            seq     = info.get("validated_ledger", {}).get("seq", 0)
+            next_ep = 100 - (seq % 100) if seq % 100 != 0 else 100
+
+            # Try to read epoch object
+            try:
+                ep_r    = rpc(BASE_PORT, "ledger_entry",
+                              {"reward_epoch": True, "ledger_index": "validated"})
+                ep_node = ep_r["result"]["node"]
+                epoch   = ep_node.get("EpochNumber", 0)
+                emitted = ep_node.get("EmissionRate", 0)
+                treasury= ep_node.get("EpochPoolBalance", 0)
+            except Exception:
+                epoch, emitted, treasury = 0, 0, "?"
+
+            if epoch != last_epoch:
+                print(f"\n  ★ Epoch {epoch} | ledger {seq} | next epoch in {next_ep} ledgers")
+                print(f"    treasury={treasury}  last_emission={emitted}")
+                last_epoch = epoch
+
+                # Print per-validator scores
+                for j, addr in enumerate(addresses):
+                    bs = bond_status(BASE_PORT, addr)
+                    if bs:
+                        score  = bs.get("composite_score") or 0
+                        accum  = bs.get("reward_accum") or 0
+                        status = bs.get("status")
+                        print(f"    v{j+1} score={score} bps  accum={accum} drops  status={status}")
+            else:
+                print(f"\r  ledger {seq}  state={state}  next_epoch_in={next_ep}    ",
+                      end="", flush=True)
+
+        except Exception as e:
+            print(f"\r  (waiting… {e})  ", end="", flush=True)
+
+        time.sleep(4)
+
+
+# ── claim flow ─────────────────────────────────────────────────────────────────
+def do_claim(seeds):
+    print("=== Claiming rewards ===\n")
+    for i, seed in enumerate(seeds):
+        vnum = i + 1
+        port = BASE_PORT + i
+        wp      = rpc(BASE_PORT, "wallet_propose", {"seed": seed, "key_type": "secp256k1"})["result"]
+        address = wp["account_id"]
+        bs      = bond_status(BASE_PORT, address)
+        if not bs:
+            print(f"v{vnum}: not registered — skip")
+            continue
+
+        score = bs.get("composite_score", 0)
+        accum = bs.get("reward_accum", 0)
+        print(f"v{vnum} ({address[:12]}…)  score={score} bps  accum={accum} drops")
+
+        if score < 500:
+            print(f"  score < 500 bps (5%) — ClaimReward would fail, skipping")
+            continue
+        if int(accum or 0) == 0:
+            print(f"  nothing to claim yet")
+            continue
+
+        r   = sign_and_submit(port, {
+            "TransactionType": "ClaimReward",
+            "Account":         address,
+            "Fee":             "12",
+        }, seed)
+        eng = r["engine_result"]
+        print(f"  ClaimReward: {eng}")
+        if eng == "tesSUCCESS":
+            result = wait_validated(port, r["tx_json"]["hash"])
+            print(f"  validated  : {result}")
+
+
+# ── entry point ────────────────────────────────────────────────────────────────
+def main():
+    parser = argparse.ArgumentParser(description="qXRP regtest validator bonding tool")
+    parser.add_argument("--monitor", action="store_true", help="Watch epoch/reward progress")
+    parser.add_argument("--claim",   action="store_true", help="Claim accumulated rewards")
+    args = parser.parse_args()
+
+    if not os.path.exists(SEEDS_FILE):
+        print(f"ERROR: {SEEDS_FILE} not found.")
+        print("  Start the network first: bash scripts/start-regtest.sh build/build/Release/xrpld")
+        sys.exit(1)
+
+    with open(SEEDS_FILE) as f:
+        seeds = [line.strip() for line in f if line.strip()]
+
+    if len(seeds) < N_VALIDATORS:
+        print(f"ERROR: expected {N_VALIDATORS} seeds, got {len(seeds)}")
+        sys.exit(1)
+
+    if args.monitor:
+        do_monitor(seeds)
+    elif args.claim:
+        do_claim(seeds)
+    else:
+        do_bond(seeds)
+
+
+if __name__ == "__main__":
+    main()

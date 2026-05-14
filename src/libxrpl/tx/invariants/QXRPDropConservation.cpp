@@ -44,6 +44,11 @@ QXRPDropConservation::visitEntry(
                 if (isXRP((*before)[sfAmount]))
                     drops_ -= (*before)[sfAmount].xrp().drops();
                 break;
+            case ltVALIDATOR_BOND:
+                // Track locked bond drops so ValidatorBond/ReleaseBond satisfy
+                // the conservation check: account_delta + bond_delta == -fee.
+                drops_ -= (*before)[sfBondedAmount].xrp().drops();
+                break;
             default:
                 break;
         }
@@ -64,6 +69,10 @@ QXRPDropConservation::visitEntry(
             case ltESCROW:
                 if (!isDelete && isXRP((*after)[sfAmount]))
                     drops_ += (*after)[sfAmount].xrp().drops();
+                break;
+            case ltVALIDATOR_BOND:
+                if (!isDelete)
+                    drops_ += (*after)[sfBondedAmount].xrp().drops();
                 break;
             default:
                 break;

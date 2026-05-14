@@ -47,14 +47,10 @@ ValidatorRegister::doApply()
     sleBond->setFieldAmount(sfBondedAmount, STAmount{XRPAmount{0}});
     sleBond->setFieldU32(sfBondStatus, kBOND_STATUS_REGISTERED);
     sleBond->setFieldU32(sfSlashMultiplier, kBPS_DENOM);  // start at 10 000 = clean
-    sleBond->setFieldU32(sfUptimeBps, 0);
-    sleBond->setFieldU32(sfVoteAccuracyBps, 0);
-    sleBond->setFieldU32(sfLatencyScoreBps, 0);
-    sleBond->setFieldU32(sfConsistencyBps, 0);
-    sleBond->setFieldU32(sfCompositeScore, 0);
-    sleBond->setFieldU32(sfSlashCount, 0);
-    sleBond->setFieldU32(sfLastClaimedEpoch, 0);
-    sleBond->setFieldU32(sfUnbondingStartLedger, 0);
+    // SoeDefault fields (sfUptimeBps, sfVoteAccuracyBps, sfLatencyScoreBps,
+    // sfConsistencyBps, sfCompositeScore, sfSlashCount, sfLastClaimedEpoch,
+    // sfUnbondingStartLedger) are intentionally left unset — they default to 0.
+    // Explicitly setting them to 0 would be rejected by applyTemplate.
     sleBond->setFieldH256(sfPreviousTxnID, ctx_.tx.getTransactionID());
     sleBond->setFieldU32(sfPreviousTxnLgrSeq, view().seq());
 
