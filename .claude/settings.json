@@ -8,7 +8,7 @@
     "autoAllowBashIfSandboxed": true,
     "allowUnsandboxedCommands": true,
     "filesystem": {
-      "allowWrite": [".", "/workspaces"]
+      "allowWrite": [".", "/tmp", "/workspaces"]
     }
   }
 }

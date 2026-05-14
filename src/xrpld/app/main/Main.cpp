@@ -22,9 +22,9 @@
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/trim.hpp>
-#include <boost/process/args.hpp>
-#include <boost/process/child.hpp>  // IWYU pragma: keep
-#include <boost/process/exe.hpp>
+#include <boost/process/v1/args.hpp>
+#include <boost/process/v1/child.hpp>  // IWYU pragma: keep
+#include <boost/process/v1/exe.hpp>
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/positional_options.hpp>
 #include <boost/program_options/value_semantic.hpp>
