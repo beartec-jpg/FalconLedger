@@ -136,6 +136,9 @@ XRPNotCreated::visitEntry(
                 if (isXRP((*before)[sfAmount]))
                     drops_ -= (*before)[sfAmount].xrp().drops();
                 break;
+            case ltVALIDATOR_BOND:
+                drops_ -= (*before)[sfBondedAmount].xrp().drops();
+                break;
             default:
                 break;
         }
@@ -155,6 +158,10 @@ XRPNotCreated::visitEntry(
             case ltESCROW:
                 if (!isDelete && isXRP((*after)[sfAmount]))
                     drops_ += (*after)[sfAmount].xrp().drops();
+                break;
+            case ltVALIDATOR_BOND:
+                if (!isDelete)
+                    drops_ += (*after)[sfBondedAmount].xrp().drops();
                 break;
             default:
                 break;
