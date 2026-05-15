@@ -1,0 +1,67 @@
+groups:
+  - name: qxrp_alerts
+    interval: 30s
+    rules:
+
+      # Node unreachable
+      - alert: NodeDown
+        expr: xrpld_up == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "qXRP node {{ $labels.node }} is down"
+          description: "Node {{ $labels.node }} has not responded to scrapes for 2 minutes."
+
+      # Ledger stall — no new validated ledgers for 60s
+      - alert: LedgerStall
+        expr: increase(xrpld_validated_ledger_seq[60s]) == 0 and xrpld_up == 1
+        for: 1m
+        labels: { severity: critical }
+        annotations:
+          summary: "Ledger stalled on {{ $labels.node }}"
+          description: "No new validated ledgers on {{ $labels.node }} for 60s. Possible consensus failure."
+
+      # Not proposing
+      - alert: NotProposing
+        expr: xrpld_proposing == 0 and xrpld_up == 1
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $labels.node }} not proposing"
+          description: "Node {{ $labels.node }} has been in non-proposing state for 5 minutes."
+
+      # Low peer count
+      - alert: LowPeers
+        expr: xrpld_peers < 2
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Low peer count on {{ $labels.node }}"
+          description: "Only {{ $value }} peers on {{ $labels.node }}. Network may be partitioned."
+
+      # High fee load factor
+      - alert: HighLoadFactor
+        expr: xrpld_load_factor > 10
+        for: 2m
+        labels: { severity: warning }
+        annotations:
+          summary: "High load factor on {{ $labels.node }}"
+          description: "Load factor is {{ $value }} on {{ $labels.node }}. Transactions may fail with telINSUF_FEE_P."
+
+      # Disk filling up (requires node_exporter)
+      - alert: DiskFilling
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.15
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Disk filling on {{ $labels.instance }}"
+          description: "Less than 15% disk space remaining on {{ $labels.instance }}."
+
+      # High memory usage
+      - alert: HighMemory
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) > 0.90
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage above 90% on {{ $labels.instance }}."

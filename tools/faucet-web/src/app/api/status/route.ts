@@ -1,0 +1,28 @@
+// GET /api/status
+// Returns live network info from the configured xrpld node
+
+import { NextResponse } from 'next/server'
+import { getServerInfo } from '@/lib/rpc'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
+export async function GET() {
+  try {
+    const info = await getServerInfo()
+    return NextResponse.json({
+      online: true,
+      state: info.server_state,
+      ledger: info.validated_ledger?.seq ?? 0,
+      peers: info.peers,
+      loadFactor: info.load_factor,
+      completeLedgers: info.complete_ledgers,
+      reserveBaseXrp: info.validated_ledger?.reserve_base_xrp ?? 0,
+    })
+  } catch (e) {
+    return NextResponse.json(
+      { online: false, error: String(e) },
+      { status: 503 }
+    )
+  }
+}
