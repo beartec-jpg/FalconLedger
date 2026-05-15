@@ -1,0 +1,63 @@
+version: "3.9"
+
+services:
+  # ── Custom xrpld Prometheus exporter ──────────────────────────────────────
+  xrpld-exporter:
+    build:
+      context: .
+      dockerfile: Dockerfile.exporter
+    restart: unless-stopped
+    environment:
+      # Comma-separated list of xrpld RPC URLs (public RPC port)
+      - NODES=${NODES:-http://host.docker.internal:6005,http://host.docker.internal:6006,http://host.docker.internal:6007}
+      - SCRAPE_INTERVAL=10
+    ports:
+      - "9101:9101"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # ── Prometheus ────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+      - --web.enable-lifecycle
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+
+  # ── Grafana ───────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.2
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-qxrp-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/qxrp.json
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+  # ── Alertmanager (optional — configure receivers in alertmanager.yml) ─────
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    restart: unless-stopped
+    volumes:
+      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "9093:9093"
+
+volumes:
+  prometheus_data:
+  grafana_data:

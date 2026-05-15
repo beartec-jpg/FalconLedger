@@ -1,0 +1,19 @@
+version: "3.9"
+services:
+  unl-publisher:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    environment:
+      - ADMIN_TOKEN=${ADMIN_TOKEN:-changeme}
+      - NETWORK_ID=${NETWORK_ID:-999}
+      - NETWORK_NAME=${NETWORK_NAME:-qXRP Testnet}
+      - PORT=8090
+    volumes:
+      - unl_data:/app/data
+
+volumes:
+  unl_data:

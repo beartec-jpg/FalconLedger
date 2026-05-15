@@ -1,0 +1,119 @@
+{
+  "title": "qXRP Network",
+  "uid": "qxrp-main",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "node",
+        "type": "query",
+        "datasource": "Prometheus",
+        "query": "label_values(xrpld_up, node)",
+        "multi": true,
+        "includeAll": true,
+        "current": { "text": "All", "value": "$__all" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "Nodes Online",
+      "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{"color":"red","value":0},{"color":"yellow","value":1},{"color":"green","value":3}] }
+        }
+      },
+      "targets": [{ "expr": "sum(xrpld_up)", "legendFormat": "Online" }]
+    },
+    {
+      "id": 2, "type": "stat", "title": "Proposing",
+      "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{"color":"red","value":0},{"color":"yellow","value":1},{"color":"green","value":3}] }
+        }
+      },
+      "targets": [{ "expr": "sum(xrpld_proposing)", "legendFormat": "Proposing" }]
+    },
+    {
+      "id": 3, "type": "stat", "title": "Validated Ledger",
+      "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" } } },
+      "targets": [{ "expr": "max(xrpld_validated_ledger_seq)", "legendFormat": "Seq" }]
+    },
+    {
+      "id": 4, "type": "stat", "title": "Avg Peers",
+      "gridPos": { "x": 12, "y": 0, "w": 4, "h": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{"color":"red","value":0},{"color":"yellow","value":2},{"color":"green","value":4}] }
+        }
+      },
+      "targets": [{ "expr": "avg(xrpld_peers)", "legendFormat": "Avg peers" }]
+    },
+    {
+      "id": 5, "type": "stat", "title": "Max Load Factor",
+      "gridPos": { "x": 16, "y": 0, "w": 4, "h": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{"color":"green","value":0},{"color":"yellow","value":5},{"color":"red","value":10}] }
+        }
+      },
+      "targets": [{ "expr": "max(xrpld_load_factor)", "legendFormat": "Max load" }]
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "Validated Ledger Sequence",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "custom": { "lineWidth": 2 } } },
+      "targets": [{ "expr": "xrpld_validated_ledger_seq{node=~\"$node\"}", "legendFormat": "{{node}}" }]
+    },
+    {
+      "id": 7, "type": "timeseries", "title": "Peers Per Node",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "custom": { "lineWidth": 2 }, "min": 0 } },
+      "targets": [{ "expr": "xrpld_peers{node=~\"$node\"}", "legendFormat": "{{node}}" }]
+    },
+    {
+      "id": 8, "type": "timeseries", "title": "Load Factor",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "lineWidth": 2 },
+          "min": 0,
+          "thresholds": { "steps": [{"color":"green","value":0},{"color":"yellow","value":5},{"color":"red","value":10}] }
+        }
+      },
+      "targets": [{ "expr": "xrpld_load_factor{node=~\"$node\"}", "legendFormat": "{{node}}" }]
+    },
+    {
+      "id": 9, "type": "timeseries", "title": "Ledger Close Rate (ledgers/min)",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "custom": { "lineWidth": 2 }, "min": 0 } },
+      "targets": [{ "expr": "rate(xrpld_validated_ledger_seq{node=~\"$node\"}[1m]) * 60", "legendFormat": "{{node}}" }]
+    },
+    {
+      "id": 10, "type": "timeseries", "title": "Node Uptime (hours)",
+      "gridPos": { "x": 0, "y": 20, "w": 12, "h": 6 },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "lineWidth": 2 }, "min": 0 } },
+      "targets": [{ "expr": "xrpld_uptime_seconds{node=~\"$node\"}", "legendFormat": "{{node}}" }]
+    },
+    {
+      "id": 11, "type": "table", "title": "Node Status",
+      "gridPos": { "x": 12, "y": 20, "w": 12, "h": 6 },
+      "targets": [
+        { "expr": "xrpld_up", "legendFormat": "up", "instant": true },
+        { "expr": "xrpld_proposing", "legendFormat": "proposing", "instant": true },
+        { "expr": "xrpld_validated_ledger_seq", "legendFormat": "ledger", "instant": true },
+        { "expr": "xrpld_peers", "legendFormat": "peers", "instant": true }
+      ]
+    }
+  ]
+}

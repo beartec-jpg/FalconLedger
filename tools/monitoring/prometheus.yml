@@ -1,0 +1,23 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    network: qxrp-testnet
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  # xrpld custom exporter
+  - job_name: xrpld
+    static_configs:
+      - targets: ['xrpld-exporter:9101']
+
+  # System metrics (node_exporter on each cloud server)
+  # Add your server IPs here:
+  - job_name: node
+    static_configs:
+      - targets:
+          - 'localhost:9100'
+          # - 'server2:9100'
+          # - 'server3:9100'
