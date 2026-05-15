@@ -42,6 +42,7 @@ BOOTSTRAP_PEERS=""        # e.g. "1.2.3.4:51235,5.6.7.8:51235"
 INSTALL_DIR="/opt/qxrp"
 DATA_ROOT="/var/lib/qxrp"
 SKIP_BUILD=0
+RELEASE_URL=""          # e.g. https://github.com/beartec-jpg/qXRP/releases/download/v1.0.0/xrpld-linux-x86_64
 NODE_SIZE="medium"
 BUILD_JOBS="$(nproc)"
 BASE_RPC_PORT=5005
@@ -68,8 +69,9 @@ while [[ $# -gt 0 ]]; do
     --peers)        BOOTSTRAP_PEERS="$2"; shift 2 ;;
     --install-dir)  INSTALL_DIR="$2";  shift 2 ;;
     --data-dir)     DATA_ROOT="$2";    shift 2 ;;
-    --skip-build)   SKIP_BUILD=1;      shift   ;;
-    --node-size)    NODE_SIZE="$2";    shift 2 ;;
+    --skip-build)    SKIP_BUILD=1;        shift   ;;
+    --release-url)  RELEASE_URL="$2";   shift 2 ;;
+    --node-size)    NODE_SIZE="$2";      shift 2 ;;
     --jobs)         BUILD_JOBS="$2";   shift 2 ;;
     *) die "Unknown option: $1" ;;
   esac
@@ -215,7 +217,13 @@ log "Conan profile:"; conan profile show 2>/dev/null | head -15
 # ---------------------------------------------------------------------------
 # 4. Build xrpld
 # ---------------------------------------------------------------------------
-if [[ "$SKIP_BUILD" -eq 1 && -x "$BINARY" ]]; then
+if [[ -n "$RELEASE_URL" ]]; then
+    step "Downloading pre-built binary from release"
+    mkdir -p "$INSTALL_DIR/bin"
+    curl -fSL --progress-bar "$RELEASE_URL" -o "$BINARY"
+    chmod +x "$BINARY"
+    log "Downloaded: $(ls -lh $BINARY | awk '{print $5, $9}')"
+elif [[ "$SKIP_BUILD" -eq 1 && -x "$BINARY" ]]; then
     log "Skipping build — using existing binary: $BINARY"
 else
     step "Building xrpld (this takes 20-60 minutes on first run)"
