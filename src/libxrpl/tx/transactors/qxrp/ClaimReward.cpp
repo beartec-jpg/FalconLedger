@@ -6,11 +6,13 @@
 #include <xrpl/basics/WideArith.h>
 #include <xrpl/protocol/Feature.h>
 #include <xrpl/protocol/Indexes.h>
+#include <xrpl/protocol/PublicKey.h>
 #include <xrpl/protocol/QXRPConstants.h>
 #include <xrpl/protocol/SField.h>
 #include <xrpl/protocol/STLedgerEntry.h>
 #include <xrpl/protocol/STTx.h>
 #include <xrpl/protocol/TER.h>
+#include <xrpl/protocol/UintTypes.h>
 #include <xrpl/tx/ApplyContext.h>
 
 namespace xrpl {
@@ -21,16 +23,21 @@ ClaimReward::preflight(PreflightContext const& ctx)
     if (!ctx.rules.enabled(featureProofOfParticipation))
         return temDISABLED;
 
+    // sfConsensusKey must be a classical secp256k1 or ed25519 node key.
+    auto const ckBlob = ctx.tx.getFieldVL(sfConsensusKey);
+    if (!publicKeyType(makeSlice(ckBlob)))
+        return temINVALID_FLAG;
+
     return tesSUCCESS;
 }
 
 TER
 ClaimReward::preclaim(PreclaimContext const& ctx)
 {
-    auto const account = ctx.tx[sfAccount];
+    auto const ckBlob = ctx.tx.getFieldVL(sfConsensusKey);
 
     // Must have a registered + bonded bond object.
-    auto sleBond = ctx.view.read(keylet::validatorBond(account));
+    auto sleBond = ctx.view.read(keylet::validatorBond(calcValidatorBondID(makeSlice(ckBlob))));
     if (!sleBond)
         return tecNO_ENTRY;
 
@@ -52,8 +59,9 @@ TER
 ClaimReward::doApply()
 {
     auto const account = ctx_.tx[sfAccount];
+    auto const ckBlob = ctx_.tx.getFieldVL(sfConsensusKey);
 
-    auto sleBond = ctx_.view().peek(keylet::validatorBond(account));
+    auto sleBond = ctx_.view().peek(keylet::validatorBond(calcValidatorBondID(makeSlice(ckBlob))));
     if (!sleBond)
         return tefINTERNAL;  // LCOV_EXCL_LINE
 
@@ -69,11 +77,19 @@ ClaimReward::doApply()
         return tecDUPLICATE;
 
     // ── Proportional share computation ───────────────────────────────────
-    // share = poolBalance * compositeScore / aggregateCompositeScore
+    // share = emissionRate * compositeScore / aggregateCompositeScore
     // All arithmetic is integer; no floating point.
+    //
+    // sfEmissionRate is the FIXED original pool committed at epoch start.
+    // sfEpochPoolBalance decreases as validators claim — using it for share
+    // computation would cause first-claimers to receive disproportionately
+    // large rewards (early claim unfairness bug).  Use the fixed emission
+    // rate so every validator's share is based on the same denominator,
+    // and shares across all validators sum to exactly sfEmissionRate.
     auto const compositeScore     = sleBond->getFieldU32(sfCompositeScore);
     auto const aggregateScore     = sleEpoch->getFieldU32(sfAggregateCompositeScore);
     auto const poolBalance        = sleEpoch->getFieldAmount(sfEpochPoolBalance);
+    auto const emissionRate       = sleEpoch->getFieldAmount(sfEmissionRate);
 
     if (aggregateScore == 0)
         return tecNO_PERMISSION;  // no eligible validators — shouldn't reach here
@@ -81,8 +97,8 @@ ClaimReward::doApply()
     // Use muldiv64: no overflow because compositeScore <= aggregateScore
     // (one validator's score vs. the sum of all bonded validators' scores).
     // Both arguments fit in uint32; the result fits in int64.
-    auto const poolDrops  = poolBalance.xrp().drops();
-    auto const shareDrops = muldiv64(poolDrops, compositeScore, aggregateScore);
+    auto const emissionDrops = emissionRate.xrp().drops();
+    auto const shareDrops = muldiv64(emissionDrops, compositeScore, aggregateScore);
 
     if (shareDrops <= 0)
         return tesSUCCESS;  // rounding to zero — no reward to distribute

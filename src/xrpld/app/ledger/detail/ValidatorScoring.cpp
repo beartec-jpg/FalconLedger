@@ -53,9 +53,13 @@ applyValidatorScoring(
 
     auto& validations = app.getValidations();
 
-    // Tell the validation cache to retain history for the upcoming 256 ledgers so
-    // this data is available for any other consumer during this interval.
-    validations.setSeqToKeep(seq - 1, seq + kFLAG_LEDGER_INTERVAL);
+    // Keep the full scoring window [seq-256, seq+256) fresh so that when this
+    // epoch's data is consumed AND so the next epoch's scoring data is retained.
+    // Using just (seq-1) as the low bound caused pre-epoch validations to expire
+    // from the 10-minute cache before scoring fired (256 ledgers * 3.5s ≈ 15 min).
+    auto const windowLow =
+        (seq > kFLAG_LEDGER_INTERVAL) ? (seq - kFLAG_LEDGER_INTERVAL) : LedgerIndex{1};
+    validations.setSeqToKeep(windowLow, seq + kFLAG_LEDGER_INTERVAL);
 
     auto const hashIndex = parent->read(keylet::skip());
     if (!hashIndex || !hashIndex->isFieldPresent(sfHashes))
@@ -88,16 +92,41 @@ applyValidatorScoring(
     // Sequence offset: parent has seq = (this ledger's seq) - 1.
     // The skip list's most recent entry is the grandparent (seq - 2), so each
     // ancestor i (0 = most recent) corresponds to ledger sequence seq - 2 - i.
+    std::uint32_t totalValsFound = 0;
     for (std::uint32_t i = 0; i < kFLAG_LEDGER_INTERVAL; ++i)
     {
         auto const ancestorHash = ledgerAncestors[numAncestors - 1 - i];
         auto const ancestorSeq  = static_cast<LedgerIndex>(seq - 2 - i);
-        for (auto const& v : validations.getTrustedForLedger(ancestorHash, ancestorSeq))
+        auto const vals = validations.getTrustedForLedger(ancestorHash, ancestorSeq);
+        totalValsFound += vals.size();
+        for (auto const& v : vals)
         {
             auto const nid = v->getNodeID();
             if (auto it = scoreTable.find(nid); it != scoreTable.end())
                 ++it->second;
         }
+        // Diagnostic: log first few ancestor lookups at info level
+        if (i < 3)
+        {
+            JLOG(j.info()) << "qXRP ValidatorScoring diag: i=" << i
+                           << " ancestorSeq=" << ancestorSeq
+                           << " hash=" << ancestorHash
+                           << " valsFound=" << vals.size();
+        }
+    }
+    JLOG(j.info()) << "qXRP ValidatorScoring diag: seq=" << seq
+                   << " scoreTableSize=" << scoreTable.size()
+                   << " totalValsFoundAcross256=" << totalValsFound;
+    // Log scoreTable keys
+    for (auto const& [nid, cnt] : scoreTable)
+        JLOG(j.info()) << "qXRP ValidatorScoring diag: scoreTable nodeID=" << nid << " count=" << cnt;
+    // Log one example validation nodeID from first ancestor
+    {
+        auto const ancestorHash = ledgerAncestors[numAncestors - 1];
+        auto const ancestorSeq  = static_cast<LedgerIndex>(seq - 2);
+        auto const vals = validations.getTrustedForLedger(ancestorHash, ancestorSeq);
+        for (auto const& v : vals)
+            JLOG(j.info()) << "qXRP ValidatorScoring diag: val nodeID=" << v->getNodeID();
     }
 
     // ── 2. Score each bonded validator and update ltVALIDATOR_BOND ──
@@ -110,11 +139,19 @@ applyValidatorScoring(
         auto const accountID = calcAccountID(pubKey);
         auto sleBond = std::const_pointer_cast<SLE>(view.read(keylet::validatorBond(accountID)));
         if (!sleBond)
+        {
+            JLOG(j.info()) << "qXRP ValidatorScoring diag: accountID=" << accountID << " no bond SLE";
             continue;
+        }
 
         // Only score actively bonded validators; skip registered-only / unbonding.
         if (sleBond->getFieldU32(sfBondStatus) != kBOND_STATUS_BONDED)
+        {
+            JLOG(j.info()) << "qXRP ValidatorScoring diag: accountID=" << accountID
+                           << " BondStatus=" << sleBond->getFieldU32(sfBondStatus)
+                           << " != BONDED(" << kBOND_STATUS_BONDED << ") - skipping";
             continue;
+        }
 
         auto const nodeID = calcNodeID(pubKey);
         auto const validationCount = [&]() -> std::uint32_t {
@@ -169,18 +206,29 @@ applyValidatorScoring(
             (static_cast<__int128>(rawScore) * slashMult) / kBPS_DENOM);
 
         // ── write scoring signals onto the bond object ──
-        sleBond->setFieldU32(sfUptimeBps,        uptimeBps);
-        sleBond->setFieldU32(sfVoteAccuracyBps,  voteAccBps);
-        sleBond->setFieldU32(sfLatencyScoreBps,  kLATENCY_NEUTRAL_BPS);
-        sleBond->setFieldU32(sfConsistencyBps,   consistencyBps);
-        sleBond->setFieldU32(sfCompositeScore,   compositeScore);
+        // All scoring fields are SoeDefault (default = 0).  setFieldU32 throws
+        // if you try to explicitly store the default value, so we use
+        // makeFieldAbsent to reset a field back to 0 when the score is zero.
+        auto setScore = [&](SField const& f, std::uint32_t v) {
+            if (v == 0)
+                sleBond->makeFieldAbsent(f);
+            else
+                sleBond->setFieldU32(f, v);
+        };
+        setScore(sfUptimeBps,       uptimeBps);
+        setScore(sfVoteAccuracyBps, voteAccBps);
+        setScore(sfLatencyScoreBps, kLATENCY_NEUTRAL_BPS);
+        setScore(sfConsistencyBps,  consistencyBps);
+        setScore(sfCompositeScore,  compositeScore);
         sleBond->setFieldU32(sfPreviousTxnLgrSeq, seq);
         view.rawReplace(sleBond);
 
-        JLOG(j.trace()) << "qXRP ValidatorScoring: accountID=" << accountID
-                        << " validations=" << validationCount
-                        << " uptimeBps=" << uptimeBps
-                        << " compositeScore=" << compositeScore;
+        JLOG(j.info()) << "qXRP ValidatorScoring: accountID=" << accountID
+                       << " validations=" << validationCount
+                       << " uptimeBps=" << uptimeBps
+                       << " rawScore=" << rawScore
+                       << " slashMult=" << slashMult
+                       << " compositeScore=" << compositeScore;
 
         // Saturating add to prevent overflow on the aggregate.
         if (compositeScore <= std::numeric_limits<std::uint32_t>::max() - aggregateScore)
@@ -195,7 +243,11 @@ applyValidatorScoring(
     // the same OpenView accumulation pass.
     if (auto sleEpoch = std::const_pointer_cast<SLE>(view.read(keylet::rewardEpoch())))
     {
-        sleEpoch->setFieldU32(sfAggregateCompositeScore, aggregateScore);
+        // sfAggregateCompositeScore is SoeDefault; must not explicitly set 0.
+        if (aggregateScore == 0)
+            sleEpoch->makeFieldAbsent(sfAggregateCompositeScore);
+        else
+            sleEpoch->setFieldU32(sfAggregateCompositeScore, aggregateScore);
         view.rawReplace(sleEpoch);
     }
     else

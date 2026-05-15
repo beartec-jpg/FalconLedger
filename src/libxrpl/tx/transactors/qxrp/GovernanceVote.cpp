@@ -6,11 +6,13 @@
 #include <xrpl/protocol/AccountID.h>
 #include <xrpl/protocol/Feature.h>
 #include <xrpl/protocol/Indexes.h>
+#include <xrpl/protocol/PublicKey.h>
 #include <xrpl/protocol/QXRPConstants.h>
 #include <xrpl/protocol/SField.h>
 #include <xrpl/protocol/STLedgerEntry.h>
 #include <xrpl/protocol/STTx.h>
 #include <xrpl/protocol/TER.h>
+#include <xrpl/protocol/UintTypes.h>
 #include <xrpl/tx/ApplyContext.h>
 
 #include <algorithm>
@@ -53,6 +55,11 @@ GovernanceVote::preflight(PreflightContext const& ctx)
     if (!ctx.rules.enabled(featureProofOfParticipation))
         return temDISABLED;
 
+    // sfConsensusKey must be a classical secp256k1 or ed25519 node key.
+    auto const ckBlob = ctx.tx.getFieldVL(sfConsensusKey);
+    if (!publicKeyType(makeSlice(ckBlob)))
+        return temINVALID_FLAG;
+
     // sfVoteWeight reused: 1 = yes, 0 = no; any other value is malformed.
     auto const vote = ctx.tx.getFieldU32(sfVoteWeight);
     if (vote > 1)
@@ -65,9 +72,10 @@ TER
 GovernanceVote::preclaim(PreclaimContext const& ctx)
 {
     auto const voter = ctx.tx[sfAccount];
+    auto const ckBlob = ctx.tx.getFieldVL(sfConsensusKey);
 
     // Must be a bonded validator.
-    auto const sleBond = ctx.view.read(keylet::validatorBond(voter));
+    auto const sleBond = ctx.view.read(keylet::validatorBond(calcValidatorBondID(makeSlice(ckBlob))));
     if (!sleBond)
         return tecNO_ENTRY;
     if (sleBond->getFieldU32(sfBondStatus) != kBOND_STATUS_BONDED)
@@ -99,13 +107,14 @@ GovernanceVote::doApply()
     auto const voter       = ctx_.tx[sfAccount];
     auto const proposalID  = ctx_.tx.getFieldH256(sfProposalID);
     auto const voteYes     = ctx_.tx.getFieldU32(sfVoteWeight) == 1;
+    auto const ckBlob      = ctx_.tx.getFieldVL(sfConsensusKey);
 
     auto sleProposal = ctx_.view().peek(keylet::governanceProposal(proposalID));
     if (!sleProposal)
         return tefINTERNAL;  // LCOV_EXCL_LINE
 
     // Weight = voter's current composite score.
-    auto const sleBond = ctx_.view().read(keylet::validatorBond(voter));
+    auto const sleBond = ctx_.view().read(keylet::validatorBond(calcValidatorBondID(makeSlice(ckBlob))));
     if (!sleBond)
         return tefINTERNAL;  // LCOV_EXCL_LINE
     auto const weight = sleBond->getFieldU32(sfCompositeScore);

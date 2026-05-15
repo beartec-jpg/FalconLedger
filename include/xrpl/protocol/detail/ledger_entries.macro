@@ -612,7 +612,9 @@ LEDGER_ENTRY(ltLOAN, 0x0089, Loan, loan, ({
     \sa keylet::validatorBond
  */
 LEDGER_ENTRY_DUPLICATE(ltVALIDATOR_BOND, 0x0091, ValidatorBond, validator_bond, ({
-    {sfAccount,              SoeRequired},  // validator account
+    {sfAccount,              SoeRequired},  // validator account (bond submitter)
+    {sfPublicKey,            SoeRequired},  // Falcon-512/1024 post-quantum key
+    {sfConsensusKey,         SoeRequired},  // classical secp256k1/ed25519 key for scoring
     {sfBondedAmount,         SoeRequired},  // drops locked (0 when registered/unbonding)
     {sfBondStatus,           SoeRequired},  // 0=registered 1=bonded 2=unbonding
     {sfUptimeBps,            SoeDefault},   // 0..10000

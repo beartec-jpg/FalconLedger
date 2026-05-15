@@ -1086,7 +1086,13 @@ TRANSACTION(ttVALIDATOR_REGISTER, 85, ValidatorRegister,
     featureProofOfParticipation,
     NoPriv,
     ({
-    // No additional fields; the signing account becomes the validator.
+    // sfPublicKey: the validator's Falcon-512 or Falcon-1024 post-quantum key.
+    // Stored on the bond SLE for on-chain identity; prefix byte 0xFB/0xFC.
+    {sfPublicKey,    SoeRequired},
+    // sfConsensusKey: the classical secp256k1/ed25519 node key (n9... key).
+    // The bond SLE is indexed by calcAccountID(sfConsensusKey) so that
+    // ValidatorScoring can locate it using the trusted master UNL keys.
+    {sfConsensusKey, SoeRequired},
 }))
 
 /** qXRP: Lock bond capital, transitioning the validator to bonded status
@@ -1099,6 +1105,7 @@ TRANSACTION(ttVALIDATOR_BOND, 86, ValidatorBond,
     featureProofOfParticipation,
     NoPriv,
     ({
+    {sfConsensusKey, SoeRequired},  // classical node key — used to locate the bond SLE
     {sfBondedAmount, SoeRequired},
 }))
 
@@ -1112,7 +1119,7 @@ TRANSACTION(ttVALIDATOR_UNBOND, 87, ValidatorUnbond,
     featureProofOfParticipation,
     NoPriv,
     ({
-    // No additional fields; the caller's bond object is looked up by account.
+    {sfConsensusKey, SoeRequired},  // classical node key — used to locate the bond SLE
 }))
 
 /** qXRP: Claim accumulated reward drops from the treasury for the
@@ -1125,7 +1132,7 @@ TRANSACTION(ttCLAIM_REWARD, 88, ClaimReward,
     featureProofOfParticipation,
     NoPriv,
     ({
-    // No additional fields; epoch and score are read from bond object.
+    {sfConsensusKey, SoeRequired},  // classical node key — used to locate the bond SLE
 }))
 
 /** qXRP: Submit proof-of-misbehavior to slash a validator bond.
@@ -1173,6 +1180,7 @@ TRANSACTION(ttGOVERNANCE_PROPOSAL, 91, GovernanceProposal,
     featureProofOfParticipation,
     NoPriv,
     ({
+    {sfConsensusKey,  SoeRequired},   // classical node key — used to locate the bond SLE
     {sfProposalType,  SoeRequired},   // which parameter to change
     {sfProposalValue, SoeRequired},   // proposed new value
 }))
@@ -1187,8 +1195,9 @@ TRANSACTION(ttGOVERNANCE_VOTE, 92, GovernanceVote,
     featureProofOfParticipation,
     NoPriv,
     ({
-    {sfProposalID, SoeRequired},    // keylet of the proposal object
-    {sfVoteWeight, SoeRequired},    // 1=yes 0=no (reuse sfVoteWeight)
+    {sfConsensusKey, SoeRequired},   // classical node key — used to locate the bond SLE
+    {sfProposalID,   SoeRequired},   // keylet of the proposal object
+    {sfVoteWeight,   SoeRequired},   // 1=yes 0=no (reuse sfVoteWeight)
 }))
 
 /** This system-generated transaction type is used to update the status of the various amendments.

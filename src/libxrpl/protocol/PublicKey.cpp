@@ -5,6 +5,7 @@
 #include <xrpl/basics/contract.h>
 #include <xrpl/basics/strHex.h>
 #include <xrpl/protocol/KeyType.h>
+#include <xrpl/protocol/PQPublicKey.h>
 #include <xrpl/protocol/UintTypes.h>
 #include <xrpl/protocol/detail/secp256k1.h>
 #include <xrpl/protocol/digest.h>
@@ -298,6 +299,25 @@ calcNodeID(PublicKey const& pk)
     RipeshaHasher h;
     h(pk.data(), pk.size());
     return NodeID{static_cast<RipeshaHasher::result_type>(h)};
+}
+
+bool
+isValidNodeKey(Slice s) noexcept
+{
+    // Only Falcon-512 (0xFB) and Falcon-1024 (0xFC) post-quantum keys are
+    // accepted as validator node keys.  Classical secp256k1/ed25519 keys
+    // are stored in sfConsensusKey and validated via publicKeyType() directly.
+    return pqPublicKeyType(s).has_value();
+}
+
+AccountID
+calcValidatorBondID(Slice s)
+{
+    // RIPEMD160(SHA256(key_blob)) — identical transform to calcAccountID()
+    // but accepts any key length (classical 33-byte or Falcon variable-length).
+    RipeshaHasher rsh;
+    rsh(s.data(), s.size());
+    return AccountID{static_cast<RipeshaHasher::result_type>(rsh)};
 }
 
 }  // namespace xrpl

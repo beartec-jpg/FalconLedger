@@ -63,7 +63,8 @@ log "Runtime : $RUNTIME_DIR"
 # ---------------------------------------------------------------------------
 # Phase 1 – Key generation (skipped if already done)
 # ---------------------------------------------------------------------------
-VALFILE="$RUNTIME_DIR/validators.txt"
+mkdir -p "$RUNTIME_DIR"
+VALFILE="$(cd "$RUNTIME_DIR" && pwd)/validators.txt"
 
 declare -a SEEDS
 declare -a PUBKEYS
@@ -217,6 +218,26 @@ $RUNTIME_DIR/v${i}/debug.log
 
 [ips_fixed]
 ${IPS_FIXED}
+
+[transaction_queue]
+# Minimum txs allowed into a ledger before fee escalation kicks in.
+# Higher = more cheap txs per ledger, better steady-state throughput.
+minimum_txn_in_ledger = 100
+# Target txs-per-ledger that fee escalation works toward.
+# At ~3 s/ledger this gives ~333 TPS without escalating fees.
+target_txn_in_ledger = 1000
+# Queue holds 30 ledgers-worth of transactions in reserve.
+ledgers_in_queue = 30
+# Absolute floor on queue capacity regardless of ledger size.
+minimum_queue_size = 10000
+# Max queued transactions per account.
+# Load-test sends many in-flight per account, so raise this significantly.
+maximum_txn_per_account = 100
+# After a normal-speed ledger, grow the expected ledger size by 25%.
+normal_consensus_increase_percent = 25
+# After a slow ledger, only shrink the expected ledger size by 25%
+# (default 50%) so a single slow round doesn't collapse throughput.
+slow_consensus_decrease_percent = 25
 CFG
 
     log "  Validator $i  RPC=http://127.0.0.1:${RPC_PORT}  peer=51235+$((i-1))"
