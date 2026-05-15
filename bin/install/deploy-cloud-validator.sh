@@ -53,6 +53,7 @@ INSTALL_DIR="/opt/qxrp"
 DATA_DIR="/var/lib/qxrp/validator"
 NODE_NAME="v1"
 SKIP_BUILD=0
+RELEASE_URL=""          # e.g. https://github.com/beartec-jpg/qXRP/releases/download/v1.0.0/xrpld-linux-x86_64
 NODE_SIZE="medium"
 BUILD_JOBS="$(nproc)"
 RPC_PORT=5005
@@ -88,7 +89,8 @@ while [[ $# -gt 0 ]]; do
     --data-dir)      DATA_DIR="$2";       shift 2 ;;
     --node-name)     NODE_NAME="$2";      shift 2 ;;
     --skip-build)    SKIP_BUILD=1;        shift   ;;
-    --node-size)     NODE_SIZE="$2";      shift 2 ;;
+    --release-url)  RELEASE_URL="$2";   shift 2 ;;
+    --node-size)    NODE_SIZE="$2";      shift 2 ;;
     --jobs)          BUILD_JOBS="$2";     shift 2 ;;
     *) die "Unknown option: $1" ;;
   esac
@@ -179,7 +181,13 @@ log "Source: $REPO_URL @ $BRANCH ($COMMIT)"
 # ---------------------------------------------------------------------------
 # 3. Configure Conan + Build
 # ---------------------------------------------------------------------------
-if [[ "$SKIP_BUILD" -eq 1 && -x "$BINARY" ]]; then
+if [[ -n "$RELEASE_URL" ]]; then
+    step "Downloading pre-built binary from release"
+    mkdir -p "$INSTALL_DIR/bin"
+    curl -fSL --progress-bar "$RELEASE_URL" -o "$BINARY"
+    chmod +x "$BINARY"
+    log "Downloaded: $(ls -lh $BINARY | awk '{print $5, $9}')"
+elif [[ "$SKIP_BUILD" -eq 1 && -x "$BINARY" ]]; then
     log "Skipping build — using existing binary: $BINARY"
 else
     step "Configuring Conan"
