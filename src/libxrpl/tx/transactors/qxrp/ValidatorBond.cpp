@@ -5,11 +5,13 @@
 
 #include <xrpl/protocol/Feature.h>
 #include <xrpl/protocol/Indexes.h>
+#include <xrpl/protocol/PublicKey.h>
 #include <xrpl/protocol/QXRPConstants.h>
 #include <xrpl/protocol/SField.h>
 #include <xrpl/protocol/STLedgerEntry.h>
 #include <xrpl/protocol/STTx.h>
 #include <xrpl/protocol/TER.h>
+#include <xrpl/protocol/UintTypes.h>
 #include <xrpl/tx/ApplyContext.h>
 
 namespace xrpl {
@@ -19,6 +21,11 @@ ValidatorBond::preflight(PreflightContext const& ctx)
 {
     if (!ctx.rules.enabled(featureProofOfParticipation))
         return temDISABLED;
+
+    // sfConsensusKey must be a classical secp256k1 or ed25519 node key.
+    auto const ckBlob = ctx.tx.getFieldVL(sfConsensusKey);
+    if (!publicKeyType(makeSlice(ckBlob)))
+        return temINVALID_FLAG;
 
     // sfBondedAmount must be XRP, positive, and meet the minimum.
     auto const bondAmount = ctx.tx[sfBondedAmount];
@@ -35,9 +42,9 @@ ValidatorBond::preflight(PreflightContext const& ctx)
 TER
 ValidatorBond::preclaim(PreclaimContext const& ctx)
 {
-    auto const account = ctx.tx[sfAccount];
+    auto const ckBlob = ctx.tx.getFieldVL(sfConsensusKey);
 
-    auto sleBond = ctx.view.read(keylet::validatorBond(account));
+    auto sleBond = ctx.view.read(keylet::validatorBond(calcValidatorBondID(makeSlice(ckBlob))));
     if (!sleBond)
         return tecNO_ENTRY;  // must ValidatorRegister first
 
@@ -52,6 +59,7 @@ ValidatorBond::doApply()
 {
     auto const account = ctx_.tx[sfAccount];
     auto const bondAmount = ctx_.tx[sfBondedAmount];
+    auto const ckBlob = ctx_.tx.getFieldVL(sfConsensusKey);
 
     // Deduct bond from account balance.
     auto sleAccount = ctx_.view().peek(keylet::account(account));
@@ -66,7 +74,7 @@ ValidatorBond::doApply()
     ctx_.view().update(sleAccount);
 
     // Update bond object.
-    auto sleBond = ctx_.view().peek(keylet::validatorBond(account));
+    auto sleBond = ctx_.view().peek(keylet::validatorBond(calcValidatorBondID(makeSlice(ckBlob))));
     if (!sleBond)
         return tefINTERNAL;  // LCOV_EXCL_LINE
 

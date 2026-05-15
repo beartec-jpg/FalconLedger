@@ -1,0 +1,33 @@
+[regtest] Binary  : build/build/Release/xrpld
+[regtest] Runtime : data/regtest
+[regtest] validators.txt already exists – loading existing keys...
+[regtest] Loaded 5 public keys from previous bootstrap
+[regtest] Phase 2: writing validator configs...
+[regtest]   Validator 1  RPC=http://127.0.0.1:5005  peer=51235+0
+[regtest]   Validator 2  RPC=http://127.0.0.1:5006  peer=51235+1
+[regtest]   Validator 3  RPC=http://127.0.0.1:5007  peer=51235+2
+[regtest]   Validator 4  RPC=http://127.0.0.1:5008  peer=51235+3
+[regtest]   Validator 5  RPC=http://127.0.0.1:5009  peer=51235+4
+[regtest] Starting 5 validators...
+[regtest]   Validator 1 started (pid 388357)
+scripts/start-regtest.sh: line 263: 388357 Aborted                 (core dumped) "$BINARY" --conf "$RUNTIME_DIR/v${i}/xrpld.cfg" --start >> "$RUNTIME_DIR/v${i}/stdout.log" 2>&1
+[regtest]   Validator 2 started (pid 388359)
+scripts/start-regtest.sh: line 263: 388359 Aborted                 (core dumped) "$BINARY" --conf "$RUNTIME_DIR/v${i}/xrpld.cfg" --start >> "$RUNTIME_DIR/v${i}/stdout.log" 2>&1
+[regtest]   Validator 3 started (pid 388361)
+scripts/start-regtest.sh: line 263: 388361 Aborted                 (core dumped) "$BINARY" --conf "$RUNTIME_DIR/v${i}/xrpld.cfg" --start >> "$RUNTIME_DIR/v${i}/stdout.log" 2>&1
+[regtest]   Validator 4 started (pid 388364)
+scripts/start-regtest.sh: line 263: 388364 Aborted                 (core dumped) "$BINARY" --conf "$RUNTIME_DIR/v${i}/xrpld.cfg" --start >> "$RUNTIME_DIR/v${i}/stdout.log" 2>&1
+[regtest]   Validator 5 started (pid 388381)
+scripts/start-regtest.sh: line 263: 388381 Aborted                 (core dumped) "$BINARY" --conf "$RUNTIME_DIR/v${i}/xrpld.cfg" --start >> "$RUNTIME_DIR/v${i}/stdout.log" 2>&1
+[regtest] Waiting for network to converge (ledger ≥ 3)...
+[regtest] Shutting down validators...
+[regtest]   Still waiting... (attempt 10, last ledger=0)
+[regtest]   Still waiting... (attempt 20, last ledger=0)
+[regtest]   Still waiting... (attempt 30, last ledger=0)
+[regtest]   Still waiting... (attempt 40, last ledger=0)
+[regtest]   Still waiting... (attempt 50, last ledger=0)
+[regtest]   Still waiting... (attempt 60, last ledger=0)
+[regtest]   Still waiting... (attempt 70, last ledger=0)
+[regtest] Network converged at ledger 4  ✓
+scripts/start-regtest.sh: line 302: syntax error near unexpected token `('
+[regtest] Shutting down validators...

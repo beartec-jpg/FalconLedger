@@ -8,11 +8,13 @@
 #include <xrpl/ledger/helpers/DirectoryHelpers.h>
 #include <xrpl/protocol/Feature.h>
 #include <xrpl/protocol/Indexes.h>
+#include <xrpl/protocol/PublicKey.h>
 #include <xrpl/protocol/QXRPConstants.h>
 #include <xrpl/protocol/SField.h>
 #include <xrpl/protocol/STLedgerEntry.h>
 #include <xrpl/protocol/STTx.h>
 #include <xrpl/protocol/TER.h>
+#include <xrpl/protocol/UintTypes.h>
 #include <xrpl/tx/ApplyContext.h>
 
 namespace xrpl {
@@ -22,6 +24,11 @@ GovernanceProposal::preflight(PreflightContext const& ctx)
 {
     if (!ctx.rules.enabled(featureProofOfParticipation))
         return temDISABLED;
+
+    // sfConsensusKey must be a classical secp256k1 or ed25519 node key.
+    auto const ckBlob = ctx.tx.getFieldVL(sfConsensusKey);
+    if (!publicKeyType(makeSlice(ckBlob)))
+        return temINVALID_FLAG;
 
     auto const proposalType = ctx.tx.getFieldU32(sfProposalType);
     if (proposalType != kPROPOSAL_TYPE_BURN_BPS)
@@ -38,10 +45,10 @@ GovernanceProposal::preflight(PreflightContext const& ctx)
 TER
 GovernanceProposal::preclaim(PreclaimContext const& ctx)
 {
-    auto const account = ctx.tx[sfAccount];
+    auto const ckBlob = ctx.tx.getFieldVL(sfConsensusKey);
 
     // Only bonded validators may propose.
-    auto const sleBond = ctx.view.read(keylet::validatorBond(account));
+    auto const sleBond = ctx.view.read(keylet::validatorBond(calcValidatorBondID(makeSlice(ckBlob))));
     if (!sleBond)
         return tecNO_ENTRY;
     if (sleBond->getFieldU32(sfBondStatus) != kBOND_STATUS_BONDED)

@@ -336,6 +336,7 @@ TYPED_SFIELD(sfCredentialType,           VL,        31)
 TYPED_SFIELD(sfSlashEvidence1,           VL,        32) // first diverging signature blob
 TYPED_SFIELD(sfSlashEvidence2,           VL,        33) // second diverging signature blob
 TYPED_SFIELD(sfVoterList,                VL,        34) // packed AccountIDs that voted on proposal
+TYPED_SFIELD(sfConsensusKey,             VL,        35) // classical secp256k1/ed25519 node key for scoring lookup
 
 // account (common)
 TYPED_SFIELD(sfAccount,                  ACCOUNT,    1)

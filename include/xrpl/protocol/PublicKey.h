@@ -238,6 +238,26 @@ calcNodeID(PublicKey const&);
 AccountID
 calcAccountID(PublicKey const& pk);
 
+/// Returns true if @a s encodes a valid node public key.
+///
+/// Accepts classical 33-byte keys (secp256k1, ed25519) and
+/// post-quantum Falcon-512 / Falcon-1024 keys (0xFB / 0xFC prefix).
+/// Use this instead of @c publicKeyType() when validating validator
+/// node keys in qXRP transactions.
+[[nodiscard]] bool
+isValidNodeKey(Slice s) noexcept;
+
+/// Derive the bond-entry AccountID for any valid node public key.
+///
+/// For both classical and post-quantum keys the result is
+/// RIPEMD160(SHA256(key_blob)) — the same transform used by
+/// @c calcAccountID(PublicKey).  This overload accepts a raw slice
+/// so callers do not need to branch on key type.
+///
+/// Precondition: @c isValidNodeKey(s) must be true.
+AccountID
+calcValidatorBondID(Slice s);
+
 inline std::string
 getFingerprint(
     beast::IP::Endpoint const& address,
