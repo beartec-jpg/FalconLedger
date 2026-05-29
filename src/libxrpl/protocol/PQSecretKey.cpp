@@ -4,8 +4,8 @@
 #include <xrpl/protocol/PQSecretKey.h>
 
 #include <xrpl/basics/contract.h>
+#include <xrpl/crypto/secure_erase.h>
 
-#include <algorithm>  // std::fill
 #include <stdexcept>
 
 namespace xrpl {
@@ -28,8 +28,9 @@ PQSecretKey::PQSecretKey(KeyType type, std::vector<std::uint8_t> keyBytes)
 
 PQSecretKey::~PQSecretKey()
 {
-    // Zero key material before memory is released.
-    std::fill(blob_.begin(), blob_.end(), std::uint8_t{0});
+    // Use OPENSSL_cleanse via secureErase for guaranteed key material erasure.
+    if (!blob_.empty())
+        secureErase(blob_.data(), blob_.size());
 }
 
 }  // namespace xrpl
