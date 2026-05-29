@@ -39,6 +39,10 @@ ValidatorUnbond::preclaim(PreclaimContext const& ctx)
     if (!sleBond)
         return tecNO_ENTRY;
 
+    // Only the account that registered this validator may initiate unbonding.
+    if (sleBond->getFieldAccountID(sfAccount) != ctx.tx[sfAccount])
+        return tecNO_PERMISSION;
+
     if (sleBond->getFieldU32(sfBondStatus) != kBOND_STATUS_BONDED)
         return tecNO_PERMISSION;  // not currently bonded
 

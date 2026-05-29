@@ -56,7 +56,12 @@ ReleaseBond::doApply()
     if (!sleBond)
         return tefINTERNAL;  // LCOV_EXCL_LINE
 
-    auto sleAccount = ctx_.view().peek(keylet::account(target));
+    // The bond's sfAccount is the account that registered this validator.
+    // sfSlashTarget is the consensus-key-derived ID (== bond keylet key) which
+    // may differ from the registrant's actual XRPL account if they used a
+    // different signing account at registration time.
+    auto const bondOwner = sleBond->getFieldAccountID(sfAccount);
+    auto sleAccount = ctx_.view().peek(keylet::account(bondOwner));
     if (!sleAccount)
         return tefINTERNAL;  // LCOV_EXCL_LINE
 
@@ -72,7 +77,7 @@ ReleaseBond::doApply()
     // ── Remove bond from owner directory ─────────────────────────────────
     auto const page = sleBond->getFieldU64(sfOwnerNode);
     if (!ctx_.view().dirRemove(
-            keylet::ownerDir(target), page, sleBond->key(), /*keepRoot=*/false))
+            keylet::ownerDir(bondOwner), page, sleBond->key(), /*keepRoot=*/false))
         return tefBAD_LEDGER;
 
     // ── Decrement owner count ─────────────────────────────────────────────

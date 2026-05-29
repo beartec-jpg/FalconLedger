@@ -48,6 +48,10 @@ ValidatorBond::preclaim(PreclaimContext const& ctx)
     if (!sleBond)
         return tecNO_ENTRY;  // must ValidatorRegister first
 
+    // Only the account that registered this validator may bond funds into it.
+    if (sleBond->getFieldAccountID(sfAccount) != ctx.tx[sfAccount])
+        return tecNO_PERMISSION;
+
     if (sleBond->getFieldU32(sfBondStatus) != kBOND_STATUS_REGISTERED)
         return tecNO_PERMISSION;  // already bonded or unbonding
 

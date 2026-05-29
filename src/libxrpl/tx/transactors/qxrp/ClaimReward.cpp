@@ -41,6 +41,11 @@ ClaimReward::preclaim(PreclaimContext const& ctx)
     if (!sleBond)
         return tecNO_ENTRY;
 
+    // Only the bond owner may claim rewards; prevents reward theft by a third
+    // party submitting ClaimReward with another validator's consensus key.
+    if (sleBond->getFieldAccountID(sfAccount) != ctx.tx[sfAccount])
+        return tecNO_PERMISSION;
+
     if (sleBond->getFieldU32(sfBondStatus) != kBOND_STATUS_BONDED)
         return tecNO_PERMISSION;
 
