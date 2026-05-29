@@ -97,6 +97,10 @@ ClaimReward::doApply()
     // Use muldiv64: no overflow because compositeScore <= aggregateScore
     // (one validator's score vs. the sum of all bonded validators' scores).
     // Both arguments fit in uint32; the result fits in int64.
+    //
+    // SECURITY NOTE (2026 audit item 2.5): For very large validator sets
+    // the aggregateScore can grow, but the design + muldiv64 keeps it safe.
+    // A deeper review for >1000 validators is still recommended.
     auto const emissionDrops = emissionRate.xrp().drops();
     auto const shareDrops = muldiv64(emissionDrops, compositeScore, aggregateScore);
 
