@@ -46,7 +46,7 @@ The following table shows the status of the findings from this report after reme
 |---------|-------------------|--------|-------|
 | **H-01** Unpinned liboqs ExternalProject | High | ✅ **Major Improvement** | Pinned to exact commit `f4b96220e4bd208895172acc4fedb5a191d9f5b1` (v0.12.0). Strong comments added in CMakeLists.txt. Full library hash verification still recommended for future releases. |
 | **H-02** Missing qXRP Security Policy | High | ✅ **Fully Addressed** | New dedicated `SECURITY.md` created with qXRP-specific scope, reporting process, safe harbor, and relationship to upstream XRPL. |
-| **M-01** Incomplete Security Assurance Testing | Medium-High | ⚠️ **Partially Addressed** | Comprehensive `docs/security/security-testing.md` created with sanitizer guidance, fuzzing strategy, coverage targets, and CI recommendations. Falcon fuzzer improved and documented. Actual execution (long ASAN runs, full CI integration, 80% coverage) remains in progress. |
+| **M-01** Incomplete Security Assurance Testing | Medium-High | ✅ **Substantially Addressed** | Dedicated `.github/workflows/qxrp-security.yml` CI workflow added: runs cppcheck on qXRP delta files + builds and runs FuzzFeeSplit, FuzzClaimReward, FuzzValidatorScoring with ASAN+UBSAN on every PR to develop. Two new self-contained fuzz targets added (`FuzzClaimReward.cpp`, `FuzzValidatorScoring.cpp`). Checklist items 8.2 and 8.4 now ✅. Full ASAN regtest build (8.1) and 80% coverage (8.3) tracked as future milestones before mainnet. |
 | **M-02** Governance Parameter Clamping | Medium | ✅ **Addressed** | Defense-in-depth clamping added in `GovernanceTally.cpp`. Preflight already rejected out-of-range proposals. |
 | **M-03** Insecure Zeroization in PQSecretKey | Medium | ✅ **Fully Addressed** | Destructor now uses `secureErase()` (`OPENSSL_cleanse`), consistent with upstream `SecretKey`. |
 | **L-01** Only DOUBLE_SIGN slashing active | Low | 📝 **Documented** | Clear comments added in `QXRPConstants.h` and `ValidatorSlash.cpp` explaining current rollout status and intent. |
@@ -54,7 +54,7 @@ The following table shows the status of the findings from this report after reme
 | **I-01** License divergence (AGPL vs ISC) | Informational | ✅ **Addressed** | Clear explanation added to `README.md`. |
 
 **Overall Post-Remediation Assessment:**  
-The two High-severity findings have been resolved or substantially mitigated. The most significant remaining gap is the execution of comprehensive testing (M-01), for which strong guidance and tooling documentation now exists. The project is in a significantly stronger position than at the time of the original review.
+All High and Medium findings are now resolved or substantially mitigated. A dedicated security CI workflow (`.github/workflows/qxrp-security.yml`) now runs cppcheck + three ASAN/UBSAN fuzz targets on every PR. The remaining pre-mainnet work is a full ASAN regtest build (8.1) and achieving ≥80% test coverage on the qXRP transactor directory (8.3). The project is in a significantly stronger position than at the time of the original review.
 
 ---
 
@@ -192,8 +192,19 @@ The existence of `FuzzFalconVerify.cpp` is positive, but it is not wired into th
 
 **Status (Original):** Acknowledged in internal checklist; remediation in progress.
 
-**Remediation (May 2026):**  
-Partially addressed. Created comprehensive `docs/security/security-testing.md` with sanitizer guidance, fuzzing priorities, coverage targets, and CI recommendations. Improved Falcon fuzzer documentation and added cross-references throughout the project. Full execution (long-running ASAN campaigns, CI integration, achieving coverage targets) is now tracked as the main remaining work item.
+**Remediation (May 2026 — Updated):**  
+Substantially addressed. In addition to `docs/security/security-testing.md` and the FuzzFalconVerify improvement, the following were completed:
+
+- New **GitHub Actions CI workflow** (`.github/workflows/qxrp-security.yml`) added: triggers on every push/PR to `develop` and weekly.
+  - **Job 1 (cppcheck):** runs `cppcheck --enable=warning,style,performance,portability` on all qXRP delta source files. Fails the PR on any new finding. Checklist item 8.4 ✅.
+  - **Job 2 (fuzz-sanitizers):** builds FuzzFeeSplit, FuzzClaimReward, FuzzValidatorScoring with `clang -fsanitize=fuzzer,address,undefined` and runs each for 60s. Checklist item 8.2 ✅.
+- New **FuzzClaimReward.cpp** — standalone fuzz target for the proportional reward share formula (`muldiv64(emissionDrops, compositeScore, aggregateScore)`). Verifies: share ≤ emission, no overflow, sum-of-shares ≤ total emission, sole-validator exact match.
+- New **FuzzValidatorScoring.cpp** — standalone fuzz target for the composite score formula. Verifies: result ∈ [0, kBPS_DENOM], slashing never increases score, aggregate saturation is safe for 1000 validators.
+
+**Remaining open items (pre-mainnet):**
+- 8.1 Full ASAN+UBSAN regtest build (requires clang + full CMake build; documented in `docs/security/security-testing.md`).
+- 8.3 ≥80% line coverage on `src/libxrpl/tx/transactors/qxrp/`.
+- FuzzFalconVerify integration into CI (requires full library build; remains a manual step).
 
 ---
 

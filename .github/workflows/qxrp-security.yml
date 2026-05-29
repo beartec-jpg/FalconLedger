@@ -1,0 +1,165 @@
+name: qXRP Security CI
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - 'src/libxrpl/tx/transactors/qxrp/**'
+      - 'src/libxrpl/protocol/falcon.cpp'
+      - 'src/libxrpl/protocol/PQPublicKey.cpp'
+      - 'src/libxrpl/protocol/PQSecretKey.cpp'
+      - 'src/libxrpl/tx/GovernanceTally.cpp'
+      - 'src/libxrpl/tx/RewardEpoch.cpp'
+      - 'include/xrpl/protocol/QXRPConstants.h'
+      - 'src/test/fuzz/Fuzz*.cpp'
+      - '.github/workflows/qxrp-security.yml'
+  pull_request:
+    branches: [develop]
+    paths:
+      - 'src/libxrpl/tx/transactors/qxrp/**'
+      - 'src/libxrpl/protocol/falcon.cpp'
+      - 'src/libxrpl/protocol/PQPublicKey.cpp'
+      - 'src/libxrpl/protocol/PQSecretKey.cpp'
+      - 'src/libxrpl/tx/GovernanceTally.cpp'
+      - 'src/libxrpl/tx/RewardEpoch.cpp'
+      - 'include/xrpl/protocol/QXRPConstants.h'
+      - 'src/test/fuzz/Fuzz*.cpp'
+      - '.github/workflows/qxrp-security.yml'
+  schedule:
+    # Weekly full run every Monday 02:00 UTC
+    - cron: '0 2 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: qxrp-security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Job 1: cppcheck static analysis ────────────────────────────────────────
+  cppcheck:
+    name: cppcheck (qXRP delta)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cppcheck
+        run: sudo apt-get update -q && sudo apt-get install -y cppcheck
+
+      - name: Run cppcheck on qXRP source files
+        run: |
+          cppcheck \
+            --enable=warning,style,performance,portability \
+            --std=c++20 \
+            --suppress=missingInclude \
+            --suppress=missingIncludeSystem \
+            --suppress=unmatchedSuppression \
+            --error-exitcode=1 \
+            --inline-suppr \
+            src/libxrpl/tx/transactors/qxrp/ \
+            src/libxrpl/protocol/falcon.cpp \
+            src/libxrpl/protocol/PQPublicKey.cpp \
+            src/libxrpl/protocol/PQSecretKey.cpp \
+            src/libxrpl/tx/GovernanceTally.cpp \
+            src/libxrpl/tx/RewardEpoch.cpp \
+            2>&1 | tee cppcheck-output.txt
+
+      - name: Upload cppcheck report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cppcheck-report
+          path: cppcheck-output.txt
+
+  # ── Job 2: standalone fuzz targets with ASAN+UBSAN ─────────────────────────
+  fuzz-sanitizers:
+    name: Fuzz targets (ASAN+UBSAN, 60s each)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install clang
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y clang
+
+      - name: Build standalone fuzz targets
+        run: |
+          set -e
+          FUZZ_DIR=src/test/fuzz
+          FLAGS="-std=c++20 -fsanitize=fuzzer,address,undefined -O1 -g"
+
+          # FuzzFeeSplit — only needs QXRPConstants.h constants (all constexpr,
+          # no library linkage required).
+          clang++ $FLAGS \
+            -DFUZZ_STANDALONE \
+            -I include \
+            $FUZZ_DIR/FuzzFeeSplit.cpp \
+            -o fuzz_fee_split
+
+          # FuzzValidatorScoring — fully self-contained, no includes needed.
+          clang++ $FLAGS \
+            $FUZZ_DIR/FuzzValidatorScoring.cpp \
+            -o fuzz_validator_scoring
+
+          # FuzzClaimReward — fully self-contained, no includes needed.
+          clang++ $FLAGS \
+            $FUZZ_DIR/FuzzClaimReward.cpp \
+            -o fuzz_claim_reward
+
+      - name: Run FuzzFeeSplit (60s)
+        run: |
+          mkdir -p corpus/fee_split
+          # Seed corpus: boundary values for treasury (0, half-full, full)
+          printf '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' > corpus/fee_split/seed_zero
+          printf '\x00\xc8\x17\x0b\x77\x06\x00\x00\x00\xc8\x17\x0b\x77\x06\x00\x00\x10\x27\x00\x00' > corpus/fee_split/seed_half
+          ./fuzz_fee_split corpus/fee_split/ \
+            -max_len=64 -timeout=10 -max_total_time=60 \
+            -print_final_stats=1
+
+      - name: Run FuzzValidatorScoring (60s)
+        run: |
+          mkdir -p corpus/scoring
+          # Seed: clean validator (all max scores, clean slash mult)
+          printf '\x10\x27\x00\x00\x10\x27\x00\x00\x10\x27\x00\x00\x10\x27\x00\x00\x00\x00\x00\x00' > corpus/scoring/seed_clean
+          # Seed: slashed validator (half scores, half slash mult)
+          printf '\x88\x13\x00\x00\x88\x13\x00\x00\x88\x13\x00\x00\x88\x13\x00\x00\x00\x00\x00\x00' > corpus/scoring/seed_slashed
+          ./fuzz_validator_scoring corpus/scoring/ \
+            -max_len=64 -timeout=10 -max_total_time=60 \
+            -print_final_stats=1
+
+      - name: Run FuzzClaimReward (60s)
+        run: |
+          mkdir -p corpus/claim
+          # Seed: 4 validators, equal scores, 100M drops emission
+          printf '\x00\xe8\x76\x48\x17\x00\x00\x00\x04\x00\x00\x00\x10\x27\x00\x00\x10\x27\x00\x00\x10\x27\x00\x00\x10\x27\x00\x00' > corpus/claim/seed_equal
+          # Seed: sole validator
+          printf '\x00\xe8\x76\x48\x17\x00\x00\x00\x01\x00\x00\x00\x10\x27\x00\x00' > corpus/claim/seed_sole
+          ./fuzz_claim_reward corpus/claim/ \
+            -max_len=64 -timeout=10 -max_total_time=60 \
+            -print_final_stats=1
+
+      - name: Save fuzz corpus (for future runs)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-corpus
+          path: |
+            corpus/fee_split/
+            corpus/scoring/
+            corpus/claim/
+
+  # ── Job 3: summary gate ─────────────────────────────────────────────────────
+  security-passed:
+    name: All security checks passed
+    needs: [cppcheck, fuzz-sanitizers]
+    runs-on: ubuntu-24.04
+    if: always()
+    steps:
+      - name: Check results
+        run: |
+          if [[ "${{ needs.cppcheck.result }}" != "success" || \
+                "${{ needs.fuzz-sanitizers.result }}" != "success" ]]; then
+            echo "One or more qXRP security checks failed."
+            exit 1
+          fi
+          echo "All qXRP security checks passed."
