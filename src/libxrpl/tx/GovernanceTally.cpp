@@ -12,6 +12,7 @@
 #include <xrpl/protocol/SField.h>
 #include <xrpl/protocol/STLedgerEntry.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <vector>
 
@@ -78,7 +79,14 @@ applyGovernanceTally(
 
             if (proposalType == kPROPOSAL_TYPE_BURN_BPS)
             {
-                sleParams->setFieldU32(sfCurrentBurnBps, proposalValue);
+                // Defense-in-depth clamp (preflight already rejects bad values,
+                // but we never want to write an out-of-range burn BPS).
+                auto const clamped = std::clamp(
+                    proposalValue,
+                    kFEE_BURN_MIN_BPS,
+                    kFEE_BURN_MAX_BPS);
+
+                sleParams->setFieldU32(sfCurrentBurnBps, clamped);
                 sleParams->setFieldH256(sfPreviousTxnID,    key);
                 sleParams->setFieldU32(sfPreviousTxnLgrSeq, seq);
 
@@ -88,7 +96,7 @@ applyGovernanceTally(
                     view.rawReplace(sleParams);
 
                 JLOG(j.info()) << "qXRP GovernanceTally: wrote sfCurrentBurnBps="
-                               << proposalValue;
+                               << clamped << " (proposed=" << proposalValue << ")";
             }
         }
 
