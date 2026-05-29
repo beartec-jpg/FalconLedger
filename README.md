@@ -144,6 +144,11 @@ Please read [COPYRIGHT.md](COPYRIGHT.md) before submitting code.
 
 For security testing guidance (sanitizers, fuzzing, coverage targets), see [docs/security/security-testing.md](docs/security/security-testing.md).
 
+### Security Audit Reports
+
+- [1st Testnet Full Security Audit Report](docs/security/QXRP_1st_Testnet_Full_Security_Audit_Report.md) — Original third-party security audit (May 2026)
+- [Security Audit Remediation Report](docs/security/QXRP_Security_Audit_Remediation_Report.md) — Summary of all fixes and improvements made in response to the audit
+
 ## Licensing And Protection Notice
 
 **Important licensing split:**
