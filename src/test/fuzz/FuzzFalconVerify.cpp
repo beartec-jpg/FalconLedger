@@ -77,6 +77,14 @@ LLVMFuzzerTestOneInput(std::uint8_t const* data, std::size_t size)
         // verifyFalcon must not crash, leak, or invoke UB on any input.
         // It should return false for invalid inputs.
         (void)xrpl::verifyFalcon(pubKey, msg, sig);
+
+        // Also exercise PQPublicKey deserialization path for better coverage
+        // of the post-quantum key handling (addresses audit item 6.3).
+        try {
+            (void)xrpl::PQPublicKey(pubKey);
+        } catch (std::exception const&) {
+            // Expected for malformed keys
+        }
     }
     catch (std::exception const&)
     {
