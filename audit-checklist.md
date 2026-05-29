@@ -51,7 +51,7 @@
 | 5.1 | Duplicate vote per `(ProposalID, AccountID)` rejected | ✅ | `GovernanceVote.cpp` |
 | 5.2 | Proposal expiry enforced — no votes after `sfExpiry` | ✅ | `GovernanceVote.cpp` |
 | 5.3 | Supermajority threshold is 67 % of aggregate score | ✅ | `kGOVERNANCE_SUPERMAJORITY_BPS` |
-| 5.4 | `sfCurrentBurnBps` bounded to `[4000, 7000]` even after governance update | ⚠️ | Verify clamp applied after governance override |
+| 5.4 | `sfCurrentBurnBps` bounded to `[4000, 7000]` even after governance update | ✅ | Defense-in-depth clamp added in GovernanceTally.cpp (preflight already rejects bad proposals) |
 
 ## 6. Post-Quantum Crypto (Falcon)
 
@@ -59,8 +59,9 @@
 |---|-------|--------|-------|
 | 6.1 | Falcon library is optional (`-Dliboqs=OFF` → stubs, amendment inactive) | ✅ | `CMakeLists.txt` |
 | 6.2 | `verifyFalcon` returns false (not crash) on malformed input | ⚠️ | Fuzz test needed |
-| 6.3 | `PQPublicKey`/`PQSecretKey` variable-length buffers bounds-checked | ⚠️ | Review deserialization |
-| 6.4 | Falcon keys not mixed with secp256k1 key slots | ⚠️ | Verify type discriminator |
+| 6.3 | `PQPublicKey`/`PQSecretKey` variable-length buffers bounds-checked | ✅ | Strict length + prefix checks in constructors |
+| 6.4 | Falcon keys not mixed with secp256k1 key slots | ✅ | Separate PQPublicKey/PQSecretKey types + secureErase in destructor |
+| 6.5 | Secure zeroization of Falcon secret keys | ✅ | Now uses secureErase (OPENSSL_cleanse) instead of std::fill |
 
 ## 7. Consensus & Scoring
 
@@ -82,10 +83,12 @@
 
 ---
 
-## Outstanding Action Items
+## Outstanding Action Items (post 2026-05-30 security fixes)
 
-1. **Verify `RewardEpoch` privilege check** — ensure no external account can submit it.
-2. **Overflow audit** for `validatorShare` with large validator counts (> 1 000).
-3. **Fuzz `verifyFalcon`** with libFuzzer corpus of random byte sequences.
-4. **Governance clamp** — confirm `sfCurrentBurnBps` is clamped when read by `ApplyContext`.
-5. **ASAN run** — build with `-DSANITIZE=address,undefined` and run full regtest.
+1. **Verify `RewardEpoch` privilege check** — ensure no external account can submit it. (Still open)
+2. **Overflow audit** for `validatorShare` with large validator counts (> 1 000). (Still open)
+3. **Fuzz `verifyFalcon`** with libFuzzer corpus + integrate into CI. (In progress — stub exists)
+4. ~~**Governance clamp** — confirm `sfCurrentBurnBps` is clamped when read by `ApplyContext`.~~ ✅ Defense-in-depth added in GovernanceTally.cpp
+5. **ASAN/UBSAN run** on qXRP changes + full regtest. (Still open — high priority)
+6. **liboqs supply chain** — pinned to exact commit f4b96220e4bd208895172acc4fedb5a191d9f5b1 in CMakeLists.txt. ✅
+7. **Secure zeroization** of PQSecretKey. ✅ Now uses secureErase (OPENSSL_cleanse).

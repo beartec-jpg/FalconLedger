@@ -127,6 +127,10 @@ constexpr std::uint8_t kBOND_STATUS_UNBONDING   = 2;
 constexpr std::uint32_t kSCORE_WEIGHT_UPTIME      = 40;
 constexpr std::uint32_t kSCORE_WEIGHT_VOTE_ACC    = 30;
 constexpr std::uint32_t kSCORE_WEIGHT_LATENCY     = 15;
+// NOTE (2026 security audit L-02): Latency scoring is currently hard-floored
+// at 5,000 bps in ValidatorScoring.cpp because real latency measurement
+// has not been implemented yet. This weight is effectively inactive until
+// measurement is added.
 constexpr std::uint32_t kSCORE_WEIGHT_CONSISTENCY = 10;
 constexpr std::uint32_t kSCORE_WEIGHT_SLASH_MULT  =  5;
 
@@ -143,6 +147,12 @@ static_assert(
 constexpr std::uint32_t kMIN_COMPOSITE_SCORE_BPS = 500;
 
 // ─── Slash offense codes ──────────────────────────────────────────────────────
+
+// NOTE (2026 security audit L-01):
+// Currently only DOUBLE_SIGN is fully enforced on the live testnet.
+// ABSENCE and INVALID_VOTE return temDISABLED in ValidatorSlash::preflight.
+// These are intentionally disabled until robust detection logic exists.
+// See ValidatorSlash.cpp and the chain report for current rollout status.
 
 constexpr std::uint32_t kSLASH_OFFENSE_DOUBLE_SIGN   = 1;  ///< Two diverging validations
 constexpr std::uint32_t kSLASH_OFFENSE_ABSENCE        = 2;  ///< Sustained absence (3+ epochs)

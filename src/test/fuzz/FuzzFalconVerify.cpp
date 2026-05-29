@@ -3,8 +3,11 @@
 //
 // Fuzz target: Falcon post-quantum signature verification.
 //
-// Build (requires liboqs to be present):
+// SECURITY NOTE (2026 audit M-01):
+// This is the primary fuzz target for the consensus-critical Falcon implementation.
+// It should be regularly run with sanitizers and expanded corpus.
 //
+// Recommended build (with sanitizers):
 //   clang++ -std=c++20 -fsanitize=fuzzer,address,undefined \
 //     -I <repo>/include \
 //     FuzzFalconVerify.cpp \
@@ -13,6 +16,10 @@
 //
 // Run:
 //   ./fuzz_falcon_verify corpus/falcon/ -max_len=8192 -timeout=30
+//
+// TODO (M-01): Integrate this fuzzer into CI (e.g. via a dedicated
+// "qXRP-security" GitHub Actions job that builds with sanitizers and runs
+// the fuzzer for a time budget on every PR to develop).
 //
 // Seed corpus: generate a few valid signatures with the unit test helper and
 // place the raw (publicKey || signature || message) blobs in corpus/falcon/.
