@@ -25,6 +25,10 @@ ValidatorSlash::preflight(PreflightContext const& ctx)
     if (offense < kSLASH_OFFENSE_DOUBLE_SIGN || offense > kSLASH_OFFENSE_INVALID_VOTE)
         return temMALFORMED;
 
+    // NOTE: As of 2026, only DOUBLE_SIGN is actively enforced on the testnet.
+    // ABSENCE and INVALID_VOTE currently return temDISABLED (see preflight below).
+    // This is intentional until better detection logic exists (see L-01 in security audit).
+
     // Double-sign proofs require two evidence blobs.
     if (offense == kSLASH_OFFENSE_DOUBLE_SIGN)
     {
@@ -36,6 +40,12 @@ ValidatorSlash::preflight(PreflightContext const& ctx)
         if (ctx.tx.getFieldVL(sfSlashEvidence1) ==
             ctx.tx.getFieldVL(sfSlashEvidence2))
             return temMALFORMED;
+    }
+    else
+    {
+        // ABSENCE and INVALID_VOTE are intentionally disabled for now
+        // (return temDISABLED later in the function).
+        // See security audit L-01 and constants for rollout plan.
     }
 
     return tesSUCCESS;
