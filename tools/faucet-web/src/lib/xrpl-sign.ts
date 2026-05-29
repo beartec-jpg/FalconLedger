@@ -1,11 +1,9 @@
-// Offline transaction signing for qXRP payments using xrpl.js
-// No WebSocket connection needed — signs locally and submits via HTTP RPC.
-
-import { Wallet } from 'xrpl'
-import type { Payment, Transaction } from 'xrpl'
+// Transaction signing for qXRP payments via the Falcon signing proxy.
+// The qXRP chain requires FalconPublicKey + FalconSignature fields that
+// xrpl.js cannot produce — signing is delegated to the node1 admin RPC
+// through a small HTTP proxy.
 
 const DROPS_PER_QXRP = 1_000_000n
-const NETWORK_ID = parseInt(process.env.NEXT_PUBLIC_NETWORK_ID ?? '999', 10)
 
 export function dropsFromQxrp(qxrp: number): string {
   return (BigInt(Math.round(qxrp)) * DROPS_PER_QXRP).toString()
@@ -16,7 +14,7 @@ export interface SignedPayment {
   hash: string
 }
 
-export function signPayment(opts: {
+export async function signPayment(opts: {
   from: string
   secret: string
   to: string
@@ -24,12 +22,17 @@ export function signPayment(opts: {
   sequence: number
   lastLedgerSequence: number
   fee?: string
-}): SignedPayment {
+}): Promise<SignedPayment> {
   const { from, secret, to, amountDrops, sequence, lastLedgerSequence, fee = '12' } = opts
 
-  const wallet = Wallet.fromSeed(secret)
+  const proxyUrl   = process.env.SIGNER_PROXY_URL
+  const proxyToken = process.env.SIGNER_PROXY_TOKEN
 
-  const tx: Payment & { NetworkID?: number } = {
+  if (!proxyUrl) {
+    throw new Error('SIGNER_PROXY_URL is not configured')
+  }
+
+  const tx_json = {
     TransactionType: 'Payment',
     Account: from,
     Destination: to,
@@ -40,13 +43,21 @@ export function signPayment(opts: {
     Flags: 0,
   }
 
-  // NetworkID in transaction (for chains where NetworkID > 1024 xrpl.js adds
-  // it to the signing hash; for ID ≤ 1024 it is informational only but still
-  // valid to include so nodes can reject cross-network replays).
-  if (NETWORK_ID > 1024) {
-    tx.NetworkID = NETWORK_ID
+  const res = await fetch(`${proxyUrl}/sign`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(proxyToken ? { Authorization: `Bearer ${proxyToken}` } : {}),
+    },
+    body: JSON.stringify({ tx_json, secret }),
+    cache: 'no-store',
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText)
+    throw new Error(`Signing proxy error ${res.status}: ${text}`)
   }
 
-  const { tx_blob, hash } = wallet.sign(tx as Transaction)
-  return { tx_blob, hash }
+  const data = await res.json()
+  return { tx_blob: data.tx_blob, hash: data.hash }
 }
