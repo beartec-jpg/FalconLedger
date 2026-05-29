@@ -142,6 +142,8 @@ Contributions should focus on correctness, determinism, and protocol safety.
 
 Please read [COPYRIGHT.md](COPYRIGHT.md) before submitting code.
 
+For security testing guidance (sanitizers, fuzzing, coverage targets), see [docs/security/security-testing.md](docs/security/security-testing.md).
+
 ## Licensing And Protection Notice
 
 **Important licensing split:**

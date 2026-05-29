@@ -75,11 +75,11 @@
 
 | # | Check | Status |
 |---|-------|--------|
-| 8.1 | ASAN+UBSAN clean (`cmake -DSANITIZE=address,undefined`) | ❌ |
-| 8.2 | Fuzz corpus: tx parsing, Falcon verify, fee-split inputs | ❌ |
-| 8.3 | Test coverage ≥ 80 % on `src/libxrpl/tx/transactors/qxrp/` | ❌ |
-| 8.4 | `cppcheck --enable=all` zero findings on qXRP files | ❌ |
-| 8.5 | Static analysis: `clang-tidy` on qXRP translation units | ❌ |
+| 8.1 | ASAN+UBSAN clean (`cmake -DSANITIZE=address,undefined`) | ❌ | See docs/security/security-testing.md |
+| 8.2 | Fuzz corpus: tx parsing, Falcon verify, fee-split inputs | ⚠️ | Basic Falcon fuzzer exists (src/test/fuzz/FuzzFalconVerify.cpp). Needs CI integration and more targets. |
+| 8.3 | Test coverage ≥ 80 % on `src/libxrpl/tx/transactors/qxrp/` | ❌ | Target defined in docs/security/security-testing.md |
+| 8.4 | `cppcheck --enable=all` zero findings on qXRP files | ❌ | See docs/security/security-testing.md |
+| 8.5 | Static analysis: `clang-tidy` on qXRP translation units | ❌ | See docs/security/security-testing.md |
 
 ---
 
@@ -89,6 +89,7 @@
 2. **Overflow audit** for `validatorShare` with large validator counts (> 1 000). (Still open)
 3. **Fuzz `verifyFalcon`** with libFuzzer corpus + integrate into CI. (In progress — stub exists)
 4. ~~**Governance clamp** — confirm `sfCurrentBurnBps` is clamped when read by `ApplyContext`.~~ ✅ Defense-in-depth added in GovernanceTally.cpp
-5. **ASAN/UBSAN run** on qXRP changes + full regtest. (Still open — high priority)
+5. **ASAN/UBSAN run** on qXRP changes + full regtest. (Still open — high priority). See docs/security/security-testing.md
 6. **liboqs supply chain** — pinned to exact commit f4b96220e4bd208895172acc4fedb5a191d9f5b1 in CMakeLists.txt. ✅
 7. **Secure zeroization** of PQSecretKey. ✅ Now uses secureErase (OPENSSL_cleanse).
+8. **Security Testing Guide** created at docs/security/security-testing.md. ✅ (M-01 progress)
