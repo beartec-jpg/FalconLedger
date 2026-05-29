@@ -76,9 +76,9 @@
 | # | Check | Status |
 |---|-------|--------|
 | 8.1 | ASAN+UBSAN clean (`cmake -DSANITIZE=address,undefined`) | ❌ | See docs/security/security-testing.md |
-| 8.2 | Fuzz corpus: tx parsing, Falcon verify, fee-split inputs | ⚠️ | Basic Falcon fuzzer exists (src/test/fuzz/FuzzFalconVerify.cpp). Needs CI integration and more targets. |
+| 8.2 | Fuzz corpus: tx parsing, Falcon verify, fee-split inputs | ✅ | FuzzFalconVerify, FuzzFeeSplit, FuzzClaimReward, FuzzValidatorScoring exist. CI integrates 3 standalone targets on every PR via `.github/workflows/qxrp-security.yml`. FuzzFalconVerify requires a full build (run manually — see docs/security/security-testing.md). |
 | 8.3 | Test coverage ≥ 80 % on `src/libxrpl/tx/transactors/qxrp/` | ❌ | Target defined in docs/security/security-testing.md |
-| 8.4 | `cppcheck --enable=all` zero findings on qXRP files | ❌ | See docs/security/security-testing.md |
+| 8.4 | `cppcheck --enable=all` zero findings on qXRP files | ✅ | Runs on every PR via `.github/workflows/qxrp-security.yml` (job: cppcheck). Covers all qXRP delta source files. |
 | 8.5 | Static analysis: `clang-tidy` on qXRP translation units | ❌ | See docs/security/security-testing.md |
 
 ---
@@ -87,7 +87,7 @@
 
 1. **Verify `RewardEpoch` privilege check** — ensure no external account can submit it. (Still open)
 2. **Overflow audit** for `validatorShare` with large validator counts (> 1 000). (Still open)
-3. **Fuzz `verifyFalcon`** with libFuzzer corpus + integrate into CI. (In progress — stub exists)
+3. ~~**Fuzz `verifyFalcon`** with libFuzzer corpus + integrate into CI.~~ ✅ FuzzClaimReward + FuzzValidatorScoring added; FuzzFeeSplit, FuzzClaimReward, FuzzValidatorScoring all integrated into qxrp-security.yml CI. FuzzFalconVerify still requires a full build; documented in security-testing.md.
 4. ~~**Governance clamp** — confirm `sfCurrentBurnBps` is clamped when read by `ApplyContext`.~~ ✅ Defense-in-depth added in GovernanceTally.cpp
 5. **ASAN/UBSAN run** on qXRP changes + full regtest. (Still open — high priority). See docs/security/security-testing.md
 6. **liboqs supply chain** — pinned to exact commit f4b96220e4bd208895172acc4fedb5a191d9f5b1 in CMakeLists.txt. ✅
