@@ -24,26 +24,29 @@ namespace xrpl {
 
 static constexpr std::size_t kACCOUNT_ID_BYTES = AccountID::kBYTES;  // 20
 
-/// Check whether `voter` appears in the packed blob of 20-byte AccountIDs.
+/// Check whether the bond identified by `bondID` has already voted.
+/// The voter list stores packed 20-byte bond IDs (not submitter AccountIDs)
+/// so that each validator bond can only cast one vote regardless of which
+/// account submits the transaction.
 static bool
-hasVoted(Blob const& voterList, AccountID const& voter)
+hasVoted(Blob const& voterList, AccountID const& bondID)
 {
     if (voterList.size() % kACCOUNT_ID_BYTES != 0)
         return false;  // corrupted; treat as empty
     for (std::size_t i = 0; i + kACCOUNT_ID_BYTES <= voterList.size();
          i += kACCOUNT_ID_BYTES)
     {
-        if (std::memcmp(voterList.data() + i, voter.data(), kACCOUNT_ID_BYTES) == 0)
+        if (std::memcmp(voterList.data() + i, bondID.data(), kACCOUNT_ID_BYTES) == 0)
             return true;
     }
     return false;
 }
 
-/// Append a single AccountID to the end of the packed blob.
+/// Append a single bond ID to the end of the packed blob.
 static Blob
-appendVoter(Blob voterList, AccountID const& voter)
+appendVoter(Blob voterList, AccountID const& bondID)
 {
-    voterList.insert(voterList.end(), voter.begin(), voter.end());
+    voterList.insert(voterList.end(), bondID.begin(), bondID.end());
     return voterList;
 }
 
@@ -81,6 +84,12 @@ GovernanceVote::preclaim(PreclaimContext const& ctx)
     if (sleBond->getFieldU32(sfBondStatus) != kBOND_STATUS_BONDED)
         return tecNO_PERMISSION;
 
+    // Only the bond owner may vote; prevents a third party from casting a vote
+    // using another validator's consensus key (which would count the bond's
+    // score twice if the real owner also votes).
+    if (sleBond->getFieldAccountID(sfAccount) != voter)
+        return tecNO_PERMISSION;
+
     // Proposal must exist and be open (state == 0).
     auto const proposalID = ctx.tx.getFieldH256(sfProposalID);
     auto const sleProposal = ctx.view.read(keylet::governanceProposal(proposalID));
@@ -93,9 +102,11 @@ GovernanceVote::preclaim(PreclaimContext const& ctx)
     if (ctx.view.seq() >= sleProposal->getFieldU32(sfProposalExpiry))
         return tecEXPIRED;
 
-    // Duplicate vote check.
+    // Duplicate vote check — keyed by bond ID (not submitter account) so that
+    // one bond cannot vote twice even if submitted by different accounts.
     auto const voterList = sleProposal->getFieldVL(sfVoterList);
-    if (hasVoted(voterList, voter))
+    auto const bondID = calcValidatorBondID(makeSlice(ctx.tx.getFieldVL(sfConsensusKey)));
+    if (hasVoted(voterList, bondID))
         return tecDUPLICATE;
 
     return tesSUCCESS;
@@ -104,7 +115,6 @@ GovernanceVote::preclaim(PreclaimContext const& ctx)
 TER
 GovernanceVote::doApply()
 {
-    auto const voter       = ctx_.tx[sfAccount];
     auto const proposalID  = ctx_.tx.getFieldH256(sfProposalID);
     auto const voteYes     = ctx_.tx.getFieldU32(sfVoteWeight) == 1;
     auto const ckBlob      = ctx_.tx.getFieldVL(sfConsensusKey);
@@ -139,9 +149,12 @@ GovernanceVote::doApply()
                          static_cast<std::uint64_t>(std::numeric_limits<std::uint32_t>::max()))));
     }
 
-    // Record voter to prevent double-voting.
+    // Record this bond as having voted (by bond ID, not submitter account).
+    // Using the bond ID prevents double-counting if different accounts attempt
+    // to vote with the same consensus key.
+    auto const bondID = calcValidatorBondID(makeSlice(ckBlob));
     auto voterList = sleProposal->getFieldVL(sfVoterList);
-    voterList = appendVoter(std::move(voterList), voter);
+    voterList = appendVoter(std::move(voterList), bondID);
     sleProposal->setFieldVL(sfVoterList, voterList);
 
     sleProposal->setFieldH256(sfPreviousTxnID, ctx_.tx.getTransactionID());

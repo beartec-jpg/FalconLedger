@@ -82,7 +82,11 @@ ValidatorSlash::doApply()
     if (!sleBond)
         return tefINTERNAL;  // LCOV_EXCL_LINE
 
-    auto sleTarget = ctx_.view().peek(keylet::account(target));
+    // The bond's sfAccount is the account that registered this validator.
+    // sfSlashTarget is the consensus-key-derived ID used as the bond keylet key,
+    // which may differ from the registrant's actual XRPL account.
+    auto const bondOwner = sleBond->getFieldAccountID(sfAccount);
+    auto sleTarget = ctx_.view().peek(keylet::account(bondOwner));
     if (!sleTarget)
         return tefINTERNAL;  // LCOV_EXCL_LINE
 
