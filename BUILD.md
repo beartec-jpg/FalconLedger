@@ -645,6 +645,8 @@ You can then build and test as usual, with the generated `xrpld` binary containi
 
 See [Sanitizers docs](./docs/build/sanitizers.md) for more details.
 
+**For qXRP developers:** See [docs/security/security-testing.md](../../docs/security/security-testing.md) for qXRP-specific recommendations on sanitizer usage, fuzzing priorities (especially Falcon), and coverage targets for the new consensus logic.
+
 ## Options
 
 | Option                       | Default Value              | Description                                                                  |
