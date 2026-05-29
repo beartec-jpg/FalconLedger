@@ -1,6 +1,12 @@
 # qXRP Fuzz Targets
 
-Three libFuzzer targets are provided in this directory.
+This directory contains libFuzzer targets, with special emphasis on qXRP-specific and consensus-critical code (see security audit M-01).
+
+**High priority targets for qXRP:**
+- Falcon signature verification (critical for validator identity)
+- Future targets recommended for: governance, fee splitting, and reward calculations
+
+See `docs/security/security-testing.md` for the full security testing strategy.
 
 ## Prerequisites
 
@@ -26,7 +32,8 @@ clang++ -std=c++20 -fsanitize=fuzzer,address,undefined \
   -o fuzz_tx_parsing \
   -L../../../build/lib -lxrpl
 
-# Falcon verification (requires -Dliboqs=ON build)
+# Falcon verification (qXRP post-quantum crypto - highest priority per 2026 security audit)
+# Requires a build with liboqs enabled (see root CMakeLists.txt).
 clang++ -std=c++20 -fsanitize=fuzzer,address,undefined \
   -I ../../../include \
   FuzzFalconVerify.cpp \
