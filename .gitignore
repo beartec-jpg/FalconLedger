@@ -89,3 +89,9 @@ __pycache__
 
 # clangd cache
 /.cache
+
+# Local configuration files (node-specific, should not be committed)
+cfg/
+
+# Backup files
+*.bak
