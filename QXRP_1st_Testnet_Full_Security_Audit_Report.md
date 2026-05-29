@@ -8,6 +8,8 @@
 **Version Under Review:** Develop branch, post `ProofOfParticipation` implementation, ~4-validator live testnet (ledger ~143k+, multiple epochs with observed slashing and rewards)  
 **Classification:** Testnet / Pre-Mainnet
 
+**Remediation Status:** See new section "Remediation Status (as of late May 2026)" below. Multiple High and Medium findings have been addressed since the original review.
+
 ---
 
 ## Executive Summary
@@ -24,13 +26,35 @@ qXRP is a well-architected, additive fork of the mature XRP Ledger (rippled) ref
 - liboqs is used for the complex Falcon implementation rather than a custom re-implementation.
 - Testnet is live and has already exercised slashing and reward distribution under real conditions.
 
-**Primary Areas of Concern (requiring remediation before mainnet consideration):**
-1. **Supply-chain risk in post-quantum cryptography** (High): `liboqs` is fetched at build time via unpinned `ExternalProject_Add` (git tag only, no commit hash, no signature/submodule verification). This is consensus-critical for validator identity.
-2. **Security governance and disclosure process** (High): `SECURITY.md` remains the upstream XRPL/Ripple document. No qXRP-specific vulnerability reporting channel, coordinated disclosure policy, or bug bounty program exists.
-3. **Testing and assurance gaps** (Medium-High): Internal audit checklist items for ASAN/UBSAN on full regtest, integrated fuzzing (especially Falcon verify and new transactors), and ≥80% coverage on `src/libxrpl/tx/transactors/qxrp/` remain incomplete.
-4. **Secure key zeroization** (Medium): `PQSecretKey` destructor uses `std::fill`; this is not guaranteed to be effective against compiler optimizations.
+**Primary Areas of Concern (at time of original review):**
+1. **Supply-chain risk in post-quantum cryptography** (High)
+2. **Security governance and disclosure process** (High)
+3. **Testing and assurance gaps** (Medium-High)
+4. **Secure key zeroization** (Medium)
+
+See the new **"Remediation Status (as of late May 2026)"** section below for current status after fixes.
 
 The project is moving in the right direction with visible self-audit work (`audit-checklist.md`). With focused remediation on the above items plus expanded adversarial and fuzz testing, the codebase can reach a defensible posture for a limited mainnet launch.
+
+---
+
+## Remediation Status (as of late May 2026)
+
+The following table shows the status of the findings from this report after remediation work:
+
+| Finding | Original Severity | Status | Notes |
+|---------|-------------------|--------|-------|
+| **H-01** Unpinned liboqs ExternalProject | High | ✅ **Major Improvement** | Pinned to exact commit `f4b96220e4bd208895172acc4fedb5a191d9f5b1` (v0.12.0). Strong comments added in CMakeLists.txt. Full library hash verification still recommended for future releases. |
+| **H-02** Missing qXRP Security Policy | High | ✅ **Fully Addressed** | New dedicated `SECURITY.md` created with qXRP-specific scope, reporting process, safe harbor, and relationship to upstream XRPL. |
+| **M-01** Incomplete Security Assurance Testing | Medium-High | ⚠️ **Partially Addressed** | Comprehensive `docs/security/security-testing.md` created with sanitizer guidance, fuzzing strategy, coverage targets, and CI recommendations. Falcon fuzzer improved and documented. Actual execution (long ASAN runs, full CI integration, 80% coverage) remains in progress. |
+| **M-02** Governance Parameter Clamping | Medium | ✅ **Addressed** | Defense-in-depth clamping added in `GovernanceTally.cpp`. Preflight already rejected out-of-range proposals. |
+| **M-03** Insecure Zeroization in PQSecretKey | Medium | ✅ **Fully Addressed** | Destructor now uses `secureErase()` (`OPENSSL_cleanse`), consistent with upstream `SecretKey`. |
+| **L-01** Only DOUBLE_SIGN slashing active | Low | 📝 **Documented** | Clear comments added in `QXRPConstants.h` and `ValidatorSlash.cpp` explaining current rollout status and intent. |
+| **L-02** Latency scoring hard-floored | Low | 📝 **Documented** | Explicit comment added in `QXRPConstants.h`. |
+| **I-01** License divergence (AGPL vs ISC) | Informational | ✅ **Addressed** | Clear explanation added to `README.md`. |
+
+**Overall Post-Remediation Assessment:**  
+The two High-severity findings have been resolved or substantially mitigated. The most significant remaining gap is the execution of comprehensive testing (M-01), for which strong guidance and tooling documentation now exists. The project is in a significantly stronger position than at the time of the original review.
 
 ---
 
@@ -109,7 +133,10 @@ Because Falcon keys are now the validator identity for the entire network (and w
 3. Add a CMake option to fail the build if the fetched artifact's hash does not match a known-good value.
 4. Document the exact liboqs commit used for each qXRP release binary.
 
-**Status:** Open. Blocks production readiness.
+**Status (Original):** Open. Blocks production readiness.
+
+**Remediation (May 2026):**  
+Pinned to exact commit `f4b96220e4bd208895172acc4fedb5a191d9f5b1` (v0.12.0 release). Added security comments and build status logging. Full library content hash verification is still recommended for future releases but this is now a major improvement.
 
 ---
 
@@ -134,7 +161,10 @@ Publish a qXRP-specific `SECURITY.md` that:
 - Explicitly carves out qXRP additions (Falcon paths, treasury logic, PoP transactors, scoring) as in-scope.
 - Links to any future bug bounty when launched.
 
-**Status:** Open. High priority for any public testnet with real value.
+**Status (Original):** Open. High priority for any public testnet with real value.
+
+**Remediation (May 2026):**  
+Fully addressed. New dedicated `SECURITY.md` created with qXRP-specific scope, reporting process, safe harbor language, and clear relationship to upstream XRPL issues.
 
 ---
 
@@ -160,7 +190,10 @@ The existence of `FuzzFalconVerify.cpp` is positive, but it is not wired into th
 2. Expand the Falcon fuzzer and add corpus seeds from valid `signFalcon` / `verifyFalcon` unit tests.
 3. Target >80% line/branch coverage on all new transactors and `RewardEpoch`/`ValidatorScoring` before mainnet.
 
-**Status:** Acknowledged in internal checklist; remediation in progress.
+**Status (Original):** Acknowledged in internal checklist; remediation in progress.
+
+**Remediation (May 2026):**  
+Partially addressed. Created comprehensive `docs/security/security-testing.md` with sanitizer guidance, fuzzing priorities, coverage targets, and CI recommendations. Improved Falcon fuzzer documentation and added cross-references throughout the project. Full execution (long-running ASAN campaigns, CI integration, achieving coverage targets) is now tracked as the main remaining work item.
 
 ---
 
@@ -178,7 +211,10 @@ A successful governance attack or bug that writes an out-of-bounds BPS value cou
 - Add a unit test that submits a governance proposal with 0 bps and 9999 bps and asserts the stored/used value is forced into the legal range.
 - Consider storing the *effective* clamped value rather than the raw voted value.
 
-**Status:** Needs confirmation + test.
+**Status (Original):** Needs confirmation + test.
+
+**Remediation (May 2026):**  
+Addressed. Added defense-in-depth clamping when writing `sfCurrentBurnBps` in `GovernanceTally.cpp` (in addition to the existing preflight rejection).
 
 ---
 
@@ -201,7 +237,10 @@ While Falcon secret keys are large and the window for attack is small, best prac
 **Recommendation:**
 Align with whatever secure-erase primitive the upstream `SecretKey` / `secure_erase.cpp` already provides, or adopt `std::experimental::erase` / `OPENSSL_cleanse`-style pattern (or `sodium_memzero` if libsodium is acceptable). Add a unit test that verifies the buffer is zeroed after destruction (via a custom allocator or address inspection in debug builds).
 
-**Status:** Open.
+**Status (Original):** Open.
+
+**Remediation (May 2026):**  
+Fully addressed. `PQSecretKey` destructor now uses `secureErase()` (backed by `OPENSSL_cleanse`), consistent with the upstream classical `SecretKey` implementation.
 
 ---
 
@@ -215,6 +254,9 @@ While `kSLASH_OFFENSE_ABSENCE` and `kSLASH_OFFENSE_INVALID_VOTE` are defined (25
 
 **Recommendation:** Keep disabled until absence/invalid-vote oracles or on-ledger heuristics are production-hardened and have corresponding test coverage. Document the threat model for when each offense type will be activated.
 
+**Remediation (May 2026):**  
+Documented. Clear comments added in `QXRPConstants.h` and `ValidatorSlash.cpp` explaining the current state and intent.
+
 ---
 
 #### L-02: Latency Component of Composite Score Is Hard-Floored
@@ -225,11 +267,16 @@ This reduces the fidelity of the reputation system and could allow validators wi
 
 **Recommendation:** Implement real latency measurement (using existing validation timing data) or explicitly document that the weight is currently inactive and will be phased in.
 
+**Remediation (May 2026):**  
+Documented. Explicit note added in `QXRPConstants.h`.
+
 ---
 
 ### Informational / Best Practice
 
 - **I-01 License Divergence**: New qXRP files use AGPL-3.0-only while upstream remains ISC-style. This is intentional but has ecosystem implications for downstream tools, exchanges, and node operators. Ensure clear NOTICE files and compatibility guidance.
+
+  **Remediation (May 2026):** Addressed. Clear explanation of the licensing split added to `README.md`.
 - **I-02 Deterministic Treasury Account**: The public seed `kQXRP_TREASURY_SEED` is correctly designed (no one should ever have the private key; control is purely amendment logic). This is well documented.
 - **I-03 Good Use of Amendment System**: Every new high-risk path correctly returns `temDISABLED` without the feature. This is the right pattern.
 - **I-04 Existing Sanitizer Infrastructure**: The project already has suppression files and CI support for ASAN/TSAN/UBSAN — a strong foundation once the qXRP-specific jobs are expanded.
