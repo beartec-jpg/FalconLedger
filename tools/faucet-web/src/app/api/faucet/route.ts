@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
   let tx_blob: string
   let txHash: string
   try {
-    const signed = signPayment({
+    const signed = await signPayment({
       from: FAUCET_ACCOUNT,
       secret: FAUCET_SECRET,
       to: account,
