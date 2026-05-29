@@ -97,17 +97,25 @@ find_package(xxHash REQUIRED)
 
 # liboqs: required for post-quantum Falcon signatures.
 # qXRP is a PQ-first chain — Falcon is always enabled.
-# Use ExternalProject to avoid cmake target-name collisions with the
-# liboqs-internal 'common' object library.
+#
+# SECURITY NOTE (H-01 from 2026 security audit):
+# We pin to an exact commit SHA (not just a tag) to mitigate supply-chain risk.
+# Falcon signatures are used for validator identity and consensus participation.
+# Changing this commit requires careful review and should be documented in release notes.
 find_package(liboqs QUIET)
 if(NOT liboqs_FOUND)
     message(STATUS "liboqs not found via find_package, building from source")
     include(ExternalProject)
     set(LIBOQS_INSTALL_DIR ${CMAKE_BINARY_DIR}/liboqs-install)
+
+    # Pinned commit for liboqs v0.12.0 (https://github.com/open-quantum-safe/liboqs/releases/tag/0.12.0)
+    # This is the exact tree used for reproducible builds of qXRP.
+    set(LIBOQS_PINNED_COMMIT f4b96220e4bd208895172acc4fedb5a191d9f5b1)
+
     ExternalProject_Add(
         liboqs_external
         GIT_REPOSITORY https://github.com/open-quantum-safe/liboqs.git
-        GIT_TAG        0.12.0
+        GIT_TAG        ${LIBOQS_PINNED_COMMIT}
         GIT_SHALLOW    TRUE
         UPDATE_DISCONNECTED TRUE
         CMAKE_ARGS
@@ -128,7 +136,17 @@ if(NOT liboqs_FOUND)
     )
     add_dependencies(OQS::oqs liboqs_external)
 endif()
-message(STATUS "liboqs: PQ Falcon signatures always enabled")
+message(STATUS "liboqs: PQ Falcon signatures always enabled (pinned commit: ${LIBOQS_PINNED_COMMIT})")
+
+# Security note for developers (M-01 from 2026 audit):
+# When working on qXRP changes (especially Falcon, rewards, slashing, governance),
+# it is strongly recommended to build with sanitizers:
+#   cmake .. -DSANITIZE=address,undefined
+# Then run the test suite. This helps catch memory safety and undefined behavior
+# in the new consensus-critical code paths.
+#
+# For focused qXRP development, you can also limit the build:
+#   cmake .. -Dxrpld=ON -Dtests=ON -DSANITIZE=address,undefined
 add_compile_definitions(XRPL_HAS_LIBOQS)
 target_link_libraries(xrpl_libs INTERFACE OQS::oqs)
 
