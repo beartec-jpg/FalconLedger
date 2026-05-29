@@ -144,7 +144,12 @@ Please read [COPYRIGHT.md](COPYRIGHT.md) before submitting code.
 
 ## Licensing And Protection Notice
 
-Upstream XRPL code in this repository remains under its original ISC license as documented in [LICENSE.md](LICENSE.md).
+**Important licensing split:**
+
+- Upstream XRPL code (from XRPLF/rippled) remains under its original **ISC license** — see [LICENSE.md](LICENSE.md).
+- All new qXRP code (Falcon support, ProofOfParticipation transactors, treasury, rewards, slashing, governance, etc.) is under **AGPL-3.0-only** as noted in the file headers.
+
+This has implications for downstream projects, exchanges, and node operators. See [COPYRIGHT.md](COPYRIGHT.md) for details.
 
 qXRP-original files and qXRP-specific modifications are intended to follow the protection policy described in [LICENSE](LICENSE) and [COPYRIGHT.md](COPYRIGHT.md):
 

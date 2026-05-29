@@ -1,31 +1,87 @@
-### Operating an XRP Ledger server securely
+# qXRP Security Policy
 
-For more details on operating an XRP Ledger server securely, please visit https://xrpl.org/manage-the-rippled-server.html.
+**This document applies to the qXRP project (beartec-jpg/qXRP).**
 
-# Security Policy
+qXRP is a quantum-resistant fork of the XRP Ledger. While we inherit a large amount of upstream code from XRPLF/rippled, we have introduced significant new functionality including post-quantum cryptography (Falcon), a protocol-controlled treasury, validator bonding, on-chain Proof-of-Participation rewards, slashing, and governance.
 
 ## Supported Versions
 
-Software constantly evolves. In order to focus resources, we generally only accept vulnerability reports that affect recent and current versions of the software. We always accept reports for issues present in the **master**, **release** or **develop** branches, and with proposed, [open pull requests](https://github.com/XRPLF/rippled/pulls).
+We accept vulnerability reports for the following branches:
 
-## Identifying and Reporting Vulnerabilities
+- `develop` (active development)
+- Latest `release/*` branches
+- Recent tagged releases
 
-We take security seriously and we do our best to ensure that all our releases are bug free. But we aren't perfect and sometimes things will slip through.
+We generally do **not** accept reports against very old tags unless the issue also affects supported branches.
 
-### Responsible Investigation
+## Scope
 
-We urge you to examine our code carefully and responsibly, and to disclose any issues that you identify in a responsible fashion.
+### In Scope (qXRP-specific)
+- Post-quantum Falcon signature implementation and integration
+- New transaction types: `ValidatorRegister`, `ValidatorBond`, `ValidatorUnbond`, `ReleaseBond`, `ClaimReward`, `ValidatorSlash`, `GovernanceProposal`, `GovernanceVote`
+- Treasury account and emission logic (`RewardEpoch`)
+- Validator scoring and slashing mechanisms
+- Fee splitting and burn logic
+- Governance parameter updates
+- Any code under `src/libxrpl/tx/transactors/qxrp/`, `src/libxrpl/protocol/{falcon,PQ*}.*`, `RewardEpoch.cpp`, `ValidatorScoring.cpp`, and related headers
 
-Responsible investigation includes, but isn't limited to, the following:
+### Out of Scope
+- Pure upstream XRPLF/rippled issues (report those to the [Ripple Bugcrowd program](https://ripple.com) where applicable)
+- Issues in third-party dependencies (liboqs, Boost, OpenSSL, etc.) unless they are triggered by qXRP-specific usage
+- Social engineering, physical attacks, or attacks against specific node operators
 
-- Not performing tests on the main network. If testing is necessary, use the [Testnet or Devnet](https://xrpl.org/xrp-testnet-faucet.html).
-- Not targeting physical security measures, or attempting to use social engineering, spam, distributed denial of service (DDOS) attacks, etc.
-- Investigating bugs in a way that makes a reasonable, good faith effort not to be disruptive or harmful to the XRP Ledger and the broader ecosystem.
+## Reporting a Vulnerability
 
-## Bug Bounty Program
+**Please do not open public GitHub issues for security vulnerabilities.**
 
-[Ripple](https://ripple.com) is generously sponsoring a bug bounty program for vulnerabilities in [`xrpld`](https://github.com/XRPLF/rippled) (and other related projects, like [`Clio`](https://github.com/XRPLF/clio), [`xrpl.js`](https://github.com/XRPLF/xrpl.js), [`xrpl-py`](https://github.com/XRPLF/xrpl-py), [`xrpl4j`](https://github.com/XRPLF/xrpl4j)).
+### Preferred Method
+Send an email to: **security@beartec.uk** (or the address published in the repository README if different).
 
-This program allows us to recognize and reward individuals or groups that identify and report bugs.
+Include the following information:
+- Description of the vulnerability
+- Steps to reproduce
+- Potential impact
+- Any suggested fixes (optional but appreciated)
 
-We have partnered with Bugcrowd to manage this program. It is a private program, and security researchers can participate based on invitation. If you need access to the program, please email bugs@ripple.com with your Bugcrowd handle or Bugcrowd registered email, and we will get you added to the program. Once you have been added, please submit vulnerability reports through Bugcrowd, not by email. The detailed bug bounty policy is available on the Bugcrowd website.
+### Alternative
+If you cannot use the above email, you may use the GitHub "Report a vulnerability" feature under the repository Security tab (private vulnerability reporting).
+
+## Responsible Disclosure Guidelines
+
+We ask researchers to:
+- Give us a reasonable amount of time to investigate and fix the issue before public disclosure.
+- Avoid testing against the live public testnet in ways that could disrupt validators or users.
+- Not perform denial-of-service, spam, or social engineering attacks as part of research.
+
+We commit to:
+- Acknowledging receipt of reports within 72 hours (best effort).
+- Keeping researchers informed of our progress.
+- Crediting researchers in release notes / security advisories (unless they prefer to remain anonymous).
+
+## Safe Harbor
+
+We will not pursue legal action against researchers who:
+- Follow this policy in good faith
+- Make a good-faith effort to avoid privacy violations, destruction of data, or disruption of service
+- Do not exploit the vulnerability beyond what is necessary to demonstrate the issue
+
+## Bug Bounty
+
+qXRP does **not** currently operate a formal bug bounty program.
+
+We may offer discretionary rewards for high-quality reports on critical issues in the future. This policy will be updated if/when a bounty program is launched.
+
+## Relationship with Upstream XRPL
+
+Many vulnerabilities in the shared codebase should be reported to the upstream XRPL project (via Ripple's Bugcrowd program where eligible). We will coordinate with upstream maintainers on cross-cutting issues.
+
+For qXRP-specific logic (especially Falcon cryptography, economic mechanisms, and new transaction types), please report directly to us first.
+
+## Contact
+
+- Security reports: security@beartec.uk
+- General security discussions: Open a GitHub Discussion or contact the maintainers
+
+---
+
+*Last updated: 2026-05-30*
