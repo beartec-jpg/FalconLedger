@@ -1,85 +1,16 @@
-# Copyright (c) 2026 qXRP Team. All rights reserved.
-# SPDX-License-Identifier: AGPL-3.0-only
-#
-# 3-validator local testnet for development and CI.
-# Spin up: docker compose up
-# Tear down: docker compose down -v
-
 version: "3.9"
 
-networks:
-  qxrp_net:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.30.0.0/24
-
-x-validator-base: &validator-base
-  image: qxrp/xrpld:latest
-  restart: unless-stopped
-  networks:
-    - qxrp_net
-  healthcheck:
-    test: ["CMD", "curl", "-sf", "-X", "POST", "http://localhost:5005",
-           "-H", "Content-Type: application/json",
-           "-d", '{"method":"server_info","params":[{}]}']
-    interval: 10s
-    timeout: 5s
-    retries: 12
-    start_period: 30s
-
 services:
-  validator1:
-    <<: *validator-base
-    container_name: qxrp_v1
+  xrpld:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: qxrp_single
+    restart: unless-stopped
     volumes:
-      - ./cfg/docker/validator1.cfg:/cfg/xrpld.cfg:ro
-      - v1_data:/data
+      - ../cfg/standalone.cfg:/cfg/xrpld.cfg:ro
+      - ../data/single:/data
     ports:
       - "5005:5005"
       - "51235:51235"
-
-  validator2:
-    <<: *validator-base
-    container_name: qxrp_v2
-    volumes:
-      - ./cfg/docker/validator2.cfg:/cfg/xrpld.cfg:ro
-      - v2_data:/data
-    ports:
-      - "5006:5005"
-      - "51236:51235"
-    depends_on:
-      validator1:
-        condition: service_healthy
-
-  validator3:
-    <<: *validator-base
-    container_name: qxrp_v3
-    volumes:
-      - ./cfg/docker/validator3.cfg:/cfg/xrpld.cfg:ro
-      - v3_data:/data
-    ports:
-      - "5007:5005"
-      - "51237:51235"
-    depends_on:
-      validator1:
-        condition: service_healthy
-
-  dashboard:
-    image: qxrp/dashboard:latest
-    container_name: qxrp_dashboard
-    restart: unless-stopped
-    environment:
-      - XRPLD_RPC_URL=http://validator1:5005
-    ports:
-      - "8080:8080"
-    networks:
-      - qxrp_net
-    depends_on:
-      validator1:
-        condition: service_healthy
-
-volumes:
-  v1_data:
-  v2_data:
-  v3_data:
+    command: ["--conf", "/cfg/xrpld.cfg", "--standalone"]

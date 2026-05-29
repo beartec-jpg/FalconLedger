@@ -32,7 +32,7 @@ The single largest departure from standard XRPL. Activates an entirely new valid
 | `ReleaseBond` | 90 | Return bond funds after unbonding lock expires | ✅ Working (bug fixed during session — `tefINTERNAL` caused by `keylet::account()` using synthetic bond ID; patched to use `sleBond->getAccountID(sfAccount)`) |
 | `ClaimReward` | — | Claim epoch PoP rewards proportional to composite score | ✅ Tested — equal-split (2 validators), proportional (score-weighted), sole-validator (full pool), and post-slash exclusion (`tecNO_PERMISSION`) all verified |
 | `UnbondValidator` | — | Begin unbonding process (starts lock period) | ✅ Implemented |
-| `SlashValidator` | — | Governance-initiated slashing for double-sign / absence | ✅ Implemented; 1 slash event recorded on Node 2 |
+| `SlashValidator` | — | Slash a validator for double-sign (100%), absence (25% — disabled), or invalid vote (50% — disabled) | ✅ Tested extensively (2026-05-22): multiple double-sign slashes on nodes 1, 2, 3; ABSENCE and INVALID_VOTE offenses intentionally disabled (`temDISABLED`) — only `DOUBLE_SIGN` is enforced |
 
 #### 2.1.2 New Ledger Objects
 
@@ -71,9 +71,9 @@ Node 2's 9,000/10,000 slash multiplier and score of 7,875 (vs 8,750 for clean va
 ### 2.2 Post-Quantum Cryptography (Falcon)
 
 **Standard XRPL** uses Ed25519 / SECP256K1 for all signing.  
-**qXRP** uses **Falcon-1024** (NIST post-quantum standard) for validator consensus keys and Falcon public keys.
+**qXRP** uses **Falcon-512** (NIST post-quantum standard, NIST Level 1 / ~108-bit PQ security) for validator consensus keys and Falcon public keys.
 
-- `ValidatorRegister` embeds both the ECDH consensus key and a 1,796-byte Falcon public key
+- `ValidatorRegister` embeds both the ECDH consensus key and a 898-byte Falcon public key (1-byte prefix `0xFB` + 897 raw bytes)
 - The `pubkey_validator` in `server_info` returns a Falcon-derived nkey (`n9...` format preserved for compatibility)
 - Standard account transactions still use Ed25519/SECP256K1 — no change to user-facing tx signing
 
@@ -196,7 +196,7 @@ Meaning: of every 10 drops of fee, ~6.4 drops are burned, ~3.6 go to the treasur
 | Reserve (per object) | 2 XRP | **0.2 qXRP** | 10× lower |
 | Base fee | 10 drops | **10 drops** | Same |
 | Validation quorum | Typically 80% of UNL | **4/4 (100%)** | Auto-calculated from 4-node UNL |
-| Validator crypto | Ed25519 / SECP256K1 | **Falcon-1024 (PQC)** | Post-quantum |
+| Validator crypto | Ed25519 / SECP256K1 | **Falcon-512 (PQC, NIST Level 1)** | Post-quantum; 898-byte pubkey, prefix `0xFB` |
 
 ---
 
@@ -294,7 +294,7 @@ The 3,323 failures all occurred during the **initial setup phase** (accounts bei
 |---------|----------|-------|
 | Consensus (RPCA) | ✅ | 71+ hours, 0 stalls, 3s convergence |
 | Network ID 999 | ✅ | All 4 nodes synced, no mainnet replay risk |
-| Falcon-1024 validator keys | ✅ | All 4 validators proposing with PQC keys |
+| Falcon-512 validator keys | ✅ | All 4 validators proposing with PQC keys (prefix `0xFB`, 898 bytes each) |
 | ValidatorRegister tx | ✅ | All 4 registered |
 | ValidatorBond tx | ✅ | All 4 bonded, including re-bond after patch |
 | ReleaseBond tx | ✅ | Tested during session (after `tefINTERNAL` bug fix) |
@@ -309,7 +309,9 @@ The 3,323 failures all occurred during the **initial setup phase** (accounts bei
 | ClaimReward tx | ✅ | Equal-split, proportional, sole-validator, and post-slash exclusion all verified (2026-05-22/23) |
 | On-chain governance | ✅ | GovernanceProposal + GovernanceVote tested; supermajority executed burnBps change on-chain (2026-05-23) |
 | UnbondValidator | ✅ | Tested (triggered before re-bond; UNBONDING exclusion from ClaimReward verified) |
-| Double-sign slash | ✅ | Tested with crafted diverging STValidation blobs; 100% bond burn + forced UNBONDING confirmed (2026-05-22) |
+| Double-sign slash (DOUBLE_SIGN) | ✅ | Tested with crafted diverging STValidation blobs; 100% bond burn + forced UNBONDING confirmed on nodes 1, 2, 3 (2026-05-22) |
+| Absence slash (ABSENCE) | ⚠️ Intentionally disabled | Returns `temDISABLED` — `kSLASH_ABSENCE_BPS` enforcement compiled out; penalty constant defined but not yet enforced |
+| Invalid-vote slash (INVALID_VOTE) | ⚠️ Intentionally disabled | Returns `temDISABLED` — same as above; only `DOUBLE_SIGN` offense currently enforced |
 | Fee escalation | ✅ | Triggered at 30 TPS sustained load; API layer hit HTTP 503 at saturation; underlying consensus and queue escalation behaved correctly (2026-05-24) |
 
 ---
