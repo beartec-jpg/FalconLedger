@@ -194,22 +194,27 @@ the validator identity.
 
 ---
 
-## 4. Faucet (Vercel)
+## 4. Web Portal / Faucet + Wallet (Vercel)
 
-The faucet is a Next.js app that dispenses testnet qXRP. It lives in its own
-GitHub repo and is deployed via Vercel for free serverless hosting.
+The full public portal (faucet + passkey wallet + marketplace + "Open a Validator Node" launcher) lives in its own dedicated repository:
 
-### Create the repo
+**https://github.com/beartec-jpg/qXRP-faucet-wallet**
+
+This is the site users visit. It is deployed on Vercel.
+
+### Local development or self-hosting
+
+Clone the real portal repo instead of copying from here:
 
 ```bash
-cp -r tools/faucet-web ~/qxrp-faucet
-cd ~/qxrp-faucet
-git init
-git add .
-git commit -m "feat: initial faucet app"
-git remote add origin https://github.com/YOUR_USERNAME/qxrp-faucet.git
-git push -u origin main
+git clone https://github.com/beartec-jpg/qXRP-faucet-wallet.git
+cd qXRP-faucet-wallet
+cp .env.example .env.local
+npm install
+npm run dev
 ```
+
+The internal `tools/faucet-web/` folder in this repo is a lightweight development-only version and should not be used for the public site.
 
 ### Set up Upstash Redis (rate limiting)
 

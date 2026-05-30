@@ -4,8 +4,8 @@ import './globals.css'
 const NETWORK = process.env.NEXT_PUBLIC_NETWORK_NAME ?? 'qXRP Testnet'
 
 export const metadata: Metadata = {
-  title: `${NETWORK} Faucet`,
-  description: `Get free ${NETWORK} tokens for development and testing.`,
+  title: `${NETWORK} Portal`,
+  description: `Faucet, Wallet, and one-command validator onboarding for ${NETWORK}.`,
   icons: { icon: '/favicon.svg' },
 }
 

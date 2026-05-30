@@ -64,18 +64,33 @@ Validator rewards should be based only on deterministic on-ledger metrics such a
 
 These signals should be aggregated on-chain so rewards can be calculated without off-chain oracles or manual intervention.
 
-## Running a Validator
+## Running a Validator (One-Command Onboarding)
 
-The current target workflow is:
+The **fastest way** to become a bonded, reward-earning validator on testnet:
 
-1. Build the server from source using [BUILD.md](BUILD.md).
-2. Configure a validator node with durable storage, stable connectivity, and secure key handling.
-3. Generate a validator identity using the post-quantum key type selected for your deployment.
-4. Register the validator for reward eligibility once the `ValidatorRewards` or `ProofOfParticipation` amendment is available.
-5. Keep the node online, synced, and responsive so it can accumulate uptime, participation, and vote-quality metrics.
-6. Monitor reward and slashing status on-ledger.
+1. Get test qXRP from the faucet in the qXRP Portal.
+2. Load your address in the Wallet section.
+3. Click **"Open a Validator Node"** — you will see the exact warning about needing 1,000 qXRP to bond.
+4. Copy the personalized one-liner and run it on your server/VPS.
 
-During early development, this section describes the intended operating model rather than a finalized production guide.
+```bash
+curl -fsSL https://raw.githubusercontent.com/beartec-jpg/qXRP/develop/bin/install/install-qxrp-validator.sh | bash -s -- \
+  --payout rYOUR_MAIN_WALLET_ADDRESS \
+  --node-name mynode
+```
+
+The command handles everything: Docker, key generation (classical + Falcon identity), config, auto-bonding after you fund the printed account, and a reward claimer.
+
+Full guide: [docs/validator-onboarding.md](docs/validator-onboarding.md)
+
+The older multi-step cloud deployment path is still available in [docs/DeploymentGuide.md](docs/DeploymentGuide.md) and `bin/install/deploy-cloud-validator.sh` for production operators.
+
+---
+
+### Quick Links
+- One-command onboarding: [docs/validator-onboarding.md](docs/validator-onboarding.md)
+- Full deployment guide: [docs/DeploymentGuide.md](docs/DeploymentGuide.md)
+- Public web portal (faucet + wallet + "Open Node" one-liner launcher): https://github.com/beartec-jpg/qXRP-faucet-wallet (the live site users visit)
 
 ## Quantum Security
 
