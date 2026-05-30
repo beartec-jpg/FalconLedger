@@ -3,7 +3,7 @@
 // Returns: { txHash, amount, account, reset } | { error, reset? }
 
 import { NextRequest, NextResponse } from 'next/server'
-import { checkRateLimit } from '@/lib/rate-limit'
+import { checkRateLimit, refundRateLimit } from '@/lib/rate-limit'
 import { getAccountInfo, getLedgerIndex, submitTx } from '@/lib/rpc'
 import { signPayment, dropsFromQxrp } from '@/lib/xrpl-sign'
 import { isValidClassicAddress } from 'xrpl'
@@ -100,6 +100,8 @@ export async function POST(req: NextRequest) {
     txHash  = signed.hash
   } catch (e) {
     console.error('Signing error:', e)
+    refundRateLimit(`ip:${clientIp}`)
+    refundRateLimit(`acct:${account}`)
     return err('Transaction signing failed', 500)
   }
 
@@ -112,6 +114,8 @@ export async function POST(req: NextRequest) {
     txHash       = result.tx_json?.hash ?? txHash
   } catch (e) {
     console.error('Submit error:', e)
+    refundRateLimit(`ip:${clientIp}`)
+    refundRateLimit(`acct:${account}`)
     return err('Transaction submission failed', 503)
   }
 

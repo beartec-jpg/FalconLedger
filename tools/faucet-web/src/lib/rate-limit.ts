@@ -64,3 +64,9 @@ export async function checkRateLimit(key: string): Promise<LimitResult> {
   const r = memCheck(key)
   return { success: r.success, reset: r.reset.toISOString() }
 }
+
+/** Undo a previously consumed rate-limit slot (call on server-side failure). */
+export function refundRateLimit(key: string): void {
+  const entry = memStore.get(key)
+  if (entry && entry.count > 0) entry.count--
+}
