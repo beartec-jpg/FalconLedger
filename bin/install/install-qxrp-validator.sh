@@ -2,13 +2,14 @@
 # Copyright (c) 2026 qXRP Team. All rights reserved.
 # SPDX-License-Identifier: AGPL-3.0-only
 #
-# One-command qXRP validator onboarding installer (Docker edition).
-# Bootstraps a full bonded, reward-earning validator with minimal effort.
+# One-command qXRP validator onboarding installer (systemd edition).
+# Downloads the qXRP binary, configures a hardened validator, and starts it
+# as a systemd service — no Docker required.
 #
 # Tested on: Ubuntu 22.04, Ubuntu 24.04, Debian 12
 #
 # USAGE (recommended - from the qXRP Portal wallet page):
-#   curl -fsSL https://install.qxrp.network/validator | bash -s -- \
+#   curl -fsSL https://raw.githubusercontent.com/beartec-jpg/qXRP/develop/bin/install/install-qxrp-validator.sh | bash -s -- \
 #     --payout rYOUR_MAIN_WALLET_ADDRESS \
 #     --node-name mynode
 #
@@ -72,7 +73,7 @@ if [[ -z "$PAYOUT_ADDRESS" ]]; then
     echo "╚════════════════════════════════════════════════════════════════╝"
     echo ""
     echo "Example (copy from the qXRP Portal wallet page):"
-    echo "  curl -fsSL https://install.qxrp.network/validator | bash -s -- \\"
+    echo "  curl -fsSL https://raw.githubusercontent.com/beartec-jpg/qXRP/develop/bin/install/install-qxrp-validator.sh | bash -s -- \\"
     echo "    --payout rYOUR_WALLET_ADDRESS_HERE --node-name mynode"
     echo ""
     echo "Continuing without --payout (you can still withdraw manually)..."
@@ -83,18 +84,34 @@ fi
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-DOCKER_IMAGE="qxrp/xrpld:latest"
-BASE_DIR="$HOME/.qxrp"
-CONFIG_DIR="$BASE_DIR/config"
-DATA_DIR="$BASE_DIR/data"
-KEYS_DIR="$BASE_DIR/keys"
-COMPOSE_FILE="$BASE_DIR/docker-compose.yml"
-CLAIMER_SCRIPT="$BASE_DIR/qxrp-claimer.py"
+RELEASE_URL="https://github.com/beartec-jpg/qXRP/releases/download/v1.0.0-testnet/xrpld-linux-x86_64"
+NETWORK_RPC="http://46.224.0.140:6005"   # node1 public RPC — used for bond submission
+NETWORK_ID=999
 MIN_RAM_MB=1800
 MIN_DISK_GB=8
 BOND_DROPS=$(( BOND_QXRP * 1000000 ))
-REQUIRED_DROPS=$(( (BOND_QXRP + 250) * 1000000 ))   # bond + generous reserve + fees
-NETWORK_ID=999
+REQUIRED_DROPS=$(( (BOND_QXRP + 250) * 1000000 ))   # bond + reserve + fees
+
+# Paths — use system paths when root, home dir otherwise
+if [[ "$(id -u)" -eq 0 ]]; then
+    XRPLD_BIN="/opt/qxrp/bin/xrpld"
+    BASE_DIR="/var/lib/qxrp/${NODE_NAME}"
+    CONFIG_DIR="/etc/qxrp/${NODE_NAME}"
+    SERVICE_USER="qxrp"
+    SUDO=""
+else
+    XRPLD_BIN="$HOME/.local/bin/xrpld"
+    BASE_DIR="$HOME/.qxrp/${NODE_NAME}"
+    CONFIG_DIR="$HOME/.qxrp/${NODE_NAME}/config"
+    SERVICE_USER="$USER"
+    SUDO="sudo"
+fi
+
+KEYS_FILE="$CONFIG_DIR/validator-keys.json"
+CFG_FILE="$CONFIG_DIR/xrpld.cfg"
+VALIDATORS_FILE="$CONFIG_DIR/validators.txt"
+CLAIMER_SCRIPT="$BASE_DIR/qxrp-claimer.py"
+SERVICE_NAME="qxrp-${NODE_NAME}"
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -105,8 +122,6 @@ die()  { echo -e "\033[1;31m[qxrp] ERROR:\033[0m $*" >&2; exit 1; }
 already_done() { log "$1 – already done, skipping."; }
 
 # Generate a syntactically-valid Falcon-512 "pubkey" (0xFB + 897 random bytes).
-# This passes isValidNodeKey() and is exactly what the regtest bonding script uses.
-# Real liboqs Falcon keys will be added later (new RPC or bundled tool).
 generate_falcon_pubkey() {
     python3 -c '
 import secrets, sys
@@ -114,7 +129,6 @@ prefix = bytes([0xFB])
 raw = prefix + secrets.token_bytes(897)
 print(raw.hex().upper())
 ' 2>/dev/null || {
-        # Pure bash fallback (slower but no python dependency for this part)
         echo -n "FB"; head -c 897 /dev/urandom | od -An -tx1 | tr -d ' \n' | tr 'a-f' 'A-F' | cut -c1-1794
     }
 }
@@ -143,25 +157,45 @@ DISK_GB=$(df --output=avail -BG "$HOME" | tail -1 | tr -d 'G ')
 log "System OK – RAM: ${RAM_MB} MB, Disk: ${DISK_GB} GB  |  Payout: ${PAYOUT_ADDRESS:-not set}  |  Node: $NODE_NAME"
 
 # ---------------------------------------------------------------------------
-# 2. Install Docker if missing
+# 2. Create qxrp system user + directories (root installs only)
 # ---------------------------------------------------------------------------
-if command -v docker &>/dev/null; then
-    already_done "Docker $(docker --version | awk '{print $3}' | tr -d ',')"
-else
-    log "Installing Docker (this may take a minute)..."
-    curl -fsSL https://get.docker.com | sh
-    sudo usermod -aG docker "$USER" || true
-    warn "Docker installed. You may need to log out and back in (newgrp docker) for group membership."
+if [[ "$(id -u)" -eq 0 ]]; then
+    if ! id "$SERVICE_USER" &>/dev/null; then
+        log "Creating system user '$SERVICE_USER'..."
+        useradd --system --no-create-home --shell /usr/sbin/nologin "$SERVICE_USER"
+    fi
 fi
 
-mkdir -p "$CONFIG_DIR" "$DATA_DIR" "$KEYS_DIR"
+mkdir -p "$(dirname "$XRPLD_BIN")" "$BASE_DIR" "$CONFIG_DIR"
+[[ "$(id -u)" -eq 0 ]] && chown -R "$SERVICE_USER:$SERVICE_USER" "$BASE_DIR" "$(dirname "$XRPLD_BIN")"
 
 # ---------------------------------------------------------------------------
-# 3. Key generation (classical validation seed + synthetic Falcon identity)
+# 3. Download xrpld binary if not present
 # ---------------------------------------------------------------------------
-KEYS_FILE="$KEYS_DIR/validator-keys.json"
-SEED_FILE="$KEYS_DIR/seed.txt"
-FALCON_FILE="$KEYS_DIR/falcon-pubkey.txt"
+if [[ -x "$XRPLD_BIN" ]]; then
+    already_done "xrpld binary ($XRPLD_BIN)"
+else
+    log "Downloading qXRP node binary (~130 MB)..."
+    TMP_BIN="$(mktemp)"
+    curl -fsSL --progress-bar -o "$TMP_BIN" "$RELEASE_URL"
+    chmod +x "$TMP_BIN"
+
+    # Quick sanity check — binary should run and print a version
+    if ! "$TMP_BIN" --version 2>&1 | grep -q "xrpld"; then
+        rm -f "$TMP_BIN"
+        die "Downloaded binary failed version check — is $RELEASE_URL correct?"
+    fi
+
+    mv "$TMP_BIN" "$XRPLD_BIN"
+    [[ "$(id -u)" -eq 0 ]] && chown "root:root" "$XRPLD_BIN"
+    log "Binary installed: $XRPLD_BIN"
+fi
+
+# ---------------------------------------------------------------------------
+# 4. Key generation (run xrpld briefly in standalone mode to call RPCs)
+# ---------------------------------------------------------------------------
+FALCON_FILE="$CONFIG_DIR/falcon-pubkey.txt"
+SEED_FILE="$CONFIG_DIR/seed.txt"
 
 if [[ -f "$KEYS_FILE" ]]; then
     already_done "Validator keys (re-using existing identity in $KEYS_FILE)"
@@ -173,13 +207,12 @@ if [[ -f "$KEYS_FILE" ]]; then
 else
     log "Generating validator identity (classical + Falcon)..."
 
-    # Use a temporary standalone container from the same image to generate keys cleanly.
-    # This avoids needing xrpld on the host and keeps everything self-contained.
-    BOOT_ID="qxrp-keygen-$$"
     BOOT_DIR=$(mktemp -d)
     BOOT_PORT=15123
+    BOOT_DB="$BOOT_DIR/db"
+    mkdir -p "$BOOT_DB"
 
-    cat > "$BOOT_DIR/xrpld.cfg" <<'BOOTCFG'
+    cat > "$BOOT_DIR/xrpld.cfg" <<BOOTCFG
 [node_size]
 tiny
 [ledger_history]
@@ -187,36 +220,34 @@ tiny
 [server]
 port_rpc_admin_local
 [port_rpc_admin_local]
-port = 15123
+port = ${BOOT_PORT}
 ip = 127.0.0.1
 admin = 127.0.0.1
 protocol = http
 [node_db]
 type = NuDB
-path = /tmp/db
+path = ${BOOT_DB}/nudb
 advisory_delete = 0
 [database_path]
-/tmp
+${BOOT_DB}
 [debug_logfile]
-/tmp/debug.log
+${BOOT_DIR}/debug.log
 BOOTCFG
 
-    docker rm -f "$BOOT_ID" >/dev/null 2>&1 || true
-    docker run -d --rm --name "$BOOT_ID" \
-        -v "$BOOT_DIR:/cfg:ro" \
-        -p "127.0.0.1:${BOOT_PORT}:${BOOT_PORT}" \
-        "$DOCKER_IMAGE" --conf /cfg/xrpld.cfg --standalone >/dev/null
+    # Start xrpld in standalone mode (background)
+    "$XRPLD_BIN" --conf "$BOOT_DIR/xrpld.cfg" --standalone >> "$BOOT_DIR/debug.log" 2>&1 &
+    BOOT_PID=$!
+    trap "kill $BOOT_PID 2>/dev/null || true; rm -rf '$BOOT_DIR'" EXIT
 
-    # Wait for temp node
+    # Wait for RPC (up to 30 s)
     for i in $(seq 1 30); do
-        if curl -s -o /dev/null -w '%{http_code}' \
+        HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' \
             -X POST "http://127.0.0.1:${BOOT_PORT}" \
             -H 'Content-Type: application/json' \
-            -d '{"method":"server_info","params":[{}]}' 2>/dev/null | grep -q 200; then
-            break
-        fi
+            -d '{"method":"server_info","params":[{}]}' 2>/dev/null || echo 000)
+        [[ "$HTTP_CODE" == "200" ]] && break
         sleep 1
-        [[ $i -eq 30 ]] && die "Temporary keygen node failed to start"
+        [[ $i -eq 30 ]] && die "Temporary keygen node failed to start — check $BOOT_DIR/debug.log"
     done
 
     # Generate classical validation seed + keys
@@ -234,7 +265,7 @@ import sys, json
 print(json.load(sys.stdin)['result']['validation_public_key'])
 ")
 
-    # Derive the account address + consensus pubkey from the same seed (this is the account that will bond)
+    # Derive account address + consensus pubkey from the same seed
     WP=$(curl -s -X POST "http://127.0.0.1:${BOOT_PORT}" \
         -H 'Content-Type: application/json' \
         -d "{\"method\":\"wallet_propose\",\"params\":[{\"seed\":\"${VAL_SEED}\",\"key_type\":\"secp256k1\"}]}")
@@ -248,11 +279,17 @@ r = json.load(sys.stdin)['result']
 print(r.get('public_key_hex') or r.get('public_key',''))
 ")
 
-    # Synthetic Falcon pubkey (protocol-accepted shape)
+    # Kill the temporary standalone node and clear trap
+    kill "$BOOT_PID" 2>/dev/null || true
+    wait "$BOOT_PID" 2>/dev/null || true
+    trap - EXIT
+    rm -rf "$BOOT_DIR"
+
+    # Synthetic Falcon pubkey
     FALCON_PUB=$(generate_falcon_pubkey)
 
     # Save everything
-    python3 - <<PY > "$KEYS_FILE"
+    python3 - <<PY
 import json, datetime
 data = {
     "validation_seed": "$VAL_SEED",
@@ -265,7 +302,8 @@ data = {
     "generated_at": datetime.datetime.utcnow().isoformat() + "Z",
     "payout_address": "${PAYOUT_ADDRESS}"
 }
-json.dump(data, open("$KEYS_FILE", "w"), indent=2)
+with open("$KEYS_FILE", "w") as f:
+    json.dump(data, f, indent=2)
 PY
     chmod 600 "$KEYS_FILE"
 
@@ -273,9 +311,6 @@ PY
     chmod 600 "$SEED_FILE"
 
     echo "$FALCON_PUB" > "$FALCON_FILE"
-
-    docker rm -f "$BOOT_ID" >/dev/null 2>&1 || true
-    rm -rf "$BOOT_DIR"
 
     log "Keys generated and saved to $KEYS_FILE (chmod 600 — keep this file secret!)"
 fi
@@ -285,21 +320,22 @@ log "Validation pubkey   : $VAL_PUBKEY"
 log "Consensus key (hex) : ${CONSENSUS_KEY:0:16}..."
 
 # ---------------------------------------------------------------------------
-# 4. Write hardened validator config + validators.txt
+# 5. Write hardened validator config + validators.txt
 # ---------------------------------------------------------------------------
-CFG_FILE="$CONFIG_DIR/xrpld.cfg"
-VALIDATORS_FILE="$CONFIG_DIR/validators.txt"
-
 if [[ -f "$CFG_FILE" && -f "$VALIDATORS_FILE" ]]; then
     already_done "Validator config and UNL"
 else
     log "Writing production validator configuration..."
 
-    # Self-trusting validators.txt (add more via --trusted or manually for a real UNL)
-    {
-        echo "# qXRP validator UNL — edit carefully"
-        echo "$VAL_PUBKEY"
-    } > "$VALIDATORS_FILE"
+    # validators.txt — include known qXRP network validators + self
+    cat > "$VALIDATORS_FILE" <<UNL
+[validators]
+n94RNoyd8qLHjn7FbvtpWWumSSs2S7XGncejjLLJ2FofDrBZ1Ff6
+n9MuP4C9zqXjZx18Jw7gaSSQ9bi4R7TBxn9LfmPR9Mb9JgG9sLR6
+n9KX6hNjxiyKSPi1vptDFsuqAMSe9dpZ5uehEnT6GdkmRvzWYMwp
+n9LhNgHysZfTubvZa9v5kCQooWZAXdMZptrcifZXpH6EbLdj6fGt
+${VAL_PUBKEY}
+UNL
     chmod 600 "$VALIDATORS_FILE"
 
     cat > "$CFG_FILE" <<CFG
@@ -310,13 +346,13 @@ else
 ${NETWORK_ID}
 
 [node_size]
-small
+tiny
 
 [ledger_history]
 256
 
 [validation_quorum]
-1
+3
 
 # === VALIDATOR IDENTITY (classical) ===
 [validation_seed]
@@ -328,6 +364,18 @@ ${VALIDATORS_FILE}
 # === FEATURES ===
 [features]
 ProofOfParticipation
+MultiSign
+MultiSignReserve
+Flow
+FlowCross
+FeeEscalation
+TickSize
+Escrow
+DeletableAccounts
+DepositAuth
+DepositPreauth
+AMM
+XChainBridge
 
 # === PORTS ===
 [server]
@@ -360,15 +408,16 @@ protocol = ws
 # === STORAGE ===
 [node_db]
 type = NuDB
-path = /data/nudb
+path = ${BASE_DIR}/nudb
 advisory_delete = 0
 online_delete = 512
+cache_size = 256
 
 [database_path]
-/data/db
+${BASE_DIR}/db
 
 [debug_logfile]
-/data/debug.log
+${BASE_DIR}/debug.log
 
 [sntp_servers]
 time.windows.com
@@ -376,109 +425,118 @@ time.apple.com
 time.nist.gov
 pool.ntp.org
 
-# === RECOMMENDED FOR VALIDATORS ===
+# === BOOTSTRAP PEERS ===
+[ips_fixed]
+46.224.0.140 51235
+
+# === PERFORMANCE ===
 [transaction_queue]
 minimum_txn_in_ledger = 100
 target_txn_in_ledger = 1000
 ledgers_in_queue = 30
 minimum_queue_size = 10000
 maximum_txn_per_account = 100
+
+[rpc_startup]
+{ "command": "log_level", "severity": "warning" }
 CFG
 
     chmod 600 "$CFG_FILE"
+    mkdir -p "${BASE_DIR}/nudb" "${BASE_DIR}/db"
+    [[ "$(id -u)" -eq 0 ]] && chown -R "$SERVICE_USER:$SERVICE_USER" "$BASE_DIR" "$CONFIG_DIR"
     log "Config written: $CFG_FILE"
 fi
 
 # ---------------------------------------------------------------------------
-# 5. Docker Compose (validator + optional future claimer sidecar)
+# 6. Install systemd service
 # ---------------------------------------------------------------------------
-if [[ -f "$COMPOSE_FILE" ]]; then
-    already_done "docker-compose.yml"
-else
-    log "Writing docker-compose.yml..."
-    cat > "$COMPOSE_FILE" <<COMPOSE
-version: "3.9"
-services:
-  xrpld:
-    image: ${DOCKER_IMAGE}
-    container_name: qxrp_validator
-    restart: unless-stopped
-    volumes:
-      - ${CONFIG_DIR}:/cfg:ro
-      - ${DATA_DIR}:/data
-      - ${KEYS_DIR}:/keys:ro
-    ports:
-      - "5005:5005"
-      - "6005:6005"
-      - "51235:51235"
-      - "7005:7005"
-      - "8080:8080"
-    command: ["--conf", "/cfg/xrpld.cfg"]
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5005"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
+SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
+NOFILE_LIMIT=65535
 
-  # Future: lightweight reward claimer sidecar (uncomment when ready)
-  # claimer:
-  #   image: python:3.11-alpine
-  #   restart: unless-stopped
-  #   volumes:
-  #     - ${CLAIMER_SCRIPT}:/claimer.py:ro
-  #     - ${KEYS_DIR}:/keys:ro
-  #   command: python /claimer.py --config /keys/validator-keys.json --rpc http://xrpld:5005
-  #   depends_on:
-  #     - xrpld
-COMPOSE
+if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
+    already_done "systemd service $SERVICE_NAME"
+elif [[ -f "$SERVICE_FILE" ]]; then
+    already_done "systemd service file"
+    log "Starting service..."
+    $SUDO systemctl daemon-reload
+    $SUDO systemctl enable --now "$SERVICE_NAME"
+else
+    log "Installing systemd service: $SERVICE_NAME..."
+    $SUDO tee "$SERVICE_FILE" > /dev/null <<UNIT
+[Unit]
+Description=qXRP Validator Node (${NODE_NAME})
+Documentation=https://github.com/beartec-jpg/qXRP
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=${SERVICE_USER}
+Group=${SERVICE_USER}
+ExecStart=${XRPLD_BIN} --valid --conf ${CFG_FILE}
+ExecReload=/bin/true
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=60
+LimitNOFILE=${NOFILE_LIMIT}
+LimitNPROC=${NOFILE_LIMIT}
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=${BASE_DIR}
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+    $SUDO systemctl daemon-reload
+    $SUDO systemctl enable --now "$SERVICE_NAME"
+    log "Service enabled and started."
 fi
 
 # ---------------------------------------------------------------------------
-# 6. Pull image + start node
+# 7. Wait for RPC to come up
 # ---------------------------------------------------------------------------
-log "Pulling Docker image ${DOCKER_IMAGE}..."
-docker pull "$DOCKER_IMAGE" || warn "Pull failed — will try to use cached image"
-
-log "Starting qXRP validator container..."
-docker compose -f "$COMPOSE_FILE" up -d xrpld
-
-# ---------------------------------------------------------------------------
-# 7. Wait for RPC + initial bond flow
-# ---------------------------------------------------------------------------
-log "Waiting for node RPC (up to 90s)..."
+log "Waiting for node RPC (up to 90 s — initial sync may take a moment)..."
 for i in $(seq 1 90); do
     CODE=$(curl -s -o /dev/null -w '%{http_code}' \
         -X POST "http://127.0.0.1:5005" \
         -H 'Content-Type: application/json' \
         -d '{"method":"server_info","params":[{}]}' 2>/dev/null || echo 000)
     [[ "$CODE" == "200" ]] && break
-    [[ $i -eq 90 ]] && die "Node did not become ready. Check: docker logs qxrp_validator"
+    [[ $i -eq 90 ]] && die "Node did not become ready after 90 s. Check: journalctl -u ${SERVICE_NAME} -n 50"
     sleep 1
 done
+log "Node RPC is live."
 
-# Derive current account sequence etc. (the account we must fund)
-log "Validator account that must be funded: $VALIDATOR_ACCOUNT"
-
+# ---------------------------------------------------------------------------
+# 8. Auto-bond flow (poll for funding, then register + bond)
+# ---------------------------------------------------------------------------
 if [[ "$AUTO_BOND" -eq 1 ]]; then
     banner "FUNDING REQUIRED — READ CAREFULLY"
     echo ""
     echo "  Your validator account (send qXRP here):"
-    echo "     $VALIDATOR_ACCOUNT"
+    echo ""
+    echo "     ╔══════════════════════════════════════════════════╗"
+    printf  "     ║  %-48s  ║\n" "$VALIDATOR_ACCOUNT"
+    echo "     ╚══════════════════════════════════════════════════╝"
     echo ""
     echo "  Recommended amount: 1,100 – 1,200 qXRP"
     echo "     (1,000 qXRP minimum bond + ~200 qXRP reserve + fees)"
     echo ""
-    echo "  Get test qXRP from the faucet in the qXRP Portal,"
-    echo "  or send from the wallet address you loaded there."
+    echo "  Get qXRP from the faucet in the qXRP Portal, or transfer"
+    echo "  from the wallet address you used to launch this installer."
     echo ""
-    echo "  The installer will now poll every 15 seconds until it sees enough balance."
-    echo "  Then it will automatically register + bond the validator."
+    echo "  The installer will poll every 15 seconds until it sees enough"
+    echo "  balance, then automatically register + bond the validator."
     echo ""
 
-    # Simple funding detection + auto bond loop
     FUNDED=0
     for attempt in $(seq 1 200); do   # ~50 minutes max
-        BAL=$(curl -s -X POST "http://127.0.0.1:5005" \
+        # Query via public node1 RPC (local node may not be synced yet)
+        BAL=$(curl -s -X POST "$NETWORK_RPC" \
             -H 'Content-Type: application/json' \
             -d "{\"method\":\"account_info\",\"params\":[{\"account\":\"${VALIDATOR_ACCOUNT}\",\"ledger_index\":\"current\"}]}" \
             2>/dev/null | python3 -c "
@@ -505,14 +563,11 @@ except Exception:
     echo ""
 
     if [[ "$FUNDED" -ne 1 ]]; then
-        warn "Funding not detected after waiting. You can bond manually later with:"
-        echo "  python3 - <<'PY'   # (or use the portal)"
-        echo "  # (see docs/validator-onboarding.md for the exact ValidatorRegister + ValidatorBond txs)"
-        echo "PY"
+        warn "Funding not detected after waiting. Bond manually later — see docs/validator-onboarding.md"
     else
-        # Auto bond using the local node (it has the seed in config, but we use submit with secret for simplicity)
+        # Submit via public RPC (most reliable — doesn't require local node to be synced)
         log "Submitting ValidatorRegister (Falcon identity + consensus key)..."
-        REG_TX=$(curl -s -X POST "http://127.0.0.1:5005" \
+        REG_TX=$(curl -s -X POST "$NETWORK_RPC" \
             -H 'Content-Type: application/json' \
             -d "{
                 \"method\":\"submit\",
@@ -543,7 +598,7 @@ print(r.get('engine_result','ERROR'))
         sleep 3
 
         log "Submitting ValidatorBond (${BOND_QXRP} qXRP)..."
-        BOND_TX=$(curl -s -X POST "http://127.0.0.1:5005" \
+        BOND_TX=$(curl -s -X POST "$NETWORK_RPC" \
             -H 'Content-Type: application/json' \
             -d "{
                 \"method\":\"submit\",
@@ -578,14 +633,14 @@ print(r.get('engine_result','ERROR'))
 fi
 
 # ---------------------------------------------------------------------------
-# 8. Install lightweight claimer helper (auto-claim when score is good)
+# 9. Install lightweight claimer helper (cron — auto-claim when score is good)
 # ---------------------------------------------------------------------------
 log "Installing reward claim helper (qxrp-claimer)..."
-python3 - <<'PYEOF' > "$CLAIMER_SCRIPT"
+cat > "$CLAIMER_SCRIPT" <<'PYEOF'
 #!/usr/bin/env python3
 """Minimal qXRP reward claimer.
-Run periodically (cron / systemd timer / docker sidecar).
-It only claims — it does NOT auto-sweep to payout (per design).
+Run periodically (cron / systemd timer).
+Only claims — does NOT auto-sweep to payout (per design).
 User controls withdrawals from the portal or manually.
 """
 import argparse, json, time, urllib.request, urllib.error, sys, os
@@ -598,35 +653,36 @@ def rpc(url, method, params=None):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--keys", default="/keys/validator-keys.json")
+    ap.add_argument("--keys", default="~/.qxrp/validator-keys.json")
     ap.add_argument("--rpc", default="http://127.0.0.1:5005")
     ap.add_argument("--once", action="store_true")
     args = ap.parse_args()
 
-    if not os.path.exists(args.keys):
+    keys_path = os.path.expanduser(args.keys)
+    if not os.path.exists(keys_path):
         print("No keys file — nothing to claim for.", file=sys.stderr)
         return
 
-    with open(args.keys) as f:
+    with open(keys_path) as f:
         k = json.load(f)
 
     account = k["account_address"]
-    seed = k["validation_seed"]
-    ck = k["consensus_key_hex"]
+    seed    = k["validation_seed"]
+    ck      = k["consensus_key_hex"]
 
     try:
-        info = rpc(args.rpc, "server_info")["info"]
+        info  = rpc(args.rpc, "server_info")["info"]
         state = info.get("server_state")
         print(f"Node state: {state}")
     except Exception as e:
         print("Cannot reach node:", e)
         return
 
-    # Check bond / score
+    # Check bond / composite score
     try:
-        bond = rpc(args.rpc, "ledger_entry", {"validator_bond": {"account": account}, "ledger_index": "validated"})
-        node = bond.get("node", {})
-        score = node.get("CompositeScore", 0) or 0
+        bond   = rpc(args.rpc, "ledger_entry", {"validator_bond": {"account": account}, "ledger_index": "validated"})
+        node   = bond.get("node", {})
+        score  = node.get("CompositeScore", 0) or 0
         status = node.get("BondStatus")
         print(f"Bond status={status} composite_score={score} bps")
         if score < 500:
@@ -638,12 +694,7 @@ def main():
 
     # Attempt claim
     try:
-        tx = {
-            "TransactionType": "ClaimReward",
-            "Account": account,
-            "ConsensusKey": ck,
-            "Fee": "12"
-        }
+        tx  = {"TransactionType": "ClaimReward", "Account": account, "ConsensusKey": ck, "Fee": "12"}
         res = rpc(args.rpc, "submit", {"tx_json": tx, "secret": seed})
         eng = res.get("engine_result", "unknown")
         print(f"ClaimReward result: {eng}")
@@ -657,11 +708,12 @@ if __name__ == "__main__":
 PYEOF
 chmod +x "$CLAIMER_SCRIPT"
 
-# Simple cron hint (user can enable)
-(crontab -l 2>/dev/null || true; echo "*/30 * * * * $CLAIMER_SCRIPT --keys $KEYS_FILE --rpc http://127.0.0.1:5005 >> $BASE_DIR/claimer.log 2>&1") | sort -u | crontab -
+# Add cron entry (idempotent via sort -u)
+(crontab -l 2>/dev/null || true; echo "*/30 * * * * $CLAIMER_SCRIPT --keys $KEYS_FILE --rpc http://127.0.0.1:5005 >> $BASE_DIR/claimer.log 2>&1") \
+    | sort -u | crontab -
 
 # ---------------------------------------------------------------------------
-# 9. Final success banner
+# 10. Final success banner
 # ---------------------------------------------------------------------------
 PUBKEY=$(curl -s -X POST "http://127.0.0.1:5005" \
     -H 'Content-Type: application/json' \
@@ -677,23 +729,23 @@ except Exception:
 banner "qXRP VALIDATOR IS LIVE"
 echo ""
 echo "  Account (fund this & where rewards land) : $VALIDATOR_ACCOUNT"
-echo "  Validation pubkey                       : $VAL_PUBKEY"
-echo "  Node pubkey (for UNL)                   : $PUBKEY"
-[[ -n "$PAYOUT_ADDRESS" ]] && echo "  Your payout/withdraw wallet (from --payout): $PAYOUT_ADDRESS"
+echo "  Validation pubkey                        : $VAL_PUBKEY"
+echo "  Node pubkey (for UNL)                    : $PUBKEY"
+[[ -n "$PAYOUT_ADDRESS" ]] && echo "  Your payout/withdraw wallet (--payout)   : $PAYOUT_ADDRESS"
 echo ""
-echo "  Local dashboard : http://localhost:8080"
-echo "  RPC (admin)     : http://127.0.0.1:5005"
-echo "  Peer port       : 0.0.0.0:51235  (open this in your firewall / cloud security group)"
+echo "  Admin RPC   : http://127.0.0.1:5005"
+echo "  Peer port   : 0.0.0.0:51235  ← open this in your firewall / cloud security group"
 echo ""
 echo "  Next steps in the qXRP Portal (wallet page):"
-echo "    • Check that your validator account now shows as BONDED"
+echo "    • Check that your validator account shows as BONDED"
 echo "    • Watch epochs & composite score"
-echo "    • Claim rewards (or use the claimer script) then withdraw to your main wallet"
+echo "    • Claim rewards (or let the claimer run), then withdraw to your main wallet"
 echo ""
 echo "  Useful commands:"
-echo "    docker compose -f $COMPOSE_FILE logs -f"
-echo "    docker compose -f $COMPOSE_FILE down"
-echo "    $CLAIMER_SCRIPT --keys $KEYS_FILE"
+echo "    journalctl -u ${SERVICE_NAME} -f              # live log"
+echo "    systemctl status ${SERVICE_NAME}               # service status"
+echo "    systemctl stop ${SERVICE_NAME}                 # stop"
+echo "    $CLAIMER_SCRIPT --keys $KEYS_FILE             # manual claim"
 echo ""
 echo "  IMPORTANT: Backup $KEYS_FILE and $SEED_FILE securely (offline)."
 echo "             Losing them = losing this validator identity forever."
