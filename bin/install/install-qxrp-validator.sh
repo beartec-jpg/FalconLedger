@@ -90,8 +90,8 @@ DATA_DIR="$BASE_DIR/data"
 KEYS_DIR="$BASE_DIR/keys"
 COMPOSE_FILE="$BASE_DIR/docker-compose.yml"
 CLAIMER_SCRIPT="$BASE_DIR/qxrp-claimer.py"
-MIN_RAM_MB=3800
-MIN_DISK_GB=80
+MIN_RAM_MB=1800
+MIN_DISK_GB=8
 BOND_DROPS=$(( BOND_QXRP * 1000000 ))
 REQUIRED_DROPS=$(( (BOND_QXRP + 250) * 1000000 ))   # bond + generous reserve + fees
 NETWORK_ID=999
@@ -310,10 +310,10 @@ else
 ${NETWORK_ID}
 
 [node_size]
-medium
+small
 
 [ledger_history]
-full
+256
 
 [validation_quorum]
 1
