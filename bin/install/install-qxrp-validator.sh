@@ -175,35 +175,30 @@ except Exception:
 }
 
 if [[ -z "$PUBLIC_IP" ]]; then
-    echo ""
-    echo "╔══════════════════════════════════════════════════════════════════════════════╗"
-    echo "║  ERROR: Could not detect a public IP address.                               ║"
-    echo "║                                                                              ║"
-    echo "║  A qXRP validator MUST run on a server with a public IP so that             ║"
-    echo "║  other nodes can reach it on port 51235 (peer protocol).                    ║"
-    echo "║                                                                              ║"
-    echo "║  Run this installer on a VPS (Hetzner, DigitalOcean, Contabo, etc.)         ║"
-    echo "║  NOT on a local machine, laptop, or Chromebook.                             ║"
-    echo "╚══════════════════════════════════════════════════════════════════════════════╝"
-    echo ""
-    exit 1
+    warn "Could not auto-detect public IP — continuing anyway."
+    warn "Make sure port 51235 (TCP) is reachable from the internet before your validator can peer."
+    PUBLIC_IP="unknown"
 elif is_private_ip; then
     echo ""
     echo "╔══════════════════════════════════════════════════════════════════════════════╗"
-    echo "║  ERROR: Detected IP ${PUBLIC_IP} is a private/internal address.             ║"
+    echo "║  NOTE: Detected IP ${PUBLIC_IP} looks like a private/CGNAT address.         ║"
     echo "║                                                                              ║"
-    echo "║  A qXRP validator MUST run on a server with a real public IP so that        ║"
-    echo "║  other nodes can reach it on port 51235 (peer protocol).                    ║"
+    echo "║  Your validator WILL work from a home PC or laptop — you just need to       ║"
+    echo "║  forward port 51235 (TCP) on your router to this machine so other nodes     ║"
+    echo "║  can reach you. Without that your node won't peer and won't validate.       ║"
     echo "║                                                                              ║"
-    echo "║  Run this installer on a VPS (Hetzner, DigitalOcean, Contabo, etc.)         ║"
-    echo "║  NOT on a local machine, laptop, or Chromebook.                             ║"
+    echo "║  On a VPS this is automatic. On a home machine:                             ║"
+    echo "║    Router admin → Port Forwarding → TCP 51235 → this machine's LAN IP.     ║"
     echo "╚══════════════════════════════════════════════════════════════════════════════╝"
     echo ""
-    exit 1
+    echo -n "  Continue anyway? [y/N] "
+    read -r CONFIRM
+    [[ "$CONFIRM" =~ ^[Yy]$ ]] || { echo "Aborted."; exit 0; }
+    echo ""
 fi
 
 log "System OK – RAM: ${RAM_MB} MB, Disk: ${DISK_GB} GB  |  Public IP: ${PUBLIC_IP}  |  Payout: ${PAYOUT_ADDRESS:-not set}  |  Node: $NODE_NAME"
-warn "Make sure port 51235 (TCP) is open in your firewall / cloud security group before continuing."
+warn "Ensure port 51235 (TCP) is open/forwarded — required for peering with other validators."
 echo ""
 
 # ---------------------------------------------------------------------------
