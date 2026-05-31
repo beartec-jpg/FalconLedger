@@ -154,7 +154,57 @@ DISK_GB=$(df --output=avail -BG "$HOME" | tail -1 | tr -d 'G ')
 [[ "$DISK_GB" -ge "$MIN_DISK_GB" ]] \
     || die "Insufficient disk: ${DISK_GB} GB available, ${MIN_DISK_GB} GB required."
 
-log "System OK – RAM: ${RAM_MB} MB, Disk: ${DISK_GB} GB  |  Payout: ${PAYOUT_ADDRESS:-not set}  |  Node: $NODE_NAME"
+# --- Public IP check (validators MUST be reachable on port 51235) -----------
+log "Detecting public IP address..."
+PUBLIC_IP=$(curl -s --max-time 8 https://api.ipify.org 2>/dev/null \
+    || curl -s --max-time 8 https://checkip.amazonaws.com 2>/dev/null \
+    || curl -s --max-time 8 https://ipecho.net/plain 2>/dev/null \
+    || true)
+PUBLIC_IP="${PUBLIC_IP//[[:space:]]/}"   # strip whitespace
+
+# Reject RFC-1918 / loopback addresses — these are not publicly reachable
+is_private_ip() {
+    python3 -c "
+import sys, ipaddress
+try:
+    ip = ipaddress.ip_address('$PUBLIC_IP')
+    sys.exit(0 if (ip.is_private or ip.is_loopback or ip.is_link_local) else 1)
+except Exception:
+    sys.exit(0)
+" 2>/dev/null
+}
+
+if [[ -z "$PUBLIC_IP" ]]; then
+    echo ""
+    echo "╔══════════════════════════════════════════════════════════════════════════════╗"
+    echo "║  ERROR: Could not detect a public IP address.                               ║"
+    echo "║                                                                              ║"
+    echo "║  A qXRP validator MUST run on a server with a public IP so that             ║"
+    echo "║  other nodes can reach it on port 51235 (peer protocol).                    ║"
+    echo "║                                                                              ║"
+    echo "║  Run this installer on a VPS (Hetzner, DigitalOcean, Contabo, etc.)         ║"
+    echo "║  NOT on a local machine, laptop, or Chromebook.                             ║"
+    echo "╚══════════════════════════════════════════════════════════════════════════════╝"
+    echo ""
+    exit 1
+elif is_private_ip; then
+    echo ""
+    echo "╔══════════════════════════════════════════════════════════════════════════════╗"
+    echo "║  ERROR: Detected IP ${PUBLIC_IP} is a private/internal address.             ║"
+    echo "║                                                                              ║"
+    echo "║  A qXRP validator MUST run on a server with a real public IP so that        ║"
+    echo "║  other nodes can reach it on port 51235 (peer protocol).                    ║"
+    echo "║                                                                              ║"
+    echo "║  Run this installer on a VPS (Hetzner, DigitalOcean, Contabo, etc.)         ║"
+    echo "║  NOT on a local machine, laptop, or Chromebook.                             ║"
+    echo "╚══════════════════════════════════════════════════════════════════════════════╝"
+    echo ""
+    exit 1
+fi
+
+log "System OK – RAM: ${RAM_MB} MB, Disk: ${DISK_GB} GB  |  Public IP: ${PUBLIC_IP}  |  Payout: ${PAYOUT_ADDRESS:-not set}  |  Node: $NODE_NAME"
+warn "Make sure port 51235 (TCP) is open in your firewall / cloud security group before continuing."
+echo ""
 
 # ---------------------------------------------------------------------------
 # 2. Create qxrp system user + directories (root installs only)
