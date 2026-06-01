@@ -5,7 +5,7 @@
 services:
   xrpld:
     build:
-      context: ../../../..          # Path to the qXRP repo root
+      context: ../../../            # Path to the qXRP repo root (from docs/new-testnet/full-history-node)
       dockerfile: docker/Dockerfile
     image: qxrp/xrpld:latest        # Tag it locally after build
     container_name: qxrp-full-history
