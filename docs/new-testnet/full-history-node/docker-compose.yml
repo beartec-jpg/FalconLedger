@@ -1,12 +1,17 @@
-version: "3.9"
+# qXRP Full History Node - Docker Compose
+# For the clean new testnet (Network ID 1001)
+# This builds the image locally from source (no external image required)
 
 services:
   xrpld:
-    image: qxrp/xrpld:latest
+    build:
+      context: ../../../..          # Path to the qXRP repo root
+      dockerfile: docker/Dockerfile
+    image: qxrp/xrpld:latest        # Tag it locally after build
     container_name: qxrp-full-history
     restart: unless-stopped
 
-    # Resource limits - important for full history nodes
+    # Resource limits - Full history nodes benefit from more memory
     deploy:
       resources:
         limits:
