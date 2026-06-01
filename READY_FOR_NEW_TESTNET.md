@@ -1,7 +1,7 @@
 # READY FOR NEW TESTNET WIPE & REBUILD
 
 **Date**: 2026-05-30  
-**Status**: ✅ **READY TO WIPE AND REBUILD**
+**Status**: ✅ **READY TO WIPE AND REBUILD** (High-priority wallet security items from audit also addressed)
 
 ---
 
@@ -48,6 +48,16 @@ We are now in a good position to:
 - All active scripts and docs now default to or recommend the new Network ID (1001).
 
 ---
+
+## High-Priority Wallet / Faucet Security Fixes Addressed (from separate audit)
+
+Before the new testnet launch, the following high-priority issues were also fixed in `qXRP-faucet-wallet`:
+
+- **H-1 (Seed leaves device)**: Updated misleading "never leaves device" language in the wallet UI and added clear warnings that the seed is sent to the server-side signing proxy for Falcon field injection. Strong disclosure added that this wallet should not be used with real funds.
+- **H-2 (Plaintext HTTP)**: Updated RPC examples and documentation to require https:// in production. Plain HTTP nodes are no longer presented as the default.
+- **Rate limiting**: Modified `rate-limit.ts` to **fail closed** in production if no Upstash/Redis is configured (prevents silent unlimited faucet abuse on Vercel). In-memory fallback is now dev-only.
+
+These changes make the new clean testnet significantly safer to expose publicly.
 
 ## What Still Needs to Happen (Outside This Environment)
 
