@@ -596,7 +596,7 @@ Minimum viable local testnet:
 Create `cfg/qxrp-regtest/` with six config files (five validators + one history node) following the pattern in `cfg/xrpld-example.cfg`.
 
 Key differences from the example config:
-- `[network_id]` set to a qXRP-specific value (e.g. `999`).
+- `[network_id]` set to a qXRP-specific value (e.g. `1001` for a clean new testnet).
 - `[validators]` section lists the local validator public keys directly.
 - `[amendments]` section explicitly enables `ProofOfParticipation` at genesis.
 - `[ledger_history]` set to full for the history node.

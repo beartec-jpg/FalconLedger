@@ -22,7 +22,7 @@
 # Options:
 #   --repo         <url>        Git repo URL  (default: https://github.com/beartec-jpg/qXRP)
 #   --branch       <name>       Branch to build (default: develop)
-#   --network-id   <id>         Network ID (default: 999)
+#   --network-id   <id>         Network ID (default: 1001 for new clean testnets)
 #   --peers        <ip:port,..> Comma-separated bootstrap peers (other validators)
 #   --trusted-keys <key,key,..> Comma-separated validator public keys to trust
 #   --quorum       <n>          Validation quorum (default: 4)
@@ -45,7 +45,7 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 REPO_URL="https://github.com/beartec-jpg/qXRP"
 BRANCH="develop"
-NETWORK_ID=999
+NETWORK_ID=1001
 BOOTSTRAP_PEERS=""
 TRUSTED_KEYS=""            # comma-separated validator pubkeys to add to validators.txt
 QUORUM=4

@@ -19,7 +19,7 @@
 #   --repo    <url>         Git repo URL  (default: https://github.com/beartec-jpg/qXRP)
 #   --branch  <name>        Branch to build (default: develop)
 #   --nodes   <1|2|3>       How many nodes to run on this server (default: 3)
-#   --network-id <id>       Network ID (default: 999)
+#   --network-id <id>       Network ID (default: 1001 for new clean testnets)
 #   --peers   <ip:port,...> Comma-separated bootstrap peer list (validators/other nodes)
 #   --install-dir <path>    Root install directory (default: /opt/qxrp)
 #   --data-dir <path>       Node data root (default: /var/lib/qxrp)
@@ -37,7 +37,7 @@ set -euo pipefail
 REPO_URL="https://github.com/beartec-jpg/qXRP"
 BRANCH="develop"
 NUM_NODES=3
-NETWORK_ID=999
+NETWORK_ID=1001
 BOOTSTRAP_PEERS=""        # e.g. "1.2.3.4:51235,5.6.7.8:51235"
 INSTALL_DIR="/opt/qxrp"
 DATA_ROOT="/var/lib/qxrp"

@@ -22,7 +22,7 @@ interface DripResult {
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const NETWORK_NAME = process.env.NEXT_PUBLIC_NETWORK_NAME ?? 'qXRP Testnet'
-const NETWORK_ID   = process.env.NEXT_PUBLIC_NETWORK_ID   ?? '999'
+const NETWORK_ID   = process.env.NEXT_PUBLIC_NETWORK_ID   ?? '1001'
 const EXPLORER_URL = process.env.NEXT_PUBLIC_EXPLORER_URL ?? ''
 const DRIP_AMOUNT  = 100
 

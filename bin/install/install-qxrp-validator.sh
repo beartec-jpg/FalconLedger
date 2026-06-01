@@ -110,7 +110,7 @@ advisory_delete = 0
 /data/debug.log
 
 [network_id]
-999
+1001
 
 [features]
 ProofOfParticipation

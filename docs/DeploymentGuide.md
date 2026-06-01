@@ -53,7 +53,7 @@ Use them as public RPC/WebSocket endpoints.
 ```bash
 bash bin/install/deploy-cloud-nodes.sh \
   --nodes 3 \
-  --network-id 999 \
+  --network-id 1001 \
   --peers "VALIDATOR_IP_1:51235,VALIDATOR_IP_2:51235"
 ```
 
@@ -62,7 +62,7 @@ bash bin/install/deploy-cloud-nodes.sh \
 | Flag | Default | Description |
 |---|---|---|
 | `--nodes` | `3` | Number of nodes on this server (1–3) |
-| `--network-id` | `999` | qXRP network ID |
+| `--network-id` | `1001` | qXRP network ID (use a fresh value for new testnets) |
 | `--peers` | _(none)_ | Comma-separated bootstrap peers `ip:port` |
 | `--node-size` | `medium` | xrpld node_size (tiny/small/medium/large/huge) |
 | `--install-dir` | `/opt/qxrp` | Where to install binary and source |
@@ -106,7 +106,7 @@ qXRP rewards via Proof of Participation (PoP).
 
 ```bash
 bash bin/install/deploy-cloud-validator.sh \
-  --network-id 999 \
+  --network-id 1001 \
   --peers "OTHER_VALIDATOR_IP:51235,ANOTHER_IP:51235" \
   --trusted-keys "nKEY1,nKEY2,nKEY3,nKEY4" \
   --quorum 4 \
@@ -235,7 +235,7 @@ git push -u origin main
 | `KV_REST_API_URL` | Upstash REST URL |
 | `KV_REST_API_TOKEN` | Upstash REST Token |
 | `NEXT_PUBLIC_NETWORK_NAME` | `qXRP Testnet` |
-| `NEXT_PUBLIC_NETWORK_ID` | `999` |
+| `NEXT_PUBLIC_NETWORK_ID` | `1001` (example) |
 | `NEXT_PUBLIC_EXPLORER_URL` | _(leave blank for now)_ |
 
 5. Click **Deploy**
