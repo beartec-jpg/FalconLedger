@@ -12,7 +12,7 @@
 | 1.2 | `kQXRP_GENESIS_ALLOCATION + kQXRP_TREASURY_ALLOCATION == kINITIAL_XRP` — enforced by `static_assert` | ✅ | `QXRPConstants.h` |
 | 1.3 | `QXRPDropConservation` invariant fires on every transaction | ✅ | `src/libxrpl/tx/invariants/QXRPDropConservation.cpp` |
 | 1.4 | `XRPNotCreated` invariant still active (upstream) | ✅ | Inherited |
-| 1.5 | Treasury emission path (`RewardEpoch`) is the only source of new circulating drops | ⚠️ | Verify no other paths create drops from treasury |
+| 1.5 | Treasury emission path (`RewardEpoch`) is the only source of new circulating drops | ⚠️ | Needs verification on new clean testnet (see NEW_TESTNET_BOOTSTRAP.md) |
 
 ## 2. Integer Arithmetic & Overflow
 
@@ -22,15 +22,15 @@
 | 2.2 | Emission bps shift never produces zero before hitting `kQXRP_MIN_EMISSION_BPS` floor | ✅ | `max()` in `RewardEpoch.cpp` |
 | 2.3 | Fee-split `rawBurnBps` clamped to `[kFEE_BURN_MIN_BPS, kFEE_BURN_MAX_BPS]` before use | ✅ | `ApplyContext.cpp` |
 | 2.4 | Composite score weight sum enforced by `static_assert` | ✅ | `QXRPConstants.h` |
-| 2.5 | No integer overflow in `validatorShare = epochEmit * score / aggregateScore` | ⚠️ | Confirm 64-bit bounds for large validator sets |
-| 2.6 | Bond slash computation `slashBps * bondAmount / kBPS_DENOM` — verify no truncation issues | ⚠️ | Review `ValidatorSlash.cpp` |
+| 2.5 | No integer overflow in `validatorShare = epochEmit * score / aggregateScore` | ⚠️ | Add defensive wide-arith comments + test on new net (see ClaimReward.cpp note) |
+| 2.6 | Bond slash computation `slashBps * bondAmount / kBPS_DENOM` — verify no truncation issues | ⚠️ | Uses __int128 in ValidatorSlash.cpp — needs explicit test coverage |
 
 ## 3. Amendment Gating
 
 | # | Check | Status | Notes |
 |---|-------|--------|-------|
 | 3.1 | All 4 qXRP tx types return `temDISABLED` without `ProofOfParticipation` | ✅ | Stubs verified |
-| 3.2 | `RewardEpoch` pseudo-tx cannot be submitted by external accounts | ⚠️ | Verify privilege check |
+| 3.2 | `RewardEpoch` pseudo-tx cannot be submitted by external accounts | ⚠️ | Verify on new net (internal pseudo-tx only) |
 | 3.3 | Governance transactions gated on amendment | ✅ | `GovernanceProposal.cpp`, `GovernanceVote.cpp` |
 
 ## 4. Validator Bond Security
@@ -93,3 +93,5 @@
 6. **liboqs supply chain** — pinned to exact commit f4b96220e4bd208895172acc4fedb5a191d9f5b1 in CMakeLists.txt. ✅
 7. **Secure zeroization** of PQSecretKey. ✅ Now uses secureErase (OPENSSL_cleanse).
 8. **Security Testing Guide** created at docs/security/security-testing.md. ✅ (M-01 progress)
+9. **Slashing rollout** — only DOUBLE_SIGN active. Documented as known limitation for beta. ✅
+10. **Falcon fuzzing** — basic target exists and improved; needs regular CI runs + corpus growth. ⚠️

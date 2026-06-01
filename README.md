@@ -1,4 +1,4 @@
-[![codecov](https://codecov.io/gh/XRPLF/rippled/graph/badge.svg?token=WyFr5ajq3O)](https://codecov.io/gh/XRPLF/rippled)
+[![codecov](https://codecov.io/gh/beartec-jpg/qXRP/graph/badge.svg)](https://codecov.io/gh/beartec-jpg/qXRP)
 
 # qXRP
 
@@ -168,10 +168,9 @@ This notice is a project policy summary. Contributors should review the full pol
 
 ## Links
 
-- Documentation: https://docs.qxrp.example/
-- GitHub: https://github.com/XRPLF/rippled
-- Discord: https://discord.gg/qxrp
-- Telegram: https://t.me/qxrp
+- Documentation: See the `docs/` folder in this repository
+- GitHub: https://github.com/beartec-jpg/qXRP
+- Discord / Telegram: (links to be added once communities are live)
 
 ## Existing XRPL Resources
 
