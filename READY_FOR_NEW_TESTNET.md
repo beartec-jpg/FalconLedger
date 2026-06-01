@@ -53,9 +53,12 @@ We are now in a good position to:
 
 Before the new testnet launch, the following high-priority issues were also fixed in `qXRP-faucet-wallet`:
 
-- **H-1 (Seed leaves device)**: Updated misleading "never leaves device" language in the wallet UI and added clear warnings that the seed is sent to the server-side signing proxy for Falcon field injection. Strong disclosure added that this wallet should not be used with real funds.
-- **H-2 (Plaintext HTTP)**: Updated RPC examples and documentation to require https:// in production. Plain HTTP nodes are no longer presented as the default.
-- **Rate limiting**: Modified `rate-limit.ts` to **fail closed** in production if no Upstash/Redis is configured (prevents silent unlimited faucet abuse on Vercel). In-memory fallback is now dev-only.
+- **H-1 (Seed leaves device)**: Updated misleading language + added strong in-UI and README warnings that the seed transits the server for Falcon signing.
+- **H-2 (Plaintext HTTP)**: Updated all RPC and proxy examples/docs to require https:// in production.
+- **M-1**: Added security headers + basic CSP via next.config.mjs (protects localStorage encrypted seeds from basic XSS exfiltration).
+- **M-3**: Added Origin allow-list checks to the sensitive POST endpoints (/api/faucet, /api/wallet/sign, /api/wallet/submit).
+- **M-4 + Rate limiting**: Fail-closed in production without Upstash; refund logic no longer fully resets the window in the same dangerous way.
+- **L-1 / L-2**: Reduced raw error leakage and tightened submit success logic (only tesSUCCESS counts as clear success).
 
 These changes make the new clean testnet significantly safer to expose publicly.
 
