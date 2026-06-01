@@ -1,7 +1,9 @@
 # READY FOR NEW TESTNET WIPE & REBUILD
 
 **Date**: 2026-05-30  
-**Status**: ✅ **READY TO WIPE AND REBUILD** (High-priority wallet security items from audit also addressed)
+**Status**: ✅ **READY TO WIPE AND REBUILD**
+
+All high and medium priority items from both the main security audit and the follow-up wallet/faucet audit have been addressed or have clear documentation + mitigation in place for the clean launch.
 
 ---
 
