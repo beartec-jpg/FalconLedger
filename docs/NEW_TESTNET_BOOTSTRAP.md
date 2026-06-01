@@ -51,6 +51,20 @@
    - Clearly communicate that the previous testnet (Network ID 999) is deprecated.
    - Provide migration instructions if needed (most users will just need new accounts + new faucet).
 
+## Running Nodes on the New Testnet
+
+For the clean new testnet, we provide ready-to-use Docker setups:
+
+- **Full History Node**: See `docs/new-testnet/full-history-node/`
+  - Includes improved `docker-compose.yml` and a proper full history config.
+  - One-command starter: `start-full-history.sh`
+
+- **Validator**: See `docs/new-testnet/validator/`
+  - Lighter setup suitable for validators.
+  - One-command starter: `start-validator.sh`
+
+These setups use Network ID 1001 and follow best practices for the clean launch.
+
 ## Recommended Account Strategy
 
 - **Bootstrap Account**: Holds the full initial supply. Used only for initial distribution.
