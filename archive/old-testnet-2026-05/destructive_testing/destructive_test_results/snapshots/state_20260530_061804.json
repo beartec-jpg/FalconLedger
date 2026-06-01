@@ -1,0 +1,227 @@
+{
+  "timestamp": "2026-05-30T06:18:04.140440",
+  "nodes": {
+    "node1": {
+      "build_version": "3.2.0-b0",
+      "complete_ledgers": "1072-168531",
+      "hostid": "LAC",
+      "initial_sync_duration_us": "14120292",
+      "io_latency_ms": 1,
+      "jq_trans_overflow": "0",
+      "last_close": {
+        "converge_time_s": 2,
+        "proposers": 2
+      },
+      "load_factor": 1,
+      "network_id": 999,
+      "peer_disconnects": "1",
+      "peer_disconnects_resources": "0",
+      "peers": 2,
+      "ports": [
+        {
+          "port": "6005",
+          "protocol": [
+            "http"
+          ]
+        },
+        {
+          "port": "51235",
+          "protocol": [
+            "peer"
+          ]
+        },
+        {
+          "port": "7005",
+          "protocol": [
+            "ws"
+          ]
+        }
+      ],
+      "pubkey_node": "n9LrSywrNxhy4xUCLLPTrVz4fXAiyrNsqg6PYkkGoHKJivDXzNw7",
+      "server_state": "full",
+      "server_state_duration_us": "35254212233",
+      "state_accounting": {
+        "connected": {
+          "duration_us": "5022464",
+          "transitions": "1"
+        },
+        "disconnected": {
+          "duration_us": "9097826",
+          "transitions": "1"
+        },
+        "full": {
+          "duration_us": "35849598077",
+          "transitions": "2"
+        },
+        "syncing": {
+          "duration_us": "3001199",
+          "transitions": "1"
+        },
+        "tracking": {
+          "duration_us": "2",
+          "transitions": "2"
+        }
+      },
+      "time": "2026-May-30 06:18:04.234094 UTC",
+      "uptime": 35866,
+      "validated_ledger": {
+        "age": 24,
+        "base_fee_xrp": 1e-05,
+        "hash": "01295EEDE78227E0C31A790C35DDA3359CE4561DC729FE8E70379DFBBA2FF301",
+        "reserve_base_xrp": 1,
+        "reserve_inc_xrp": 0.2,
+        "seq": 168531
+      },
+      "validation_quorum": 4
+    },
+    "node2": {
+      "build_version": "3.2.0-b0",
+      "complete_ledgers": "167940-168531",
+      "hostid": "MILT",
+      "initial_sync_duration_us": "19090528",
+      "io_latency_ms": 1,
+      "jq_trans_overflow": "0",
+      "last_close": {
+        "converge_time_s": 2,
+        "proposers": 2
+      },
+      "load_factor": 1,
+      "network_id": 999,
+      "peer_disconnects": "2",
+      "peer_disconnects_resources": "0",
+      "peers": 2,
+      "ports": [
+        {
+          "port": "6006",
+          "protocol": [
+            "http"
+          ]
+        },
+        {
+          "port": "51236",
+          "protocol": [
+            "peer"
+          ]
+        },
+        {
+          "port": "7006",
+          "protocol": [
+            "ws"
+          ]
+        }
+      ],
+      "pubkey_node": "n9MMTf7vDy6UpDpT4LT7icD94Yio1NHD5Zuhuifdm94YYq3t8kkN",
+      "server_state": "full",
+      "server_state_duration_us": "343602030003",
+      "state_accounting": {
+        "connected": {
+          "duration_us": "2001058",
+          "transitions": "1"
+        },
+        "disconnected": {
+          "duration_us": "17089469",
+          "transitions": "1"
+        },
+        "full": {
+          "duration_us": "343602030003",
+          "transitions": "1"
+        },
+        "syncing": {
+          "duration_us": "0",
+          "transitions": "0"
+        },
+        "tracking": {
+          "duration_us": "1",
+          "transitions": "1"
+        }
+      },
+      "time": "2026-May-30 06:18:04.384791 UTC",
+      "uptime": 343621,
+      "validated_ledger": {
+        "age": 24,
+        "base_fee_xrp": 1e-05,
+        "hash": "01295EEDE78227E0C31A790C35DDA3359CE4561DC729FE8E70379DFBBA2FF301",
+        "reserve_base_xrp": 1,
+        "reserve_inc_xrp": 0.2,
+        "seq": 168531
+      },
+      "validation_quorum": 4
+    },
+    "node3": {
+      "build_version": "3.2.0-b0",
+      "complete_ledgers": "167939-168531",
+      "hostid": "TATE",
+      "initial_sync_duration_us": "19073477",
+      "io_latency_ms": 1,
+      "jq_trans_overflow": "0",
+      "last_close": {
+        "converge_time_s": 2,
+        "proposers": 2
+      },
+      "load_factor": 1,
+      "network_id": 999,
+      "peer_disconnects": "2",
+      "peer_disconnects_resources": "0",
+      "peers": 2,
+      "ports": [
+        {
+          "port": "6007",
+          "protocol": [
+            "http"
+          ]
+        },
+        {
+          "port": "51237",
+          "protocol": [
+            "peer"
+          ]
+        },
+        {
+          "port": "7007",
+          "protocol": [
+            "ws"
+          ]
+        }
+      ],
+      "pubkey_node": "n9JZzm71tDdFMCnsFKom6Zg8NmLRCdnLN7ZnsYDrapeuecZXn22p",
+      "server_state": "full",
+      "server_state_duration_us": "343602204831",
+      "state_accounting": {
+        "connected": {
+          "duration_us": "2000775",
+          "transitions": "1"
+        },
+        "disconnected": {
+          "duration_us": "17072701",
+          "transitions": "1"
+        },
+        "full": {
+          "duration_us": "343602204831",
+          "transitions": "1"
+        },
+        "syncing": {
+          "duration_us": "0",
+          "transitions": "0"
+        },
+        "tracking": {
+          "duration_us": "0",
+          "transitions": "1"
+        }
+      },
+      "time": "2026-May-30 06:18:04.564559 UTC",
+      "uptime": 343621,
+      "validated_ledger": {
+        "age": 24,
+        "base_fee_xrp": 1e-05,
+        "hash": "01295EEDE78227E0C31A790C35DDA3359CE4561DC729FE8E70379DFBBA2FF301",
+        "reserve_base_xrp": 1,
+        "reserve_inc_xrp": 0.2,
+        "seq": 168531
+      },
+      "validation_quorum": 4
+    },
+    "node4": {
+      "error": "HTTPConnectionPool(host='204.168.175.194', port=6005): Max retries exceeded with url: / (Caused by NewConnectionError(\"HTTPConnection(host='204.168.175.194', port=6005): Failed to establish a new connection: [Errno 111] Connection refused\"))"
+    }
+  }
+}

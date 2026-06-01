@@ -1,0 +1,228 @@
+{
+  "timestamp": "2026-05-30T06:22:06.224958",
+  "nodes": {
+    "node1": {
+      "build_version": "3.2.0-b0",
+      "complete_ledgers": "1072-168586",
+      "hostid": "LAC",
+      "initial_sync_duration_us": "14120292",
+      "io_latency_ms": 1,
+      "jq_trans_overflow": "0",
+      "last_close": {
+        "converge_time_s": 2.001,
+        "proposers": 2
+      },
+      "load_factor": 1,
+      "network_id": 999,
+      "peer_disconnects": "3",
+      "peer_disconnects_resources": "0",
+      "peers": 2,
+      "ports": [
+        {
+          "port": "6005",
+          "protocol": [
+            "http"
+          ]
+        },
+        {
+          "port": "51235",
+          "protocol": [
+            "peer"
+          ]
+        },
+        {
+          "port": "7005",
+          "protocol": [
+            "ws"
+          ]
+        }
+      ],
+      "pubkey_node": "n9LrSywrNxhy4xUCLLPTrVz4fXAiyrNsqg6PYkkGoHKJivDXzNw7",
+      "server_state": "full",
+      "server_state_duration_us": "35496309643",
+      "state_accounting": {
+        "connected": {
+          "duration_us": "5022464",
+          "transitions": "1"
+        },
+        "disconnected": {
+          "duration_us": "9097826",
+          "transitions": "1"
+        },
+        "full": {
+          "duration_us": "36091695487",
+          "transitions": "2"
+        },
+        "syncing": {
+          "duration_us": "3001199",
+          "transitions": "1"
+        },
+        "tracking": {
+          "duration_us": "2",
+          "transitions": "2"
+        }
+      },
+      "time": "2026-May-30 06:22:06.331462 UTC",
+      "uptime": 36108,
+      "validated_ledger": {
+        "age": 85,
+        "base_fee_xrp": 1e-05,
+        "hash": "F051E87FB5B92367D3AE11AE566ADFD5B2D1A50000F3349FA8D3324A11ADAD1A",
+        "reserve_base_xrp": 1,
+        "reserve_inc_xrp": 0.2,
+        "seq": 168586
+      },
+      "validation_quorum": 4
+    },
+    "node2": {
+      "build_version": "3.2.0-b0",
+      "complete_ledgers": "167940-168586",
+      "hostid": "MILT",
+      "initial_sync_duration_us": "19090528",
+      "io_latency_ms": 1,
+      "jq_trans_overflow": "0",
+      "last_close": {
+        "converge_time_s": 2,
+        "proposers": 2
+      },
+      "load_factor": 1,
+      "network_id": 999,
+      "peer_disconnects": "4",
+      "peer_disconnects_resources": "0",
+      "peers": 2,
+      "ports": [
+        {
+          "port": "6006",
+          "protocol": [
+            "http"
+          ]
+        },
+        {
+          "port": "51236",
+          "protocol": [
+            "peer"
+          ]
+        },
+        {
+          "port": "7006",
+          "protocol": [
+            "ws"
+          ]
+        }
+      ],
+      "pubkey_node": "n9MMTf7vDy6UpDpT4LT7icD94Yio1NHD5Zuhuifdm94YYq3t8kkN",
+      "server_state": "full",
+      "server_state_duration_us": "343844130902",
+      "state_accounting": {
+        "connected": {
+          "duration_us": "2001058",
+          "transitions": "1"
+        },
+        "disconnected": {
+          "duration_us": "17089469",
+          "transitions": "1"
+        },
+        "full": {
+          "duration_us": "343844130902",
+          "transitions": "1"
+        },
+        "syncing": {
+          "duration_us": "0",
+          "transitions": "0"
+        },
+        "tracking": {
+          "duration_us": "1",
+          "transitions": "1"
+        }
+      },
+      "time": "2026-May-30 06:22:06.485672 UTC",
+      "uptime": 343863,
+      "validated_ledger": {
+        "age": 85,
+        "base_fee_xrp": 1e-05,
+        "hash": "F051E87FB5B92367D3AE11AE566ADFD5B2D1A50000F3349FA8D3324A11ADAD1A",
+        "reserve_base_xrp": 1,
+        "reserve_inc_xrp": 0.2,
+        "seq": 168586
+      },
+      "validation_quorum": 4
+    },
+    "node3": {
+      "error": "HTTPConnectionPool(host='37.27.47.236', port=6007): Max retries exceeded with url: / (Caused by NewConnectionError(\"HTTPConnection(host='37.27.47.236', port=6007): Failed to establish a new connection: [Errno 111] Connection refused\"))"
+    },
+    "node4": {
+      "build_version": "3.2.0-b0",
+      "closed_ledger": {
+        "age": 4,
+        "base_fee_xrp": 1e-05,
+        "hash": "C784BB74DEA767E620336303A1BF240AEA7535DCC6BC9023443259AD307CA39F",
+        "reserve_base_xrp": 1,
+        "reserve_inc_xrp": 0.2,
+        "seq": 168608
+      },
+      "complete_ledgers": "empty",
+      "hostid": "MATH",
+      "initial_sync_duration_us": "5157052",
+      "io_latency_ms": 1,
+      "jq_trans_overflow": "0",
+      "last_close": {
+        "converge_time_s": 2,
+        "proposers": 2
+      },
+      "load_factor": 1,
+      "network_id": 999,
+      "peer_disconnects": "0",
+      "peer_disconnects_resources": "0",
+      "peers": 2,
+      "ports": [
+        {
+          "port": "6005",
+          "protocol": [
+            "http"
+          ]
+        },
+        {
+          "port": "51235",
+          "protocol": [
+            "peer"
+          ]
+        },
+        {
+          "port": "7005",
+          "protocol": [
+            "ws"
+          ]
+        }
+      ],
+      "pubkey_node": "n9JuPwXmbzibitg7sAbrrqGGQYSu4neLhUkXtP4rPKYQcbmKpAUs",
+      "published_ledger": "none",
+      "server_state": "full",
+      "server_state_duration_us": "25979674",
+      "state_accounting": {
+        "connected": {
+          "duration_us": "2003222",
+          "transitions": "1"
+        },
+        "disconnected": {
+          "duration_us": "3153827",
+          "transitions": "1"
+        },
+        "full": {
+          "duration_us": "25979674",
+          "transitions": "1"
+        },
+        "syncing": {
+          "duration_us": "0",
+          "transitions": "0"
+        },
+        "tracking": {
+          "duration_us": "1",
+          "transitions": "1"
+        }
+      },
+      "time": "2026-May-30 06:22:06.739071 UTC",
+      "uptime": 31,
+      "validation_quorum": 4
+    }
+  }
+}
