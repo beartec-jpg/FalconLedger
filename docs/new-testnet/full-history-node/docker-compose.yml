@@ -1,44 +1,46 @@
-# qXRP Full History Node - Docker Compose
-# For the clean new testnet (Network ID 1001)
-# This builds the image locally from source (no external image required)
+# qXRP Full History Node - Clean New Testnet
+# Network ID: 1001
+# This version builds the image locally from source.
 
 services:
   xrpld:
     build:
-      context: ../../../            # Path to the qXRP repo root (from docs/new-testnet/full-history-node)
+      context: ../../../
       dockerfile: docker/Dockerfile
-    image: qxrp/xrpld:latest        # Tag it locally after build
+    image: qxrp/xrpld:local
     container_name: qxrp-full-history
     restart: unless-stopped
 
-    # Resource limits - Full history nodes benefit from more memory
+    # Resource limits - important on limited hardware
     deploy:
       resources:
         limits:
-          memory: 8G
+          memory: 6G
         reservations:
-          memory: 4G
+          memory: 3G
 
     volumes:
-      - ./config:/cfg:ro
       - /var/lib/qxrp:/data
+      - ./xrpld.cfg:/cfg/xrpld.cfg:ro
 
     ports:
-      - "51235:51235"   # Peer port (public)
-      - "6005:6005"     # Public RPC (HTTP)
-      - "6006:6006"     # Public WebSocket (optional but useful)
+      # Only expose what is necessary publicly
+      - "51235:51235"     # Peer port (required for network participation)
+      - "6005:6005"       # Public RPC (for explorers, faucets, etc.)
+
+    # Do NOT expose admin RPC (5005) publicly
 
     logging:
       driver: "json-file"
       options:
-        max-size: "100m"
+        max-size: "50m"
         max-file: "5"
 
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6005"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:6005"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 120s
+      start_period: 180s
 
     command: ["--conf", "/cfg/xrpld.cfg"]
