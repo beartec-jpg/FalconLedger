@@ -19,8 +19,8 @@ The goal is a network where security, decentralization, and participation incent
 ## Key Differentiators
 
 - Post-quantum security with Falcon support as a first-class signature type.
-- Hybrid signature support during migration, including Falcon plus ed25519 where needed.
-- Proof-of-Participation style rewards for active validators with deterministic, on-ledger scoring.
+- Hybrid signature, including Falcon plus ed25519 where needed.
+- Proof-of-Participation rewards for active validators with deterministic, on-ledger scoring.
 - Fixed total supply of 200 billion qXRP.
 - Minimal genesis allocation, with the protocol-controlled treasury holding the bulk of supply.
 - Dynamic fee splitting that burns part of the fee and routes part to validators.
@@ -93,7 +93,6 @@ qXRP treats quantum resistance as a protocol requirement, not an optional add-on
 - Reduce long-term exposure to future quantum attacks.
 - Keep verification fast enough for consensus-critical paths.
 - Avoid dependence on external services for key translation or validation.
-- Support gradual migration instead of a forced network-wide flag day.
 
 ## Technical Architecture
 
