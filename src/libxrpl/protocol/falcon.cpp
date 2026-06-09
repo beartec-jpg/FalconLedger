@@ -10,7 +10,9 @@
 
 #include <xrpl/protocol/falcon.h>
 
+#include <xrpl/basics/StringUtilities.h>
 #include <xrpl/basics/contract.h>
+#include <xrpl/basics/strHex.h>
 #include <xrpl/protocol/KeyType.h>
 
 #include <oqs/oqs.h>
@@ -117,6 +119,66 @@ verifyFalcon(PQPublicKey const& pk, Slice message, Slice signature)
 
     OQS_SIG_free(sig);
     return rc == OQS_SUCCESS;
+}
+
+std::string
+encodeFalconSecret(PQPublicKey const& pk, PQSecretKey const& sk)
+{
+    // Layout: [public-key on-wire blob (prefix + raw)] || [raw secret-key bytes]
+    auto const ps = pk.slice();
+    std::vector<std::uint8_t> buf;
+    buf.reserve(ps.size() + sk.size());
+    buf.insert(buf.end(), ps.data(), ps.data() + ps.size());
+    buf.insert(buf.end(), sk.data(), sk.data() + sk.size());
+    return strHex(buf);
+}
+
+std::optional<std::pair<PQPublicKey, PQSecretKey>>
+decodeFalconSecret(std::string const& hex)
+{
+    auto const bytes = strUnHex(hex);
+    if (!bytes || bytes->empty())
+        return std::nullopt;
+
+    auto const& b = *bytes;
+    std::uint8_t const prefix = static_cast<std::uint8_t>(b[0]);
+
+    KeyType type{};
+    std::size_t pubTotal{};
+    std::size_t secLen{};
+
+    if (prefix == PQPublicKey::kFALCON512_PREFIX)
+    {
+        type = KeyType::Falcon512;
+        pubTotal = kFALCON512_PUBKEY_BYTES + 1;
+        secLen = kFALCON512_SECKEY_BYTES;
+    }
+    else if (prefix == PQPublicKey::kFALCON1024_PREFIX)
+    {
+        type = KeyType::Falcon1024;
+        pubTotal = kFALCON1024_PUBKEY_BYTES + 1;
+        secLen = kFALCON1024_SECKEY_BYTES;
+    }
+    else
+    {
+        return std::nullopt;
+    }
+
+    if (b.size() != pubTotal + secLen)
+        return std::nullopt;
+
+    try
+    {
+        auto const* base = reinterpret_cast<std::uint8_t const*>(b.data());
+        PQPublicKey pk(Slice(base, pubTotal));
+        std::vector<std::uint8_t> secBytes(base + pubTotal, base + pubTotal + secLen);
+        PQSecretKey sk(type, std::move(secBytes));
+        return std::make_pair(std::move(pk), std::move(sk));
+    }
+    catch (std::exception const&)
+    {
+        return std::nullopt;
+    }
 }
 
 }  // namespace xrpl

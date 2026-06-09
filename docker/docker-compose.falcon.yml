@@ -1,0 +1,57 @@
+# Copyright (c) 2026 qXRP Team. All rights reserved.
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+# Falcon Ledger — node-role compose.
+#
+# Brings up the two node roles you build images for:
+#   • validator   — signs consensus (uses cfg/falcon-validator.cfg)
+#   • fullhistory — non-validating, keeps full ledger history
+#                   (uses cfg/falcon-fullhistory.cfg)
+#
+# Both roles share the same xrpld image and the same trusted UNL
+# (cfg/falcon-validators.txt mounted as validators.txt).
+#
+# Build the image first:
+#   docker build -t qxrp/xrpld:latest -f docker/Dockerfile .
+#
+# Then launch a role:
+#   docker compose -f docker/docker-compose.falcon.yml up validator
+#   docker compose -f docker/docker-compose.falcon.yml up fullhistory
+#
+# Before launch, fill in [validation_seed] in cfg/falcon-validator.cfg and the
+# real validator keys in cfg/falcon-validators.txt.
+
+version: "3.9"
+
+services:
+  validator:
+    image: qxrp/xrpld:latest
+    container_name: falcon_validator
+    restart: unless-stopped
+    volumes:
+      - ../cfg/falcon-validator.cfg:/cfg/xrpld.cfg:ro
+      - ../cfg/falcon-validators.txt:/cfg/validators.txt:ro
+      - falcon_validator_data:/var/lib/xrpld
+    ports:
+      - "5005:5005"     # admin RPC (localhost-bound in the cfg)
+      - "6006:6006"     # public WebSocket
+      - "51235:51235"   # peer
+    command: ["--conf", "/cfg/xrpld.cfg"]
+
+  fullhistory:
+    image: qxrp/xrpld:latest
+    container_name: falcon_fullhistory
+    restart: unless-stopped
+    volumes:
+      - ../cfg/falcon-fullhistory.cfg:/cfg/xrpld.cfg:ro
+      - ../cfg/falcon-validators.txt:/cfg/validators.txt:ro
+      - falcon_fullhistory_data:/var/lib/xrpld
+    ports:
+      - "5006:5006"     # public RPC
+      - "6007:6006"     # public WebSocket
+      - "51236:51235"   # peer
+    command: ["--conf", "/cfg/xrpld.cfg"]
+
+volumes:
+  falcon_validator_data:
+  falcon_fullhistory_data:

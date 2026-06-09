@@ -223,6 +223,54 @@ class FalconTxnSignature_test : public beast::unit_test::Suite
         }
     }
 
+    void
+    testFalconSecretBundle()
+    {
+        testcase("encodeFalconSecret / decodeFalconSecret round-trip");
+
+        if (!falconAvailable(KeyType::Falcon512))
+        {
+            log << "liboqs Falcon-512 unavailable; skipping bundle checks";
+            return;
+        }
+
+        auto const kp = generateFalconKeyPair(KeyType::Falcon512);
+        BEAST_EXPECT(kp.has_value());
+        if (!kp)
+            return;
+
+        auto const& pub = kp->first;
+        auto const& sec = kp->second;
+
+        // Sign a message with the original secret key.
+        std::string const msg = "falcon-secret-bundle-test-vector";
+        auto const sig = signFalcon(sec, asSlice(msg));
+
+        // Encode the wallet secret, then decode it back.
+        auto const bundle = encodeFalconSecret(pub, sec);
+        BEAST_EXPECT(!bundle.empty());
+
+        auto const decoded = decodeFalconSecret(bundle);
+        BEAST_EXPECT(decoded.has_value());
+        if (!decoded)
+            return;
+
+        // Public key survives the round-trip exactly.
+        BEAST_EXPECT(decoded->first == pub);
+        BEAST_EXPECT(decoded->first.keyType() == KeyType::Falcon512);
+
+        // The decoded secret key produces a signature the public key verifies,
+        // and the original signature still verifies against the decoded public.
+        auto const sig2 = signFalcon(decoded->second, asSlice(msg));
+        BEAST_EXPECT(verifyFalcon(decoded->first, asSlice(msg), Slice(sig2.data(), sig2.size())));
+        BEAST_EXPECT(verifyFalcon(decoded->first, asSlice(msg), Slice(sig.data(), sig.size())));
+
+        // Garbage input is rejected.
+        BEAST_EXPECT(!decodeFalconSecret(""));
+        BEAST_EXPECT(!decodeFalconSecret("not-hex"));
+        BEAST_EXPECT(!decodeFalconSecret("00112233"));
+    }
+
 public:
     void
     run() override
@@ -232,6 +280,7 @@ public:
         testAccountIDDerivation();
         testClassicalStillVerifies();
         testSTTxFalconRoundTrip();
+        testFalconSecretBundle();
     }
 };
 

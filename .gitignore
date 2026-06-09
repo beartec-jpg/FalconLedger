@@ -91,7 +91,13 @@ __pycache__
 /.cache
 
 # Local configuration files (node-specific, should not be committed)
-cfg/
+cfg/*
+# ...except the tracked example/template configs used to build node images.
+!cfg/*-example.*
+!cfg/falcon-validator.cfg
+!cfg/falcon-fullhistory.cfg
+!cfg/falcon-validators.txt
+!cfg/standalone.cfg
 
 # Backup files
 *.bak

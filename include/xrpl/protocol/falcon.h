@@ -15,6 +15,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -50,5 +51,29 @@ verifyFalcon(PQPublicKey const& pk, Slice message, Slice signature);
 /// the requested Falcon parameter set.
 bool
 falconAvailable(KeyType type) noexcept;
+
+/// Encode a Falcon key pair into a single portable secret string.
+///
+/// Unlike classical keys, a Falcon public key cannot be re-derived from its
+/// secret key alone (liboqs exposes no such operation).  A usable Falcon
+/// wallet secret must therefore carry *both* halves.  The returned value is a
+/// hex string of the on-wire public-key blob (prefix byte + raw key) directly
+/// followed by the raw secret-key bytes.
+///
+/// This is the value emitted by `wallet_propose` as `falcon_secret` and the
+/// value accepted by `decodeFalconSecret` for offline signing.
+std::string
+encodeFalconSecret(PQPublicKey const& pk, PQSecretKey const& sk);
+
+/// Decode a `falcon_secret` string produced by `encodeFalconSecret`.
+///
+/// The parameter set is determined from the leading prefix byte (0xFB =
+/// Falcon-512, 0xFC = Falcon-1024) and the total length is validated against
+/// the fixed public/secret key sizes for that set.
+///
+/// @returns the reconstructed {public_key, secret_key} pair, or nullopt if the
+///          input is not a well-formed Falcon secret bundle.
+std::optional<std::pair<PQPublicKey, PQSecretKey>>
+decodeFalconSecret(std::string const& hex);
 
 }  // namespace xrpl
