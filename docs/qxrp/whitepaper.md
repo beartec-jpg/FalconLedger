@@ -31,8 +31,8 @@ quantum computer will eventually break.
 
 **Falcon signatures, all the time.** Falcon-512 lattice signatures are the standard
 validator signature scheme, built in at the protocol level from genesis — not
-retrofitted later. Hybrid Falcon plus ed25519 support allows a smooth migration for
-account tooling. This chain is built to be secure in 2026 and in 2046.
+retrofitted later. Hybrid Falcon plus ed25519 support is planned to allow a smooth
+migration for account tooling. This chain is built to be secure in 2026 and in 2046.
 
 **Fixed supply. 200 billion qXRP. Hard cap. No exceptions.**
 98% of the supply is locked in a protocol treasury with no private key. It is
@@ -168,18 +168,23 @@ Every validator on Falcon Ledger registers an 898-byte Falcon public key
 Falcon-derived identity. Falcon verification is deterministic, fully local,
 and requires no external services or network calls.
 
-### 4.3 Hybrid Migration Path
+### 4.3 Hybrid Migration Path (Planned)
+
+> **Status:** The hybrid transaction signature path described in this section is
+> a planned design and is **not yet implemented**. Today, transactions are
+> signed and verified with classical secp256k1/ed25519 only; Falcon is used for
+> validator identities (ProofOfParticipation), not for signing transactions.
 
 Forcing an immediate network-wide migration to Falcon would break existing
-tooling and key infrastructure. Falcon Ledger solves this with native hybrid
-signature support: a Falcon-512 signature combined with an ed25519 signature
-on the same transaction.
+tooling and key infrastructure. Falcon Ledger plans to address this with native
+hybrid signature support: a Falcon-512 signature combined with an ed25519
+signature on the same transaction.
 
-During the migration window, hybrid identities satisfy both the post-quantum
-security requirement and interoperability with legacy infrastructure.
-Pure Falcon identities are available from day one for new deployments.
-The protocol enforces a migration timeline via amendment gating, not by
-breaking existing participants.
+During the migration window, hybrid identities would satisfy both the
+post-quantum security requirement and interoperability with legacy
+infrastructure. Pure Falcon identities are intended to be available for new
+deployments. The protocol would enforce a migration timeline via amendment
+gating, not by breaking existing participants.
 
 ### 4.4 Design Principles
 
@@ -453,7 +458,7 @@ See [ROADMAP.md](../../ROADMAP.md) for the full, status-tracked plan.
 | Consensus               | RPCA — unchanged from XRP Ledger                     |
 | Finality                | Sub-second, deterministic                            |
 | Validator signature     | Falcon-512 (NIST PQC standard) — standard, always on |
-| Migration path          | Hybrid Falcon + ed25519 supported                    |
+| Migration path          | Hybrid Falcon + ed25519 (planned, not yet implemented) |
 | Total supply            | 200,000,000,000 qXRP (hard cap)                      |
 | Treasury                | 196,000,000,000 qXRP (98%), no private key           |
 | Genesis circulating     | 4,000,000,000 qXRP (2%), time-locked                 |

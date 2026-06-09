@@ -36,7 +36,7 @@ chain report) and form the protocol foundation.
 - [x] Falcon-512 (NIST PQC, Level 1) integrated as the standard validator signature.
 - [x] All testnet validators register an 898-byte Falcon public key (`0xFB` prefix) on-chain.
 - [x] Validators proposing/validating with Falcon-derived identities (`n9...` preserved for compatibility).
-- [x] Hybrid Falcon + ed25519 signature path for migration/interoperability.
+- [ ] Hybrid Falcon + ed25519 signature path for migration/interoperability. **Not implemented.** Transaction signing/verification (`STTx::checkSign` → `verify()` in `src/libxrpl/protocol/PublicKey.cpp`) currently supports only secp256k1 and ed25519. Falcon is used for validator node keys (ProofOfParticipation) only — there is no transaction-level Falcon or hybrid signature path yet.
 
 ### Supply & treasury — no company control
 
