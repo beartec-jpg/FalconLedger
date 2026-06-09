@@ -229,6 +229,42 @@ verifyDigest(
 [[nodiscard]] bool
 verify(PublicKey const& publicKey, Slice const& m, Slice const& sig) noexcept;
 
+/** Returns the key type of a transaction signing public key blob.
+
+    Unlike @c publicKeyType(), this also recognizes post-quantum Falcon
+    keys (0xFB / 0xFC prefix), which are variable length and therefore
+    cannot be represented by the fixed-size @c PublicKey class.
+
+    @return std::nullopt if the slice is not a recognized classical or
+            Falcon signing key.
+*/
+[[nodiscard]] std::optional<KeyType>
+signingPubKeyType(Slice const& slice);
+
+/** Verify a signature on a message using a raw signing-key blob.
+
+    Accepts both classical (secp256k1/ed25519, 33-byte) signing keys and
+    post-quantum Falcon (0xFB / 0xFC) signing keys, routing to the correct
+    verifier based on the key prefix.  Returns false (never throws) for any
+    unrecognized or malformed key, signature, or message.
+
+    This is the entry point used by the transaction signature checks so that
+    qXRP transactions may be signed with Falcon post-quantum keys.
+*/
+[[nodiscard]] bool
+verify(Slice const& publicKey, Slice const& m, Slice const& sig) noexcept;
+
+/** Derive the AccountID for a transaction signing public key blob.
+
+    Computes RIPEMD160(SHA256(blob)) — the same transform used by
+    @c calcAccountID(PublicKey) — but accepts a raw slice so the caller does
+    not need to branch on classical vs. Falcon key length.  This makes the
+    account-authorization rules (master key, regular key, signer list) work
+    identically for classical and post-quantum signing keys.
+*/
+AccountID
+calcAccountID(Slice const& signingPubKey);
+
 /** Calculate the 160-bit node ID from a node public key. */
 NodeID
 calcNodeID(PublicKey const&);

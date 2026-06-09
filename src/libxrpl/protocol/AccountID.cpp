@@ -153,6 +153,20 @@ calcAccountID(PublicKey const& pk)
     return AccountID{static_cast<RipeshaHasher::result_type>(rsh)};
 }
 
+AccountID
+calcAccountID(Slice const& signingPubKey)
+{
+    // Identical transform to calcAccountID(PublicKey) — RIPEMD160(SHA256(blob))
+    // — but accepts a raw, variable-length blob so that post-quantum Falcon
+    // signing keys (which do not fit the fixed-size PublicKey type) derive the
+    // same account identity rules as classical keys.
+    static_assert(AccountID::kBYTES == sizeof(RipeshaHasher::result_type));
+
+    RipeshaHasher rsh;
+    rsh(signingPubKey.data(), signingPubKey.size());
+    return AccountID{static_cast<RipeshaHasher::result_type>(rsh)};
+}
+
 AccountID const&
 xrpAccount()
 {

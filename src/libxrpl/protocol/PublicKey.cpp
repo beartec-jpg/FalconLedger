@@ -6,6 +6,7 @@
 #include <xrpl/basics/strHex.h>
 #include <xrpl/protocol/KeyType.h>
 #include <xrpl/protocol/PQPublicKey.h>
+#include <xrpl/protocol/falcon.h>
 #include <xrpl/protocol/UintTypes.h>
 #include <xrpl/protocol/detail/secp256k1.h>
 #include <xrpl/protocol/digest.h>
@@ -288,6 +289,46 @@ verify(PublicKey const& publicKey, Slice const& m, Slice const& sig) noexcept
             return ed25519_sign_open(m.data(), m.size(), publicKey.data() + 1, sig.data()) == 0;
         }
     }
+    return false;
+}
+
+std::optional<KeyType>
+signingPubKeyType(Slice const& slice)
+{
+    // Classical secp256k1/ed25519 (fixed 33-byte) keys first.
+    if (auto const classical = publicKeyType(slice))
+        return classical;
+
+    // Post-quantum Falcon-512 / Falcon-1024 keys (variable length).
+    return pqPublicKeyType(slice);
+}
+
+bool
+verify(Slice const& publicKey, Slice const& m, Slice const& sig) noexcept
+{
+    try
+    {
+        // Post-quantum Falcon keys are detected by their prefix byte.  These
+        // are variable length and cannot be held by the classical PublicKey
+        // type, so they are routed directly to the Falcon verifier.
+        if (pqPublicKeyType(publicKey))
+        {
+            return verifyFalcon(PQPublicKey(publicKey), m, sig);
+        }
+
+        // Classical secp256k1 / ed25519.
+        if (publicKeyType(publicKey))
+        {
+            return verify(PublicKey(publicKey), m, sig);
+        }
+    }
+    catch (std::exception const&)
+    {
+        // Any malformed key/signature is treated as a failed verification
+        // rather than propagating an exception into consensus-critical code.
+        return false;
+    }
+
     return false;
 }
 
