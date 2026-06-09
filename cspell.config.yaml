@@ -98,6 +98,7 @@ words:
   - desync
   - desynced
   - determ
+  - dilithium
   - distro
   - doxyfile
   - dxrpl
@@ -270,6 +271,7 @@ words:
   - takergets
   - takerpays
   - ters
+  - tokenomics
   - TMEndpointv2
   - trixie
   - tx
@@ -286,6 +288,8 @@ words:
   - unambiguity
   - unauthorizes
   - unauthorizing
+  - unbond
+  - unbonding
   - unergonomic
   - unfetched
   - unflatten
