@@ -7,6 +7,7 @@
 #include <xrpl/core/PeerReservationTable.h>
 #include <xrpl/core/ServiceRegistry.h>
 #include <xrpl/protocol/Protocol.h>
+#include <xrpl/protocol/PQSecretKey.h>
 #include <xrpl/shamap/TreeNodeCache.h>
 
 #include <boost/asio.hpp>
@@ -130,6 +131,11 @@ public:
 
     virtual std::pair<PublicKey, SecretKey> const&
     nodeIdentity() = 0;
+
+    /** Returns the PQ (Falcon) secret key for this node, or nullptr if
+        the node identity is not post-quantum. */
+    [[nodiscard]] virtual PQSecretKey const*
+    pqNodeSecretKey() const = 0;
 
     [[nodiscard]] virtual std::optional<PublicKey const>
     getValidationPublicKey() const = 0;

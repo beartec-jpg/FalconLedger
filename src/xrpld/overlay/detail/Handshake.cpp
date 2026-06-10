@@ -17,9 +17,11 @@
 #include <xrpl/beast/utility/Zero.h>
 #include <xrpl/protocol/BuildInfo.h>
 #include <xrpl/protocol/KeyType.h>
+#include <xrpl/protocol/PQSecretKey.h>
 #include <xrpl/protocol/PublicKey.h>
 #include <xrpl/protocol/SecretKey.h>
 #include <xrpl/protocol/digest.h>
+#include <xrpl/protocol/falcon.h>
 #include <xrpl/protocol/tokens.h>
 
 #include <boost/asio/ip/address.hpp>
@@ -202,8 +204,33 @@ buildHandshake(
     h.insert("Public-Key", toBase58(TokenType::NodePublic, app.nodeIdentity().first));
 
     {
-        auto const sig =
-            signDigest(app.nodeIdentity().first, app.nodeIdentity().second, sharedValue);
+        auto const& pk = app.nodeIdentity().first;
+        auto const& sk = app.nodeIdentity().second;
+        auto const keyType = signingPubKeyType(pk.slice());
+
+        Buffer sig;
+        if (keyType && (*keyType == KeyType::Falcon512 || *keyType == KeyType::Falcon1024))
+        {
+            // Falcon signs raw messages. Use signFalcon via the PQ key
+            // reconstruction path.  The PQ secret is stored in the
+            // Application's pqNodeSecretKey().
+            auto const hashSlice = Slice(sharedValue.data(), sharedValue.size());
+            auto const* pqSk = app.pqNodeSecretKey();
+            if (pqSk)
+            {
+                auto sigVec = signFalcon(*pqSk, hashSlice);
+                sig = Buffer(sigVec.data(), sigVec.size());
+            }
+            else
+            {
+                // Fallback: shouldn't happen if node identity is Falcon.
+                sig = signDigest(pk, sk, sharedValue);
+            }
+        }
+        else
+        {
+            sig = signDigest(pk, sk, sharedValue);
+        }
         h.insert("Session-Signature", base64Encode(sig.data(), sig.size()));
     }
 
@@ -291,7 +318,9 @@ verifyHandshake(
 
             if (pk)
             {
-                if (publicKeyType(*pk) != KeyType::Secp256k1)
+                // Accept both classical (secp256k1/ed25519) and PQ (Falcon)
+                // node keys for the peer handshake.
+                if (!signingPubKeyType(pk->slice()))
                     throw std::runtime_error("Unsupported public key type");
 
                 return *pk;
@@ -315,8 +344,21 @@ verifyHandshake(
 
         auto sig = base64Decode(iter->value());
 
-        if (!verifyDigest(publicKey, sharedValue, makeSlice(sig), false))
-            throw std::runtime_error("Failed to verify session");
+        // Use the unified verify(Slice, Slice, Slice) dispatcher which
+        // handles both classical (secp256k1/ed25519) and Falcon keys.
+        auto const keyType = signingPubKeyType(publicKey.slice());
+        if (keyType && (*keyType == KeyType::Falcon512 || *keyType == KeyType::Falcon1024))
+        {
+            // Falcon signs raw messages, not digests.
+            auto const hashSlice = Slice(sharedValue.data(), sharedValue.size());
+            if (!verify(publicKey.slice(), hashSlice, makeSlice(sig)))
+                throw std::runtime_error("Failed to verify session");
+        }
+        else
+        {
+            if (!verifyDigest(publicKey, sharedValue, makeSlice(sig), false))
+                throw std::runtime_error("Failed to verify session");
+        }
     }
 
     if (publicKey == app.nodeIdentity().first)

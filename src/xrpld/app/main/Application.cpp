@@ -79,10 +79,13 @@
 #include <xrpl/protocol/BuildInfo.h>
 #include <xrpl/protocol/Feature.h>
 #include <xrpl/protocol/Indexes.h>
+#include <xrpl/protocol/PQPublicKey.h>
+#include <xrpl/protocol/PQSecretKey.h>
 #include <xrpl/protocol/Protocol.h>
 #include <xrpl/protocol/STParsedJSON.h>
 #include <xrpl/protocol/Serializer.h>
 #include <xrpl/protocol/SystemParameters.h>
+#include <xrpl/protocol/falcon.h>
 #include <xrpl/protocol/jss.h>
 #include <xrpl/rdb/DatabaseCon.h>
 #include <xrpl/resource/Charge.h>
@@ -105,10 +108,14 @@
 #include <boost/asio/signal_set.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/lexical_cast/bad_lexical_cast.hpp>
+#include <boost/optional/optional.hpp>
 #include <boost/program_options/variables_map.hpp>
 #include <boost/system/detail/errc.hpp>
 #include <boost/system/detail/error_code.hpp>
 #include <boost/system/system_error.hpp>
+
+#include <soci/into.h>
+#include <soci/statement.h>
 
 #include <date/date.h>
 
@@ -227,6 +234,8 @@ public:
     CachedSLEs cachedSLEs_;
     std::unique_ptr<NetworkIDService> networkIDService_;
     std::optional<std::pair<PublicKey, SecretKey>> nodeIdentity_;
+    // Post-quantum Falcon secret key for node identity (if PQ identity).
+    std::unique_ptr<PQSecretKey> pqNodeSecretKey_;
     ValidatorKeys const validatorKeys_;
 
     std::unique_ptr<Resource::Manager> resourceManager_;
@@ -553,6 +562,12 @@ public:
             return *nodeIdentity_;
 
         logicError("Accessing Application::nodeIdentity() before it is initialized.");
+    }
+
+    PQSecretKey const*
+    pqNodeSecretKey() const override
+    {
+        return pqNodeSecretKey_.get();
     }
 
     std::optional<PublicKey const>
@@ -1290,6 +1305,29 @@ ApplicationImp::setup(boost::program_options::variables_map const& cmdline)
     orderBookDB_->setup(getLedgerMaster().getCurrentLedger());
 
     nodeIdentity_ = getNodeIdentity(*this, cmdline);
+
+    // If the node identity uses a Falcon (PQ) public key, reconstruct
+    // the PQ secret key from the wallet DB.
+    if (nodeIdentity_ && nodeIdentity_->first.isPQ())
+    {
+        auto db = getWalletDB().checkoutDb();
+        boost::optional<std::string> priKO;
+        soci::statement st =
+            (*db).prepare << "SELECT PrivateKey FROM NodeIdentity;",
+            soci::into(priKO);
+        st.execute();
+        if (st.fetch() && priKO)
+        {
+            auto decoded = decodeFalconSecret(*priKO);
+            if (decoded)
+            {
+                pqNodeSecretKey_ = std::make_unique<PQSecretKey>(
+                    std::move(decoded->second));
+                JLOG(journal_.info())
+                    << "Node identity: Falcon-512 post-quantum key loaded";
+            }
+        }
+    }
 
     if (!cluster_->load(config().section(SECTION_CLUSTER_NODES)))
     {

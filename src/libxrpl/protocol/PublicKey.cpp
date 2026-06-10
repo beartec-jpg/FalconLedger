@@ -304,6 +304,17 @@ verify(PublicKey const& publicKey, Slice const& m, Slice const& sig) noexcept
             // first strip that prefix.
             return ed25519_sign_open(m.data(), m.size(), publicKey.data() + 1, sig.data()) == 0;
         }
+        if (*type == KeyType::Falcon512 || *type == KeyType::Falcon1024)
+        {
+            try
+            {
+                return verifyFalcon(PQPublicKey(publicKey.slice()), m, sig);
+            }
+            catch (std::exception const&)
+            {
+                return false;
+            }
+        }
     }
     return false;
 }

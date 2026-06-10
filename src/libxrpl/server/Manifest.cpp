@@ -100,7 +100,8 @@ deserializeManifest(Slice s, beast::Journal journal)
 
         auto const pk = st.getFieldVL(sfPublicKey);
 
-        if (!publicKeyType(makeSlice(pk)))
+        // Accept both classical and PQ (Falcon) keys as master keys.
+        if (!signingPubKeyType(makeSlice(pk)))
             return std::nullopt;
 
         PublicKey const masterKey = PublicKey(makeSlice(pk));
@@ -145,7 +146,8 @@ deserializeManifest(Slice s, beast::Journal journal)
 
             auto const spk = st.getFieldVL(sfSigningPubKey);
 
-            if (!publicKeyType(makeSlice(spk)))
+            // Accept both classical and PQ (Falcon) ephemeral signing keys.
+            if (!signingPubKeyType(makeSlice(spk)))
                 return std::nullopt;
 
             signingKey.emplace(makeSlice(spk));
