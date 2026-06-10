@@ -29,10 +29,11 @@ XRP a compromised bet: the company-controlled supply, the zero validator incenti
 the company-gated grants and governance, and the classical cryptography that a
 quantum computer will eventually break.
 
-**Falcon signatures, all the time.** Falcon-512 lattice signatures are the standard
-validator signature scheme, built in at the protocol level from genesis — not
-retrofitted later. Hybrid Falcon plus ed25519 support is planned to allow a smooth
-migration for account tooling. This chain is built to be secure in 2026 and in 2046.
+**Falcon signatures, everywhere, from genesis.** Falcon-512 lattice signatures are the
+standard signature scheme for validator identities and all transactions, built in at
+the protocol level from genesis — not retrofitted later. Every wallet is created with
+Falcon keys, every transaction is signed and verified with Falcon. This chain is built
+to be secure in 2026 and in 2046.
 
 **Fixed supply. 200 billion qXRP. Hard cap. No exceptions.**
 98% of the supply is locked in a protocol treasury with no private key. It is
@@ -131,7 +132,7 @@ with fundamental upgrades applied to the layers that XRP left broken:
 | ------------ | ----------------------------------------------------------- |
 | Supply       | Protocol treasury replaces company wallet                   |
 | Incentives   | Validators earn rewards every epoch                         |
-| Cryptography | Falcon-512 as the standard validator signature, plus hybrid |
+| Cryptography | Falcon-512 as the standard signature scheme for all keys and transactions |
 | Governance   | Bonded validator supermajority on-chain                     |
 | Fees         | Burn + validator split, no dead-end fee destruction         |
 | Liquidity    | Built-in DEX/AMM for in-wallet qXRP↔USDC/USDT swaps         |
@@ -168,31 +169,23 @@ Every validator on Falcon Ledger registers an 898-byte Falcon public key
 Falcon-derived identity. Falcon verification is deterministic, fully local,
 and requires no external services or network calls.
 
-### 4.3 Hybrid Migration Path (Planned)
+### 4.3 Pure Falcon — No Classical Keys
 
-> **Status:** The hybrid transaction signature path described in this section is
-> a planned design and is **not yet implemented**. Today, transactions are
-> signed and verified with classical secp256k1/ed25519 only; Falcon is used for
-> validator identities (ProofOfParticipation), not for signing transactions.
+Falcon Ledger does not use classical signature schemes (secp256k1 or ed25519) for
+any purpose. Every wallet is created with a Falcon key pair. Every transaction is
+signed with Falcon. Every validator identity is Falcon. There is no hybrid mode
+and no migration path from classical keys — the protocol is Falcon-native from
+genesis.
 
-Forcing an immediate network-wide migration to Falcon would break existing
-tooling and key infrastructure. Falcon Ledger plans to address this with native
-hybrid signature support: a Falcon-512 signature combined with an ed25519
-signature on the same transaction.
-
-During the migration window, hybrid identities would satisfy both the
-post-quantum security requirement and interoperability with legacy
-infrastructure. Pure Falcon identities are intended to be available for new
-deployments. The protocol would enforce a migration timeline via amendment
-gating, not by breaking existing participants.
+This eliminates an entire class of quantum risk: there are no classical keys
+anywhere in the system that a future quantum computer could compromise.
 
 ### 4.4 Design Principles
 
 - Quantum resistance is a protocol requirement, not an optional feature.
-- Falcon is the default — not an opt-in for the security-conscious.
+- Falcon is the only signature scheme — not an opt-in for the security-conscious.
 - Signature verification must remain deterministic and fully on-ledger.
 - No external services are permitted in any consensus-critical path.
-- The migration is gradual, not a forced flag day.
 
 ---
 
@@ -404,7 +397,7 @@ and remaining work are tracked in the [Roadmap](../../ROADMAP.md).
 | ---------------------------- | ----------------------------- | ----------------------------------------- |
 | **Supply control**           | Ripple holds ~40B tokens      | Protocol treasury, no private key         |
 | **Validator rewards**        | None                          | Paid every epoch, on-chain                |
-| **Quantum resistance**       | No — ed25519 only             | Yes — Falcon-512 standard + hybrid        |
+| **Quantum resistance**       | No — ed25519 only             | Yes — Falcon-512 for all keys and transactions |
 | **Escrow / unlock schedule** | Yes — Ripple releases monthly | No — emission only by protocol rules      |
 | **Governance**               | Ripple / XRPLF                | On-chain bonded validator supermajority   |
 | **Ecosystem grants**         | Company/foundation discretion | Protocol emission, no grant gatekeeper    |
@@ -412,7 +405,7 @@ and remaining work are tracked in the [Roadmap](../../ROADMAP.md).
 | **Company dependency**       | High                          | Zero                                      |
 | **Fee model**                | Burned, no beneficiary        | Split: burned + paid to validators        |
 | **Slashing**                 | No                            | Yes — cryptographic proof on-chain        |
-| **Migration to PQ crypto**   | Not planned                   | Falcon-512 live at genesis                |
+| **Migration to PQ crypto**   | Not planned                   | Not needed — Falcon-only from genesis     |
 | **Selling rewards**          | Requires an exchange          | In-wallet swaps to USDC/USDT, no exchange |
 
 ---
@@ -423,6 +416,7 @@ and remaining work are tracked in the [Roadmap](../../ROADMAP.md).
 
 - ✅ Direct fork of XRPL reference implementation (network ID 999, replay-protected)
 - ✅ Falcon-512 validator signatures registered and proposing on all nodes
+- ✅ Falcon-512 transaction signing — all wallets and transactions use Falcon keys
 - ✅ Protocol treasury — deterministic account, no private key, locked by protocol
 - ✅ Epoch emission with halving schedule — first halving confirmed on-chain (50→25 bps)
 - ✅ Dynamic fee burn + validator reward split — 40%–70% burn, remainder to validators
@@ -458,7 +452,7 @@ See [ROADMAP.md](../../ROADMAP.md) for the full, status-tracked plan.
 | Consensus               | RPCA — unchanged from XRP Ledger                     |
 | Finality                | Sub-second, deterministic                            |
 | Validator signature     | Falcon-512 (NIST PQC standard) — standard, always on |
-| Migration path          | Hybrid Falcon + ed25519 (planned, not yet implemented) |
+| Transaction signature   | Falcon-512 — all wallets and transactions use Falcon  |
 | Total supply            | 200,000,000,000 qXRP (hard cap)                      |
 | Treasury                | 196,000,000,000 qXRP (98%), no private key           |
 | Genesis circulating     | 4,000,000,000 qXRP (2%), time-locked                 |
