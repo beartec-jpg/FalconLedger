@@ -2,10 +2,13 @@
 
 #include <xrpl/basics/Log.h>
 #include <xrpl/beast/utility/instrumentation.h>
+#include <xrpl/protocol/PQPublicKey.h>
+#include <xrpl/protocol/PQSecretKey.h>
 #include <xrpl/protocol/PublicKey.h>
 #include <xrpl/protocol/STObject.h>
 #include <xrpl/protocol/SecretKey.h>
 #include <xrpl/protocol/Units.h>
+#include <xrpl/protocol/falcon.h>
 
 #include <cstdint>
 #include <optional>
@@ -29,7 +32,8 @@ class STValidation final : public STObject, public CountedObject<STValidation>
     // optional if we haven't yet checked it, a boolean otherwise.
     mutable std::optional<bool> valid_;
 
-    // The public key associated with the key used to sign this validation
+    // The public key associated with the key used to sign this validation.
+    // Variable-length to support both classical (33-byte) and Falcon keys.
     PublicKey const signingPubKey_;
 
     // The ID of the validator that issued this validation. For validators
@@ -151,7 +155,8 @@ STValidation::STValidation(SerialIter& sit, LookupNodeID&& lookupNodeID, bool ch
     , signingPubKey_([this]() {
         auto const spk = getFieldVL(sfSigningPubKey);
 
-        if (publicKeyType(makeSlice(spk)) != KeyType::Secp256k1)
+        // Accept both classical (secp256k1/ed25519) and PQ (Falcon) keys.
+        if (!signingPubKeyType(makeSlice(spk)))
             Throw<std::runtime_error>("Invalid public key in validation");
 
         return PublicKey{makeSlice(spk)};
@@ -193,9 +198,10 @@ STValidation::STValidation(
         "xrpl::STValidation::STValidation(PublicKey, SecretKey) : nonzero "
         "node");
 
-    // First, set our own public key:
-    if (publicKeyType(pk) != KeyType::Secp256k1)
-        logicError("We can only use secp256k1 keys for signing validations");
+    // Accept both classical (secp256k1/ed25519) and PQ (Falcon) keys.
+    auto const keyType = signingPubKeyType(pk.slice());
+    if (!keyType)
+        logicError("STValidation: invalid signing key type");
 
     setFieldVL(sfSigningPubKey, pk.slice());
     setFieldU32(sfSigningTime, signTime.time_since_epoch().count());
@@ -205,7 +211,27 @@ STValidation::STValidation(
 
     // Finally, sign the validation and mark it as trusted:
     setFlag(kVF_FULLY_CANONICAL_SIG);
-    setFieldVL(sfSignature, signDigest(pk, sk, getSigningHash()));
+
+    if (*keyType == KeyType::Falcon512 || *keyType == KeyType::Falcon1024)
+    {
+        // Falcon signs the raw hash bytes (not a digest-then-sign scheme).
+        auto const hash = getSigningHash();
+        auto const hashSlice = Slice(hash.data(), hash.size());
+        // Reconstruct PQPublicKey / PQSecretKey from the stored key data.
+        // For Falcon, the SecretKey parameter carries the PQ secret in the
+        // node identity's pqSecretKey_ field, but here we receive a
+        // classical SecretKey placeholder.  The actual Falcon signing uses
+        // signFalcon which requires PQSecretKey — so we use the
+        // Slice-based sign approach: the caller must ensure the SecretKey
+        // is actually a PQ secret.  See the pqSign overload below.
+        logicError(
+            "STValidation: Use the PQPublicKey/PQSecretKey constructor "
+            "overload for Falcon validation signing");
+    }
+    else
+    {
+        setFieldVL(sfSignature, signDigest(pk, sk, getSigningHash()));
+    }
     setTrusted();
 
     // Check to ensure that all required fields are present.
@@ -216,6 +242,51 @@ STValidation::STValidation(
     }
 
     // We just signed this, so it should be valid.
+    valid_ = true;
+}
+
+/** Construct, sign and trust a new STValidation with Falcon PQ keys.
+
+    This overload is used when the node has a Falcon key pair for
+    validation signing.
+*/
+template <typename F>
+STValidation::STValidation(
+    NetClock::time_point signTime,
+    PQPublicKey const& pk,
+    PQSecretKey const& sk,
+    NodeID const& nodeID,
+    F&& f)
+    : STObject(validationFormat(), sfValidation)
+    , signingPubKey_(pk.slice())
+    , nodeID_(nodeID)
+    , seenTime_(signTime)
+{
+    XRPL_ASSERT(
+        nodeID_.isNonZero(),
+        "xrpl::STValidation::STValidation(PQPublicKey, PQSecretKey) : nonzero node");
+
+    setFieldVL(sfSigningPubKey, pk.slice());
+    setFieldU32(sfSigningTime, signTime.time_since_epoch().count());
+
+    // Perform additional initialization
+    f(*this);
+
+    // Sign with Falcon.
+    setFlag(kVF_FULLY_CANONICAL_SIG);
+    auto const hash = getSigningHash();
+    auto const hashSlice = Slice(hash.data(), hash.size());
+    auto sig = signFalcon(sk, hashSlice);
+    setFieldVL(sfSignature, makeSlice(sig));
+    setTrusted();
+
+    // Check to ensure that all required fields are present.
+    for (auto const& e : validationFormat())
+    {
+        if (e.style() == SoeRequired && !isFieldPresent(e.sField()))
+            logicError("Required field '" + e.sField().getName() + "' missing from validation.");
+    }
+
     valid_ = true;
 }
 

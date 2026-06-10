@@ -7,12 +7,14 @@
 #include <xrpl/beast/utility/instrumentation.h>
 #include <xrpl/protocol/HashPrefix.h>
 #include <xrpl/protocol/KeyType.h>
+#include <xrpl/protocol/PQPublicKey.h>
 #include <xrpl/protocol/PublicKey.h>
 #include <xrpl/protocol/SField.h>
 #include <xrpl/protocol/SOTemplate.h>
 #include <xrpl/protocol/STBase.h>
 #include <xrpl/protocol/STObject.h>
 #include <xrpl/protocol/Serializer.h>
+#include <xrpl/protocol/falcon.h>
 
 #include <cstddef>
 #include <utility>
@@ -100,15 +102,30 @@ STValidation::isValid() const noexcept
 {
     if (!valid_)
     {
+        auto const keyType = signingPubKeyType(getSignerPublic().slice());
         XRPL_ASSERT(
-            publicKeyType(getSignerPublic()) == KeyType::Secp256k1,
+            keyType.has_value(),
             "xrpl::STValidation::isValid : valid key type");
 
-        valid_ = verifyDigest(
-            getSignerPublic(),
-            getSigningHash(),
-            makeSlice(getFieldVL(sfSignature)),
-            (getFlags() & kVF_FULLY_CANONICAL_SIG) != 0u);
+        if (*keyType == KeyType::Falcon512 || *keyType == KeyType::Falcon1024)
+        {
+            // Falcon: verify using the Slice-based verify() dispatcher.
+            auto const hash = getSigningHash();
+            auto const hashSlice = Slice(hash.data(), hash.size());
+            valid_ = verify(
+                getSignerPublic().slice(),
+                hashSlice,
+                makeSlice(getFieldVL(sfSignature)));
+        }
+        else
+        {
+            // Classical secp256k1: use digest-based verification.
+            valid_ = verifyDigest(
+                getSignerPublic(),
+                getSigningHash(),
+                makeSlice(getFieldVL(sfSignature)),
+                (getFlags() & kVF_FULLY_CANONICAL_SIG) != 0u);
+        }
     }
 
     return valid_.value();
