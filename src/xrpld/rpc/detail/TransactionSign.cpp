@@ -679,7 +679,8 @@ transactionPreProcessImpl(
                 decodeFalconSecret(params[jss::falcon_secret].asString());
             if (!decoded)
                 return RPC::makeError(RpcInvalidParams, "Invalid falcon_secret");
-            auto sig = signFalcon(decoded->second, s.slice());
+            auto const sigVec = signFalcon(decoded->second, s.slice());
+            Buffer sig(sigVec.data(), sigVec.size());
             signingArgs.moveMultiSignature(std::move(sig));
         }
         else
