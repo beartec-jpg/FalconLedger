@@ -4,12 +4,16 @@
 #include <xrpl/basics/UnorderedContainers.h>
 #include <xrpl/basics/base_uint.h>
 #include <xrpl/basics/safe_cast.h>
+#include <xrpl/basics/strHex.h>
 #include <xrpl/beast/hash/uhash.h>
 #include <xrpl/beast/utility/Journal.h>
 #include <xrpl/core/PeerReservationTable.h>
 #include <xrpl/protocol/KeyType.h>
+#include <xrpl/protocol/PQPublicKey.h>
+#include <xrpl/protocol/PQSecretKey.h>
 #include <xrpl/protocol/PublicKey.h>
 #include <xrpl/protocol/SecretKey.h>
+#include <xrpl/protocol/falcon.h>
 #include <xrpl/protocol/tokens.h>
 #include <xrpl/rdb/DBInit.h>
 #include <xrpl/rdb/DatabaseCon.h>
@@ -147,16 +151,53 @@ getNodeIdentity(soci::session& session)
         st.execute();
         while (st.fetch())
         {
+            // Try classical key recovery first.
             auto const sk = parseBase58<SecretKey>(TokenType::NodePrivate, priKO.value_or(""));
             auto const pk = parseBase58<PublicKey>(TokenType::NodePublic, pubKO.value_or(""));
 
-            // Only use if the public and secret keys are a pair
-            if (sk && pk && (*pk == derivePublicKey(KeyType::Secp256k1, *sk)))
+            // Classical key pair?
+            if (sk && pk && !pk->isPQ() && (*pk == derivePublicKey(KeyType::Secp256k1, *sk)))
                 return {*pk, *sk};
+
+            // PQ (Falcon) key stored as hex in the PublicKey column?
+            // The private key column stores the falcon_secret hex bundle.
+            if (pk && pk->isPQ())
+            {
+                // Return with a dummy SecretKey — the actual PQ secret is
+                // reconstructed by the Application from the DB.
+                // We need a valid 32-byte SecretKey placeholder.
+                auto dummySk = randomSecretKey();
+                return {*pk, dummySk};
+            }
         }
     }
 
-    // If a valid identity wasn't found, we randomly generate a new one:
+    // Generate a new Falcon-512 node identity by default.
+    if (falconAvailable(KeyType::Falcon512))
+    {
+        auto kp = generateFalconKeyPair(KeyType::Falcon512);
+        if (kp)
+        {
+            auto& [pqPk, pqSk] = *kp;
+            // Store the Falcon public key as hex and the secret as the
+            // falcon_secret hex bundle.
+            auto const pkHex = strHex(pqPk.slice());
+            auto const secretHex = encodeFalconSecret(pqPk, pqSk);
+
+            session << str(
+                boost::format(
+                    "INSERT INTO NodeIdentity (PublicKey,PrivateKey) "
+                    "VALUES ('%s','%s');") %
+                pkHex % secretHex);
+
+            // Construct a PublicKey from the PQ key slice.
+            PublicKey pubKey(pqPk.slice());
+            auto dummySk = randomSecretKey();
+            return {pubKey, dummySk};
+        }
+    }
+
+    // Fallback to classical Secp256k1 if Falcon is unavailable.
     auto [newpublicKey, newsecretKey] = randomKeyPair(KeyType::Secp256k1);
 
     session << str(

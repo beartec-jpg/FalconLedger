@@ -12,7 +12,7 @@ _Falcon Ledger — Quantum-Resistant. Validator-Rewarding. No Company. No Escrow
 
 Copyright (c) 2026 Falcon Ledger Team. This repository contains upstream XRPL code under its original ISC license and Falcon Ledger-original work under the project policy described in [LICENSE](LICENSE) and [COPYRIGHT.md](COPYRIGHT.md).
 
-**Falcon Ledger** is a quantum-resistant fork of the XRP Ledger. It is named after its signature scheme — **Falcon** post-quantum lattice signatures, used as standard on every validator identity — and after its heritage as a fork of the XRP Ledger.
+**Falcon Ledger** is a quantum-resistant fork of the XRP Ledger. It is named after its signature scheme — **Falcon** post-quantum lattice signatures, used as standard for every validator identity and every transaction — and after its heritage as a fork of the XRP Ledger.
 
 > **Name vs. ticker:** the chain is called **Falcon Ledger**. The native token keeps the ticker **qXRP**. Throughout this repository, "Falcon Ledger" refers to the network/protocol and "qXRP" refers to the token (the unit of account, balances, fees, and rewards).
 
@@ -23,7 +23,7 @@ Falcon Ledger keeps RPCA consensus, fast finality, and low operating costs while
 Falcon Ledger is designed to combine three properties that usually conflict:
 
 1. Fast consensus and low fees from the XRP Ledger architecture.
-2. Strong post-quantum cryptography, with Falcon as the standard, always-on validator signature scheme.
+2. Strong post-quantum cryptography, with Falcon as the standard signature scheme for all keys and transactions.
 3. Sustainable tokenomics that reward reliable validators instead of relying on large premine allocations.
 
 The goal is a network where security, decentralization, and participation incentives reinforce each other on-chain — with **no company in control** of supply, governance, or grants.
@@ -32,7 +32,7 @@ The goal is a network where security, decentralization, and participation incent
 
 Falcon Ledger keeps everything that makes the XRP Ledger fast and replaces the parts that left holders and validators exposed:
 
-- **Post-quantum signatures as standard, all the time.** Falcon (NIST PQC standard) is the default validator signature scheme from genesis — not a future retrofit. XRPL validators sign with classical ed25519/secp256k1 that Shor's algorithm will eventually break.
+- **Post-quantum signatures as standard, all the time.** Falcon (NIST PQC standard) is the signature scheme for validators and transactions from genesis — not a future retrofit. XRPL validators sign with classical ed25519/secp256k1 that Shor's algorithm will eventually break.
 - **Validators get paid.** Running an XRPL validator earns nothing. Falcon Ledger pays validators every epoch from a protocol-controlled treasury, proportional to deterministic, on-ledger performance.
 - **No company control over the ecosystem.** There is no company holding tens of billions of tokens, no monthly escrow unlocks, and no foundation that can dump on holders. 98% of supply sits in a protocol treasury with no private key.
 - **No company-controlled grants.** Emissions and incentives are released only by on-chain consensus rules, not by a foundation's discretionary grant program.
@@ -43,7 +43,7 @@ Falcon Ledger keeps everything that makes the XRP Ledger fast and replaces the p
 
 ## Key Differentiators
 
-- Post-quantum security with Falcon as the standard, always-on validator signature type.
+- Post-quantum security with Falcon as the standard, always-on signature type for validators and transactions.
 - Proof-of-Participation rewards for active validators with deterministic, on-ledger scoring.
 - Fixed total supply of 200 billion qXRP.
 - Minimal genesis allocation, with the protocol-controlled treasury holding the bulk of supply.
@@ -105,7 +105,7 @@ The current target workflow is:
 
 1. Build the server from source using [BUILD.md](BUILD.md).
 2. Configure a validator node with durable storage, stable connectivity, and secure key handling.
-3. Generate a validator identity using Falcon, the standard post-quantum key type.
+3. Generate a validator identity using Falcon, the standard signature scheme for the entire protocol.
 4. Register the validator for reward eligibility via the `ProofOfParticipation` amendment.
 5. Keep the node online, synced, and responsive so it can accumulate uptime, participation, and vote-quality metrics.
 6. Monitor reward and slashing status on-ledger.
@@ -118,16 +118,15 @@ Falcon Ledger treats quantum resistance as a protocol requirement, not an option
 
 ### Signature Strategy
 
-- Falcon is the standard, always-on signature scheme for validator identities.
-- Hybrid Falcon plus ed25519 transaction signing is planned but **not yet implemented** (see ROADMAP).
+- Falcon is the standard, always-on signature scheme for validator identities and transactions.
+- All wallets are created with Falcon key pairs; all transactions are signed and verified with Falcon.
 - Signature verification remains deterministic and fully local to the node.
-- The protocol preserves backwards compatibility where possible during the transition period.
 
 ### Design Goals
 
-- Reduce long-term exposure to future quantum attacks.
+- Eliminate exposure to future quantum attacks from genesis — no classical keys anywhere in the protocol.
 - Keep verification fast enough for consensus-critical paths.
-- Avoid dependence on external services for key translation or validation.
+- Avoid dependence on external services for key generation or validation.
 
 ## Technical Architecture
 
@@ -136,7 +135,7 @@ Falcon Ledger keeps the XRP Ledger consensus model and layers new economic and c
 | Layer        | Responsibility                                                           |
 | ------------ | ------------------------------------------------------------------------ |
 | Consensus    | Keep RPCA and existing validator communication patterns                  |
-| Cryptography | Add Falcon and hybrid signature verification                             |
+| Cryptography | Falcon signature scheme for all keys and transactions                    |
 | Genesis      | Create protocol treasury and initial distribution objects                |
 | Fees         | Apply dynamic base-fee burn and validator reward split                   |
 | Rewards      | Compute validator emissions from on-chain performance metrics            |
@@ -164,7 +163,6 @@ A detailed, status-tracked roadmap lives in [ROADMAP.md](ROADMAP.md). In summary
 - Replace static trust assumptions with performance-weighted validator influence.
 - Expand on-chain governance for bounded protocol parameters.
 - Harden the reward model with long-horizon simulations and adversarial testing.
-- Add migration tooling for hybrid identities and legacy validator operators.
 - Prepare production audit packages and operator tooling.
 
 ## Documentation

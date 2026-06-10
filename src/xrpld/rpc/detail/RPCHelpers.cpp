@@ -22,12 +22,15 @@
 #include <xrpl/protocol/KeyType.h>
 #include <xrpl/protocol/Keylet.h>
 #include <xrpl/protocol/LedgerFormats.h>
+#include <xrpl/protocol/PQPublicKey.h>
+#include <xrpl/protocol/PQSecretKey.h>
 #include <xrpl/protocol/PublicKey.h>
 #include <xrpl/protocol/RPCErr.h>
 #include <xrpl/protocol/SField.h>
 #include <xrpl/protocol/SecretKey.h>
 #include <xrpl/protocol/Seed.h>
 #include <xrpl/protocol/UintTypes.h>
+#include <xrpl/protocol/falcon.h>
 #include <xrpl/protocol/jss.h>
 #include <xrpl/protocol/tokens.h>
 
@@ -218,6 +221,29 @@ keypairForSignature(json::Value const& params, json::Value& error, unsigned int 
 {
     bool const hasKeyType = params.isMember(jss::key_type);
 
+    // Check for falcon_secret first — Falcon keys are not seed-derived.
+    if (params.isMember(jss::falcon_secret))
+    {
+        if (!params[jss::falcon_secret].isString())
+        {
+            error = RPC::expectedFieldError(jss::falcon_secret, "string");
+            return {};
+        }
+
+        auto decoded = decodeFalconSecret(params[jss::falcon_secret].asString());
+        if (!decoded)
+        {
+            error = RPC::makeError(RpcBadSeed, "Invalid falcon_secret");
+            return {};
+        }
+
+        // Return the Falcon public key wrapped in a PublicKey (now variable-
+        // length) and a dummy SecretKey. The actual PQ signing is handled
+        // by the transaction signing code which detects the Falcon key type.
+        auto dummySk = randomSecretKey();
+        return std::make_pair(PublicKey(decoded->first.slice()), dummySk);
+    }
+
     // All of the secret types we allow, but only one at a time.
     static char const* const kSECRET_TYPES[]{
         jss::passphrase.cStr(), jss::secret.cStr(), jss::seed.cStr(), jss::seed_hex.cStr()};
@@ -272,6 +298,14 @@ keypairForSignature(json::Value const& params, json::Value& error, unsigned int 
             {
                 error = RPC::invalidFieldError(jss::key_type);
             }
+            return {};
+        }
+
+        // Falcon key_type requires falcon_secret, not seed-based secrets.
+        if (*keyType == KeyType::Falcon512 || *keyType == KeyType::Falcon1024)
+        {
+            error = RPC::makeParamError(
+                "Falcon key types require 'falcon_secret' instead of seed-based secrets.");
             return {};
         }
 

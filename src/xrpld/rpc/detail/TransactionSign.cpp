@@ -47,6 +47,7 @@
 #include <xrpl/protocol/TER.h>
 #include <xrpl/protocol/Units.h>
 #include <xrpl/protocol/XRPAmount.h>
+#include <xrpl/protocol/falcon.h>
 #include <xrpl/protocol/jss.h>
 #include <xrpl/server/LoadFeeTrack.h>
 #include <xrpl/tx/apply.h>  // Validity::Valid
@@ -664,17 +665,43 @@ transactionPreProcessImpl(
         return RPC::makeError(RpcInvalidParams, reason);
 
     // If multisign then return multiSignature, else set TxnSignature field.
+    // For Falcon keys, we need to use the PQ sign path since SecretKey is
+    // only 32 bytes and cannot hold a Falcon secret.
+    bool const isFalconKey = pk.isPQ();
+
     if (signingArgs.isMultiSigning())
     {
         Serializer const s = buildMultiSigningData(*stTx, signingArgs.getSigner());
 
-        auto multisig = xrpl::sign(pk, sk, s.slice());
-
-        signingArgs.moveMultiSignature(std::move(multisig));
+        if (isFalconKey && params.isMember(jss::falcon_secret))
+        {
+            auto decoded =
+                decodeFalconSecret(params[jss::falcon_secret].asString());
+            if (!decoded)
+                return RPC::makeError(RpcInvalidParams, "Invalid falcon_secret");
+            auto sig = signFalcon(decoded->second, s.slice());
+            signingArgs.moveMultiSignature(std::move(sig));
+        }
+        else
+        {
+            auto multisig = xrpl::sign(pk, sk, s.slice());
+            signingArgs.moveMultiSignature(std::move(multisig));
+        }
     }
     else if (signingArgs.isSingleSigning())
     {
-        stTx->sign(pk, sk, signatureTarget);
+        if (isFalconKey && params.isMember(jss::falcon_secret))
+        {
+            auto decoded =
+                decodeFalconSecret(params[jss::falcon_secret].asString());
+            if (!decoded)
+                return RPC::makeError(RpcInvalidParams, "Invalid falcon_secret");
+            stTx->sign(decoded->first, decoded->second, signatureTarget);
+        }
+        else
+        {
+            stTx->sign(pk, sk, signatureTarget);
+        }
     }
 
     return TransactionPreProcessResult{std::move(stTx)};

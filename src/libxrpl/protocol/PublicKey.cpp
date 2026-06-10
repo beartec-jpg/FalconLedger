@@ -39,7 +39,8 @@ parseBase58(TokenType type, std::string const& s)
 {
     auto const result = decodeBase58Token(s, type);
     auto const pks = makeSlice(result);
-    if (!publicKeyType(pks))
+    // Accept both classical and Falcon (PQ) keys.
+    if (!signingPubKeyType(pks))
         return std::nullopt;
     return PublicKey(pks);
 }
@@ -174,22 +175,34 @@ ed25519Canonical(Slice const& sig)
 //------------------------------------------------------------------------------
 
 PublicKey::PublicKey(Slice const& slice)
+    : size_(slice.size())
 {
-    if (slice.size() < kSIZE)
+    if (size_ == 0)
     {
         logicError(
-            "PublicKey::PublicKey - Input slice cannot be an undersized "
-            "buffer");
+            "PublicKey::PublicKey - Input slice cannot be empty");
     }
 
-    if (!publicKeyType(slice))
+    // Accept both classical (33-byte) and PQ (Falcon) keys.
+    if (!signingPubKeyType(slice))
         logicError("PublicKey::PublicKey invalid type");
-    std::memcpy(buf_, slice.data(), kSIZE);
+
+    if (size_ <= kCLASSICAL_SIZE)
+    {
+        std::memcpy(inlineBuf_, slice.data(), size_);
+    }
+    else
+    {
+        heapBuf_.assign(slice.data(), slice.data() + size_);
+    }
 }
 
 PublicKey::PublicKey(PublicKey const& other)
+    : size_(other.size_)
+    , heapBuf_(other.heapBuf_)
 {
-    std::memcpy(buf_, other.buf_, kSIZE);
+    if (heapBuf_.empty())
+        std::memcpy(inlineBuf_, other.inlineBuf_, size_);
 }
 
 PublicKey&
@@ -197,9 +210,11 @@ PublicKey::operator=(PublicKey const& other)
 {
     if (this != &other)
     {
-        std::memcpy(buf_, other.buf_, kSIZE);
+        size_ = other.size_;
+        heapBuf_ = other.heapBuf_;
+        if (heapBuf_.empty())
+            std::memcpy(inlineBuf_, other.inlineBuf_, size_);
     }
-
     return *this;
 }
 
@@ -217,7 +232,8 @@ publicKeyType(Slice const& slice)
             return KeyType::Secp256k1;
     }
 
-    return std::nullopt;
+    // Post-quantum Falcon keys (variable length).
+    return pqPublicKeyType(slice);
 }
 
 bool
@@ -287,6 +303,17 @@ verify(PublicKey const& publicKey, Slice const& m, Slice const& sig) noexcept
             // so when verifying the signature, we need to
             // first strip that prefix.
             return ed25519_sign_open(m.data(), m.size(), publicKey.data() + 1, sig.data()) == 0;
+        }
+        if (*type == KeyType::Falcon512 || *type == KeyType::Falcon1024)
+        {
+            try
+            {
+                return verifyFalcon(PQPublicKey(publicKey.slice()), m, sig);
+            }
+            catch (std::exception const&)
+            {
+                return false;
+            }
         }
     }
     return false;

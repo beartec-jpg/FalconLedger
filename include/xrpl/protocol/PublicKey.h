@@ -13,6 +13,7 @@
 #include <cstring>
 #include <optional>
 #include <ostream>
+#include <vector>
 
 namespace xrpl {
 
@@ -25,29 +26,40 @@ namespace xrpl {
     information needed to determine the cryptosystem
     parameters used is stored inside the key.
 
-    As of this writing two systems are supported:
+    Supported key types:
 
-        secp256k1
-        ed25519
+        secp256k1   – 33 bytes (prefix 0x02 or 0x03)
+        ed25519     – 33 bytes (prefix 0xED)
+        falcon512   – 898 bytes (prefix 0xFB)
+        falcon1024  – 1794 bytes (prefix 0xFC)
 
-    secp256k1 public keys consist of a 33 byte
-    compressed public key, with the lead byte equal
-    to 0x02 or 0x03.
-
-    The ed25519 public keys consist of a 1 byte
-    prefix constant 0xED, followed by 32 bytes of
-    public key data.
+    Post-quantum Falcon keys are variable-length and stored
+    dynamically.  The class uses a small inline buffer for
+    classical 33-byte keys to avoid heap allocation in the
+    common case.
 */
 class PublicKey
 {
 protected:
-    // All the constructed public keys are valid, non-empty and contain 33
-    // bytes of data.
-    static constexpr std::size_t kSIZE = 33;
-    std::uint8_t buf_[kSIZE]{};  // should be large enough
+    // Classical keys are 33 bytes; Falcon keys are much larger.
+    static constexpr std::size_t kCLASSICAL_SIZE = 33;
+    std::size_t size_ = 0;
+    // Inline buffer for classical keys (avoids heap allocation).
+    std::uint8_t inlineBuf_[kCLASSICAL_SIZE]{};
+    // Heap buffer for post-quantum keys that exceed inline capacity.
+    std::vector<std::uint8_t> heapBuf_;
+
+    [[nodiscard]] std::uint8_t const*
+    activeData() const noexcept
+    {
+        return heapBuf_.empty() ? inlineBuf_ : heapBuf_.data();
+    }
 
 public:
     using const_iterator = std::uint8_t const*;
+
+    // Backward-compat constant (33 bytes for classical keys).
+    static constexpr std::size_t kSIZE = kCLASSICAL_SIZE;
 
 public:
     PublicKey() = delete;
@@ -58,56 +70,64 @@ public:
 
     /** Create a public key.
 
+        Accepts both classical (33-byte) and post-quantum Falcon keys.
         Preconditions:
-            publicKeyType(slice) != std::nullopt
+            signingPubKeyType(slice) != std::nullopt
     */
     explicit PublicKey(Slice const& slice);
 
     [[nodiscard]] std::uint8_t const*
     data() const noexcept
     {
-        return buf_;
+        return activeData();
     }
 
-    static std::size_t
-    size() noexcept
+    [[nodiscard]] std::size_t
+    size() const noexcept
     {
-        return kSIZE;
+        return size_;
     }
 
     [[nodiscard]] const_iterator
     begin() const noexcept
     {
-        return buf_;
+        return activeData();
     }
 
     [[nodiscard]] const_iterator
     cbegin() const noexcept
     {
-        return buf_;
+        return activeData();
     }
 
     [[nodiscard]] const_iterator
     end() const noexcept
     {
-        return buf_ + kSIZE;
+        return activeData() + size_;
     }
 
     [[nodiscard]] const_iterator
     cend() const noexcept
     {
-        return buf_ + kSIZE;
+        return activeData() + size_;
     }
 
     [[nodiscard]] Slice
     slice() const noexcept
     {
-        return {buf_, kSIZE};
+        return {activeData(), size_};
     }
 
     operator Slice() const noexcept
     {
         return slice();
+    }
+
+    /** Returns true if this is a post-quantum (Falcon) key. */
+    [[nodiscard]] bool
+    isPQ() const noexcept
+    {
+        return size_ > kCLASSICAL_SIZE;
     }
 };
 
@@ -119,7 +139,8 @@ operator<<(std::ostream& os, PublicKey const& pk);
 inline bool
 operator==(PublicKey const& lhs, PublicKey const& rhs)
 {
-    return std::memcmp(lhs.data(), rhs.data(), rhs.size()) == 0;
+    return lhs.size() == rhs.size() &&
+        std::memcmp(lhs.data(), rhs.data(), lhs.size()) == 0;
 }
 
 inline bool
