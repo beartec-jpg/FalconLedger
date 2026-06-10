@@ -3,10 +3,13 @@
 #include <xrpl/json/json_value.h>
 #include <xrpl/protocol/ErrorCodes.h>
 #include <xrpl/protocol/KeyType.h>
+#include <xrpl/protocol/PQPublicKey.h>
+#include <xrpl/protocol/PQSecretKey.h>
 #include <xrpl/protocol/PublicKey.h>
 #include <xrpl/protocol/RPCErr.h>
 #include <xrpl/protocol/SecretKey.h>
 #include <xrpl/protocol/Seed.h>
+#include <xrpl/protocol/falcon.h>
 #include <xrpl/protocol/jss.h>
 #include <xrpl/protocol/tokens.h>
 
@@ -25,6 +28,7 @@ validationSeed(json::Value const& params)
 
 // {
 //   secret: <string>   // optional
+//   key_type: <string> // optional, defaults to "falcon512"
 // }
 //
 // This command requires Role::ADMIN access because it makes
@@ -34,20 +38,52 @@ doValidationCreate(RPC::JsonContext& context)
 {
     json::Value obj(json::ValueType::Object);
 
-    auto seed = validationSeed(context.params);
+    // Check for key_type parameter; default to Falcon-512.
+    KeyType keyType = KeyType::Falcon512;
+    if (context.params.isMember(jss::key_type))
+    {
+        auto const kt = keyTypeFromString(context.params[jss::key_type].asString());
+        if (!kt)
+            return rpcError(RpcBadKeyType);
+        keyType = *kt;
+    }
 
-    if (!seed)
-        return rpcError(RpcBadSeed);
+    if (keyType == KeyType::Falcon512 || keyType == KeyType::Falcon1024)
+    {
+        // Generate Falcon post-quantum validator key pair.
+        auto kp = generateFalconKeyPair(keyType);
+        if (!kp)
+            return rpcError(RpcInternal);
 
-    auto const privateKey = generateSecretKey(KeyType::Secp256k1, *seed);
+        auto& [pqPk, pqSk] = *kp;
 
-    obj[jss::validation_public_key] =
-        toBase58(TokenType::NodePublic, derivePublicKey(KeyType::Secp256k1, privateKey));
+        obj[jss::validation_public_key] =
+            toBase58(TokenType::NodePublic, PublicKey(pqPk.slice()));
 
-    obj[jss::validation_private_key] = toBase58(TokenType::NodePrivate, privateKey);
+        // The falcon_secret bundles both public and private key.
+        obj[jss::falcon_secret] = encodeFalconSecret(pqPk, pqSk);
 
-    obj[jss::validation_seed] = toBase58(*seed);
-    obj[jss::validation_key] = seedAs1751(*seed);
+        // No seed-based fields for Falcon (keys are random, not seed-derived).
+        obj[jss::key_type] = to_string(keyType);
+    }
+    else
+    {
+        // Classical key generation (secp256k1 / ed25519).
+        auto seed = validationSeed(context.params);
+
+        if (!seed)
+            return rpcError(RpcBadSeed);
+
+        auto const privateKey = generateSecretKey(keyType, *seed);
+
+        obj[jss::validation_public_key] =
+            toBase58(TokenType::NodePublic, derivePublicKey(keyType, privateKey));
+
+        obj[jss::validation_private_key] = toBase58(TokenType::NodePrivate, privateKey);
+
+        obj[jss::validation_seed] = toBase58(*seed);
+        obj[jss::validation_key] = seedAs1751(*seed);
+    }
 
     return obj;
 }

@@ -1857,10 +1857,18 @@ PeerImp::onMessage(std::shared_ptr<protocol::TMProposeSet> const& m)
 
     auto const sig = makeSlice(set.signature());
 
-    // Preliminary check for the validity of the signature: A DER encoded
-    // signature can't be longer than 72 bytes.
-    if ((std::clamp<std::size_t>(sig.size(), 64, 72) != sig.size()) ||
-        (publicKeyType(makeSlice(set.nodepubkey())) != KeyType::Secp256k1))
+    // Preliminary check for the validity of the signature: classical DER
+    // signatures are 64-72 bytes; Falcon-512 signatures are ~666 bytes,
+    // Falcon-1024 are ~1280 bytes.
+    auto const keyType = publicKeyType(makeSlice(set.nodepubkey()));
+    bool const isFalcon = (keyType == KeyType::Falcon512 || keyType == KeyType::Falcon1024);
+    bool sigSizeOk = false;
+    if (isFalcon)
+        sigSizeOk = (sig.size() > 0 && sig.size() <= 2048);
+    else if (keyType == KeyType::Secp256k1)
+        sigSizeOk = (std::clamp<std::size_t>(sig.size(), 64, 72) == sig.size());
+
+    if (!sigSizeOk || !keyType)
     {
         JLOG(pJournal_.warn()) << "Proposal: malformed";
         fee_.update(Resource::kFEE_INVALID_SIGNATURE, " signature can't be longer than 72 bytes");
