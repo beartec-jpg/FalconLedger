@@ -60,7 +60,7 @@ ReleaseBond::doApply()
     // sfSlashTarget is the consensus-key-derived ID (== bond keylet key) which
     // may differ from the registrant's actual XRPL account if they used a
     // different signing account at registration time.
-    auto const bondOwner = sleBond->getFieldAccountID(sfAccount);
+    auto const bondOwner = sleBond->getAccountID(sfAccount);
     auto sleAccount = ctx_.view().peek(keylet::account(bondOwner));
     if (!sleAccount)
         return tefINTERNAL;  // LCOV_EXCL_LINE

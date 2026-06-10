@@ -87,7 +87,7 @@ GovernanceVote::preclaim(PreclaimContext const& ctx)
     // Only the bond owner may vote; prevents a third party from casting a vote
     // using another validator's consensus key (which would count the bond's
     // score twice if the real owner also votes).
-    if (sleBond->getFieldAccountID(sfAccount) != voter)
+    if (sleBond->getAccountID(sfAccount) != voter)
         return tecNO_PERMISSION;
 
     // Proposal must exist and be open (state == 0).
