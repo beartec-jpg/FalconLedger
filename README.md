@@ -44,7 +44,6 @@ Falcon Ledger keeps everything that makes the XRP Ledger fast and replaces the p
 ## Key Differentiators
 
 - Post-quantum security with Falcon as the standard, always-on validator signature type.
-- Hybrid signature support, including Falcon plus ed25519 for migration and interoperability.
 - Proof-of-Participation rewards for active validators with deterministic, on-ledger scoring.
 - Fixed total supply of 200 billion qXRP.
 - Minimal genesis allocation, with the protocol-controlled treasury holding the bulk of supply.
@@ -120,7 +119,7 @@ Falcon Ledger treats quantum resistance as a protocol requirement, not an option
 ### Signature Strategy
 
 - Falcon is the standard, always-on signature scheme for validator identities.
-- Hybrid Falcon plus ed25519 support can be used during migration and interoperability periods.
+- Hybrid Falcon plus ed25519 transaction signing is planned but **not yet implemented** (see ROADMAP).
 - Signature verification remains deterministic and fully local to the node.
 - The protocol preserves backwards compatibility where possible during the transition period.
 

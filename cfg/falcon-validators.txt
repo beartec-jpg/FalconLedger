@@ -1,0 +1,26 @@
+#
+# Falcon Ledger — trusted validator list (UNL)
+# Copyright (c) 2026 qXRP Team. All rights reserved.
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+# This file lists the validation public keys that nodes on the Falcon Ledger
+# testnet trust to participate in consensus. It is referenced by the
+# [validators_file] setting in falcon-validator.cfg and falcon-fullhistory.cfg.
+#
+# Generate each validator's key with:
+#     xrpld validation_create
+# and paste the resulting `validation_public_key` below.
+#
+# NOTE: This is a brand-new, self-contained testnet. It deliberately does NOT
+# point at vl.ripple.com / unl.xrplf.org. Trust is established by the explicit
+# key list below.
+#
+
+[validators]
+# Replace these placeholders with the real Falcon Ledger validator public keys
+# before launch (one per line, e.g.):
+# n9KorY8QtTdRx7TVDpwnG9NvyxsDwHUKUEeDLY3AkiGncVaSXZi5
+# n9MqiExBcoG19UXwoLjBJnhsxEhAZMuWwJDRdkyDz1EkEkwzQTNt
+
+[validator_list_threshold]
+0

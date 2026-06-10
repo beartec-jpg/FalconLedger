@@ -2,6 +2,8 @@
 
 #include <xrpl/basics/Expected.h>
 #include <xrpl/protocol/Feature.h>
+#include <xrpl/protocol/PQPublicKey.h>
+#include <xrpl/protocol/PQSecretKey.h>
 #include <xrpl/protocol/PublicKey.h>
 #include <xrpl/protocol/Rules.h>
 #include <xrpl/protocol/STObject.h>
@@ -102,6 +104,20 @@ public:
     sign(
         PublicKey const& publicKey,
         SecretKey const& secretKey,
+        std::optional<std::reference_wrapper<SField const>> signatureTarget = {});
+
+    /** Sign this transaction with a post-quantum Falcon key.
+
+        Sets sfSigningPubKey to the Falcon public-key blob (prefix + key) and
+        sfTxnSignature to the Falcon signature over the transaction's signing
+        data.  This produces a quantum-resistant, single-signed transaction.
+
+        @note If a signature already exists, it is overwritten.
+    */
+    void
+    sign(
+        PQPublicKey const& publicKey,
+        PQSecretKey const& secretKey,
         std::optional<std::reference_wrapper<SField const>> signatureTarget = {});
 
     /** Check the signature.

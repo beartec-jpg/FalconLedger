@@ -316,11 +316,9 @@ AccountSet::doApply()
     bool const sigWithMaster{[&tx, &acct = account_]() {
         auto const spk = tx.getSigningPubKey();
 
-        if (publicKeyType(makeSlice(spk)))
+        if (signingPubKeyType(makeSlice(spk)))
         {
-            PublicKey const signingPubKey(makeSlice(spk));
-
-            if (calcAccountID(signingPubKey) == acct)
+            if (calcAccountID(makeSlice(spk)) == acct)
                 return true;
         }
         return false;

@@ -250,6 +250,7 @@ JSS(expected_ledger_size);        // out: TxQ
 JSS(expiration);                  // out: AccountOffers, AccountChannels, ValidatorList, amm_info
 JSS(fail_hard);                   // in: Sign, Submit
 JSS(failed);                      // out: InboundLedger
+JSS(falcon_secret);               // out: WalletPropose (post-quantum Falcon)
 JSS(feature);                     // in: Feature
 JSS(features);                    // out: Feature
 JSS(fee_base);                    // out: NetworkOPs

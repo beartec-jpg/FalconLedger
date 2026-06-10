@@ -51,6 +51,58 @@
    - Clearly communicate that the previous testnet (Network ID 999) is deprecated.
    - Provide migration instructions if needed (most users will just need new accounts + new faucet).
 
+## Falcon Ledger: Post-Quantum Accounts & Node Roles
+
+This network is the **Falcon Ledger** — user accounts and transactions use
+post-quantum **Falcon-512** signatures (liboqs). The node binary ships with the
+Falcon signing/verification path always compiled in.
+
+### Creating a Falcon account
+
+Use `wallet_propose` with a Falcon key type against any admin RPC port:
+
+```
+{
+  "method": "wallet_propose",
+  "params": [{ "key_type": "falcon512" }]
+}
+```
+
+The response contains:
+
+- `account_id` — the `r...` address (derived from the Falcon public key).
+- `public_key` / `public_key_hex` — the Falcon-512 public key.
+- `key_type` — `falcon512`.
+- `falcon_secret` — the **complete** signing secret (public + private key
+  material, hex-encoded). Unlike classical wallets there is no 16-byte seed:
+  Falcon keys cannot be regenerated from a seed, so store `falcon_secret`
+  securely. Pass it to your offline signer to sign transactions.
+
+`key_type` may also be `falcon1024` for the larger parameter set.
+
+### Node-role configs and Docker images
+
+Ready-to-use configs for the two node-role Docker images live in `cfg/`:
+
+- **Standard validator** — `cfg/falcon-validator.cfg`
+  (signs consensus; fill in `[validation_seed]`).
+- **Full history** — `cfg/falcon-fullhistory.cfg`
+  (non-validating, `ledger_history = full`, no pruning).
+- **Standalone (single node)** — `cfg/standalone.cfg`.
+- **Trusted UNL** — `cfg/falcon-validators.txt` (mount as `validators.txt`;
+  fill in the real validator public keys before launch).
+
+Build the image and bring up a role with:
+
+```
+docker build -t qxrp/xrpld:latest -f docker/Dockerfile .
+docker compose -f docker/docker-compose.falcon.yml up validator
+docker compose -f docker/docker-compose.falcon.yml up fullhistory
+```
+
+All Falcon configs default to Network ID **1001** and enable the
+`ProofOfParticipation` amendment.
+
 ## Running Nodes on the New Testnet
 
 For the clean new testnet, we provide ready-to-use Docker setups:

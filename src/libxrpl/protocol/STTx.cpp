@@ -30,6 +30,7 @@
 #include <xrpl/protocol/SeqProxy.h>
 #include <xrpl/protocol/Serializer.h>
 #include <xrpl/protocol/Sign.h>
+#include <xrpl/protocol/falcon.h>
 #include <xrpl/protocol/TxFormats.h>
 #include <xrpl/protocol/jss.h>
 
@@ -248,6 +249,35 @@ STTx::sign(
     tid_ = getHash(HashPrefix::TransactionId);
 }
 
+void
+STTx::sign(
+    PQPublicKey const& publicKey,
+    PQSecretKey const& secretKey,
+    std::optional<std::reference_wrapper<SField const>> signatureTarget)
+{
+    // sfSigningPubKey is part of the signed data, so it must be set *before*
+    // the signing data is serialized.  This mirrors the classical path, where
+    // the caller sets sfSigningPubKey prior to calling sign().
+    auto const pkSlice = publicKey.slice();
+    Blob const pkBlob(pkSlice.data(), pkSlice.data() + pkSlice.size());
+
+    if (signatureTarget)
+        peekFieldObject(*signatureTarget).setFieldVL(sfSigningPubKey, pkBlob);
+    else
+        setFieldVL(sfSigningPubKey, pkBlob);
+
+    auto const data = getSigningData(*this);
+    auto const sigVec = signFalcon(secretKey, makeSlice(data));
+    Blob const sig(sigVec.begin(), sigVec.end());
+
+    if (signatureTarget)
+        peekFieldObject(*signatureTarget).setFieldVL(sfTxnSignature, sig);
+    else
+        setFieldVL(sfTxnSignature, sig);
+
+    tid_ = getHash(HashPrefix::TransactionId);
+}
+
 Expected<void, std::string>
 STTx::checkSign(Rules const& rules, STObject const& sigObject) const
 {
@@ -402,10 +432,10 @@ singleSignHelper(STObject const& sigObject, Slice const& data)
     try
     {
         auto const spk = sigObject.getFieldVL(sfSigningPubKey);
-        if (publicKeyType(makeSlice(spk)))
+        if (signingPubKeyType(makeSlice(spk)))
         {
             Blob const signature = sigObject.getFieldVL(sfTxnSignature);
-            validSig = verify(PublicKey(makeSlice(spk)), data, makeSlice(signature));
+            validSig = verify(makeSlice(spk), data, makeSlice(signature));
         }
     }
     catch (std::exception const&)
@@ -487,11 +517,11 @@ multiSignHelper(
         try
         {
             auto spk = signer.getFieldVL(sfSigningPubKey);
-            if (publicKeyType(makeSlice(spk)))
+            if (signingPubKeyType(makeSlice(spk)))
             {
                 Blob const signature = signer.getFieldVL(sfTxnSignature);
                 validSig = verify(
-                    PublicKey(makeSlice(spk)), makeMsg(accountID).slice(), makeSlice(signature));
+                    makeSlice(spk), makeMsg(accountID).slice(), makeSlice(signature));
             }
         }
         catch (std::exception const& e)

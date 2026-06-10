@@ -115,7 +115,7 @@ NotTEC
 preflightCheckSigningKey(STObject const& sigObject, beast::Journal j)
 {
     if (auto const spk = sigObject.getFieldVL(sfSigningPubKey);
-        !spk.empty() && !publicKeyType(makeSlice(spk)))
+        !spk.empty() && !signingPubKeyType(makeSlice(spk)))
     {
         JLOG(j.debug()) << "preflightCheckSigningKey: invalid signing key";
         return temBAD_SIGNATURE;
@@ -707,14 +707,14 @@ Transactor::checkSign(
     // Check Single Sign
     XRPL_ASSERT(!pkSigner.empty(), "xrpl::Transactor::checkSign : non-empty signer");
 
-    if (!publicKeyType(makeSlice(pkSigner)))
+    if (!signingPubKeyType(makeSlice(pkSigner)))
     {
         JLOG(j.trace()) << "checkSign: signing public key type is unknown";
         return tefBAD_AUTH;  // FIXME: should be better error!
     }
 
     // Look up the account.
-    auto const idSigner = calcAccountID(PublicKey(makeSlice(pkSigner)));
+    auto const idSigner = calcAccountID(makeSlice(pkSigner));
     auto const sleAccount = view.read(keylet::account(idAccount));
     if (!sleAccount)
         return terNO_ACCOUNT;
@@ -749,11 +749,11 @@ Transactor::checkBatchSign(PreclaimContext const& ctx)
         else
         {
             // LCOV_EXCL_START
-            if (!publicKeyType(makeSlice(pkSigner)))
+            if (!signingPubKeyType(makeSlice(pkSigner)))
                 return tefBAD_AUTH;
             // LCOV_EXCL_STOP
 
-            auto const idSigner = calcAccountID(PublicKey(makeSlice(pkSigner)));
+            auto const idSigner = calcAccountID(makeSlice(pkSigner));
             auto const sleAccount = ctx.view.read(keylet::account(idAccount));
 
             // A batch can include transactions from an un-created account ONLY
@@ -874,7 +874,7 @@ Transactor::checkMultiSign(
 
         // spk being non-empty in non-simulate is checked in
         // STTx::checkMultiSign
-        if (!spk.empty() && !publicKeyType(makeSlice(spk)))
+        if (!spk.empty() && !signingPubKeyType(makeSlice(spk)))
         {
             JLOG(j.trace()) << "checkMultiSign: signing public key type is unknown";
             return tefBAD_SIGNATURE;
@@ -885,7 +885,7 @@ Transactor::checkMultiSign(
             "xrpl::Transactor::checkMultiSign : non-empty signer or "
             "simulation");
         AccountID const signingAcctIDFromPubKey =
-            spk.empty() ? txSignerAcctID : calcAccountID(PublicKey(makeSlice(spk)));
+            spk.empty() ? txSignerAcctID : calcAccountID(makeSlice(spk));
 
         // Verify that the signingAcctID and the signingAcctIDFromPubKey
         // belong together.  Here are the rules:
