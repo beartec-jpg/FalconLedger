@@ -1312,9 +1312,8 @@ ApplicationImp::setup(boost::program_options::variables_map const& cmdline)
     {
         auto db = getWalletDB().checkoutDb();
         boost::optional<std::string> priKO;
-        soci::statement st =
-            (*db).prepare << "SELECT PrivateKey FROM NodeIdentity;",
-            soci::into(priKO);
+        soci::statement st = ((*db).prepare << "SELECT PrivateKey FROM NodeIdentity;",
+                                soci::into(priKO));
         st.execute();
         if (st.fetch() && priKO)
         {
