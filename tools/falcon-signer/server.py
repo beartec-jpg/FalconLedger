@@ -127,7 +127,13 @@ class Handler(BaseHTTPRequestHandler):
         if NETWORK_ID > 1024 and "NetworkID" not in tx_json:  # noqa: PLR2004
             tx_json = {**tx_json, "NetworkID": NETWORK_ID}
 
-        result = admin_rpc("sign", {"tx_json": tx_json, "falcon_secret": secret})
+        # Classic seeds (s...) vs Falcon falcon_secret hex bundles.
+        if secret.startswith("s") and len(secret) < 64:
+            sign_params = {"tx_json": tx_json, "secret": secret}
+        else:
+            sign_params = {"tx_json": tx_json, "falcon_secret": secret}
+
+        result = admin_rpc("sign", sign_params)
         self._json_response(200, {
             "tx_blob": result.get("tx_blob"),
             "hash": (result.get("tx_json") or {}).get("hash"),
