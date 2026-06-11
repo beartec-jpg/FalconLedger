@@ -11,12 +11,13 @@
 #
 # What it does:
 #   1. Installs Docker (if needed) and pulls qxrp/xrpld:falcon (pinned Falcon build)
-#   2. Generates validator + node identity keys
-#   3. Writes config (UNL, bootstrap peers, network 1001)
-#   4. Starts the validator container
-#   5. Prints the validator r-address to fund
-#   6. Polls the public RPC until ≥1,100 qXRP, then ValidatorRegister + ValidatorBond(1000)
-#   7. Installs an hourly reward-claim cron job
+#   2. Falcon smoke tests (local image + validator fleet signature check) — see docs/fleet-image-pinning.md
+#   3. Generates validator + node identity keys
+#   4. Writes config (UNL, bootstrap peers, network 1001)
+#   5. Starts the validator container
+#   6. Prints the validator r-address to fund
+#   7. Polls the public RPC until ≥1,100 qXRP, then ValidatorRegister + ValidatorBond(1000)
+#   8. Installs an hourly reward-claim cron job
 #
 # Recommended: fund the validator address from the faucet (2,000 qXRP drip) BEFORE
 # or AFTER running this script — bonding starts automatically once funded.
@@ -37,6 +38,8 @@ MIN_BOND_DROPS=1000000000   # 1,000 qXRP bond
 QUORUM=3
 MIN_RAM_MB=3800
 MIN_DISK_GB=40
+FAUCET_SMOKE_ACCOUNT="${QXRP_FAUCET_ACCOUNT:-rwzhiWW4GYK2sQVR5Lw4iDpYLANB5krJXY}"
+SKIP_SMOKE_TEST=0
 
 CONFIG_DIR="${HOME}/.qxrp/${NODE_NAME}/config"
 DATA_DIR="${HOME}/.qxrp/${NODE_NAME}/data"
@@ -66,6 +69,131 @@ rpc_public() {
     -d "{\"method\":\"${method}\",\"params\":[${params}]}"
 }
 
+rpc_to() {
+  local url="$1" method="$2" params="${3:-{}}"
+  curl -sf --max-time 10 -X POST "${url}" \
+    -H 'Content-Type: application/json' \
+    -d "{\"method\":\"${method}\",\"params\":[${params}]}"
+}
+
+# Verify the pulled image can sign/simulate Falcon txs (local).
+smoke_test_local_image() {
+  log "Falcon smoke test — local image (${DOCKER_IMAGE})..."
+  local smoke_dir
+  smoke_dir=$(mktemp -d)
+  trap 'rm -rf "$smoke_dir"' RETURN
+
+  cat > "${smoke_dir}/xrpld.cfg" <<CFG
+[server]
+port_rpc
+[port_rpc]
+port = 5998
+ip = 127.0.0.1
+admin = 127.0.0.1
+protocol = http
+[node_db]
+type = NuDB
+path = ${smoke_dir}/db
+[database_path]
+${smoke_dir}
+[debug_logfile]
+${smoke_dir}/debug.log
+CFG
+
+  docker run --rm -d --name qxrp_falcon_smoke \
+    -v "${smoke_dir}:/data" \
+    "${DOCKER_IMAGE}" \
+    --conf /data/xrpld.cfg --standalone >/dev/null
+
+  for i in $(seq 1 30); do
+    docker exec qxrp_falcon_smoke curl -sf -X POST http://127.0.0.1:5998 \
+      -H 'Content-Type: application/json' -d '{"method":"server_info","params":[{}]}' >/dev/null 2>&1 && break
+    [[ $i -eq 30 ]] && die "Falcon smoke test: ephemeral node did not start"
+    sleep 1
+  done
+
+  local wp sim_result sim_code
+  wp=$(docker exec qxrp_falcon_smoke curl -sf -X POST http://127.0.0.1:5998 \
+    -H 'Content-Type: application/json' \
+    -d '{"method":"wallet_propose","params":[{"key_type":"falcon512"}]}')
+  local acct secret
+  acct=$(echo "$wp" | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['account_id'])")
+  secret=$(echo "$wp" | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['falcon_secret'])")
+
+  sim_result=$(docker exec qxrp_falcon_smoke curl -sf -X POST http://127.0.0.1:5998 \
+    -H 'Content-Type: application/json' \
+    -d "{\"method\":\"simulate\",\"params\":[{\"tx_json\":{\"TransactionType\":\"Payment\",\"Account\":\"${acct}\",\"Destination\":\"rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh\",\"Amount\":\"1\",\"Fee\":\"12\",\"Sequence\":1,\"LastLedgerSequence\":99999999},\"falcon_secret\":\"${secret}\"}]}")
+
+  sim_code=$(echo "$sim_result" | python3 -c "import sys,json; r=json.load(sys.stdin)['result']; print(r.get('engine_result') or r.get('error',''))")
+  if echo "$sim_code" | grep -qiE 'BAD.?SIGN|invalid.?sign|temBAD'; then
+    die "Falcon smoke test FAILED (local): bad signature (${sim_code})"
+  fi
+  [[ -n "$sim_code" ]] || die "Falcon smoke test FAILED (local): empty simulate response"
+
+  docker stop qxrp_falcon_smoke >/dev/null 2>&1 || true
+  log "  local image OK (simulate → ${sim_code})"
+}
+
+# Re-submit a known validated Falcon Payment to every bootstrap peer.
+smoke_test_validator_fleet() {
+  log "Falcon smoke test — validator fleet (bootstrap peers)..."
+  local tx_json blob host port url result engine err msg
+
+  tx_json=$(rpc_public account_tx "{\"account\":\"${FAUCET_SMOKE_ACCOUNT}\",\"limit\":1}") \
+    || die "Falcon smoke test: cannot reach public RPC (${PUBLIC_RPC})"
+  local tx_hash
+  tx_hash=$(echo "$tx_json" | python3 -c "
+import sys, json
+r = json.load(sys.stdin).get('result', {})
+txs = r.get('transactions') or []
+if not txs:
+    raise SystemExit('no faucet transactions on ledger')
+print(txs[0].get('tx', {}).get('hash') or txs[0].get('hash',''))
+") || die "Falcon smoke test: no faucet Payment tx found for ${FAUCET_SMOKE_ACCOUNT}"
+
+  blob=$(rpc_public tx "{\"transaction\":\"${tx_hash}\",\"binary\":true}" \
+    | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['tx'])") \
+    || die "Falcon smoke test: could not fetch tx blob for ${tx_hash}"
+
+  local peers_checked=0
+  IFS=',' read -ra PEER_LIST <<< "$BOOTSTRAP_PEERS"
+  for peer in "${PEER_LIST[@]}"; do
+    host="${peer%%:*}"
+    port="${peer##*:}"
+    [[ -z "$host" || -z "$port" ]] && continue
+    url="http://${host}:${port}"
+    result=$(rpc_to "$url" submit "{\"tx_blob\":\"${blob}\"}" 2>/dev/null) || {
+      warn "  ${host}: unreachable — skipping"
+      continue
+    }
+    engine=$(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin).get('result',{}).get('engine_result',''))" 2>/dev/null || echo "")
+    err=$(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin).get('result',{}).get('error',''))" 2>/dev/null || echo "")
+    msg=$(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin).get('result',{}).get('error_message',''))" 2>/dev/null || echo "")
+    peers_checked=$((peers_checked + 1))
+
+    if [[ "$err" == "invalidTransaction" ]] || echo "$msg" | grep -qi 'invalid signature'; then
+      die "Falcon smoke test FAILED on ${host}: ${err} ${msg} — validator image cannot verify Falcon signatures. See docs/fleet-image-pinning.md"
+    fi
+    if [[ -z "$engine" && -n "$err" ]]; then
+      die "Falcon smoke test FAILED on ${host}: ${err} ${msg}"
+    fi
+    log "  ${host} OK (${engine:-accepted})"
+  done
+
+  [[ "$peers_checked" -ge 1 ]] || die "Falcon smoke test: no bootstrap peers reachable"
+  log "  fleet smoke test passed (${peers_checked} peer(s))"
+}
+
+run_falcon_smoke_tests() {
+  [[ "$SKIP_SMOKE_TEST" -eq 1 ]] && { warn "Skipping Falcon smoke tests (--skip-smoke-test)"; return 0; }
+  big "FALCON SMOKE TEST"
+  log "Pinned image: ${DOCKER_IMAGE}"
+  log "Docs: https://github.com/beartec-jpg/qXRP/blob/develop/docs/fleet-image-pinning.md"
+  smoke_test_local_image
+  smoke_test_validator_fleet
+  log "Falcon smoke tests passed — proceeding with validator install"
+}
+
 # ── Args ──────────────────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -74,8 +202,10 @@ while [[ $# -gt 0 ]]; do
     --rpc-url)      PUBLIC_RPC="$2"; shift 2 ;;
     --peers)        BOOTSTRAP_PEERS="$2"; shift 2 ;;
     --trusted-keys) TRUSTED_KEYS="$2"; shift 2 ;;
+    --skip-smoke-test) SKIP_SMOKE_TEST=1; shift ;;
     -h|--help)
-      sed -n '2,20p' "$0"
+      sed -n '2,23p' "$0"
+      echo "  --skip-smoke-test   Skip Falcon image + fleet signature checks (not recommended)"
       exit 0
       ;;
     *) die "Unknown option: $1 (try --help)" ;;
@@ -104,6 +234,11 @@ fi
 
 mkdir -p "$CONFIG_DIR" "$DATA_DIR"
 
+log "Pulling ${DOCKER_IMAGE}..."
+docker pull "$DOCKER_IMAGE" >/dev/null
+
+run_falcon_smoke_tests
+
 # ── Key generation (one-shot bootstrap container) ─────────────────────────────
 if [[ -f "$KEYS_FILE" ]]; then
   log "Reusing existing keys at $KEYS_FILE"
@@ -129,7 +264,6 @@ ${BOOT_DIR}
 ${BOOT_DIR}/debug.log
 CFG
 
-  docker pull "$DOCKER_IMAGE" >/dev/null
   docker run --rm -d --name qxrp_keygen_boot \
     -v "${BOOT_DIR}:/data" \
     "$DOCKER_IMAGE" \

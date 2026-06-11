@@ -137,8 +137,22 @@ These setups use Network ID 1001 and follow best practices for the clean launch.
 - `docs/DeploymentGuide.md`
 - Any new public documentation
 
+## Validator Fleet Image Pinning
+
+Before declaring the network healthy (and before any mainnet launch rehearsal):
+
+1. Pin every validator to `qxrp/xrpld:falcon` or an explicit digest — **not** `:latest`.
+2. Run the Falcon fleet smoke test on each host (re-submit a known Falcon Payment
+   blob; expect `tefPAST_SEQ`, not `Invalid signature`).
+3. The one-command installer (`install-qxrp-validator.sh`) runs these checks
+   automatically before bonding.
+
+Full procedure: [fleet-image-pinning.md](./fleet-image-pinning.md)
+
 ## Post-Launch Checklist
 
+- [ ] All validators on the same pinned `qxrp/xrpld:falcon` digest
+- [ ] Falcon fleet smoke test passes on every validator host
 - [ ] New Network ID confirmed live (1001 or chosen value)
 - [ ] Dedicated faucet account created and funded
 - [ ] Faucet deployed with secrets only in Vercel
