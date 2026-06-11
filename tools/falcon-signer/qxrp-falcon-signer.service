@@ -1,0 +1,16 @@
+[Unit]
+Description=qXRP Falcon signing proxy
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/qxrp-falcon-signer
+EnvironmentFile=/opt/qxrp-falcon-signer/env
+ExecStart=/usr/bin/python3 /opt/qxrp-falcon-signer/server.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
