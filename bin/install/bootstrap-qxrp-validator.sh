@@ -247,19 +247,17 @@ if [ "$SEED" != "FAIL" ] && [ "$PUB" != "FAIL" ]; then
   echo "validation_seed: $SEED"
   echo "validation_public_key: $PUB"
 
-  # Patch the config with the seed
-  su - qxrp -c "
-    CFG=/var/lib/qxrp-validator/config/xrpld.cfg
-    sed -i '/\[validation_seed\]/,+1d' \$CFG
-    cat >> \$CFG << 'EOC'
+  # Patch the config with the seed (as root - do not run under su qxrp)
+  CFG=/var/lib/qxrp-validator/config/xrpld.cfg
+  sed -i '/\[validation_seed\]/,+1d' $CFG
+  cat >> $CFG << 'EOC'
 
 [validation_seed]
 $SEED
 EOC
-    echo \"$PUB\" >> /var/lib/qxrp-validator/config/validators.txt
-  "
+  echo "$PUB" >> /var/lib/qxrp-validator/config/validators.txt
 
-  # Restart
+  # Restart as qxrp (for docker group)
   su - qxrp -c "cd /var/lib/qxrp-validator && docker compose up -d"
 
   echo "Validator is running with its own seed."
