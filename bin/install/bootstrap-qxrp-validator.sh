@@ -49,7 +49,8 @@ fi
 # Setup directories
 echo "Setting up directories..."
 mkdir -p /var/lib/qxrp-validator/config
-chown -R qxrp:qxrp /var/lib/qxrp-validator
+mkdir -p /var/lib/qxrp-validator/db /var/lib/qxrp-validator/nudb
+chown -R 1001:1001 /var/lib/qxrp-validator
 
 cd /var/lib/qxrp-validator
 
@@ -191,7 +192,7 @@ n9KtL7AC4C62QvPxixj3EKYUki2i5TNFk8SLrussW7LmuHusSsgT
 n9LrpfYjS4MJhvCEPUEPDAheto4NMrpmbuuFfU1uLUsBbn9sZdU5
 EOC
 
-chown -R qxrp:qxrp /var/lib/qxrp-validator
+chown -R 1001:1001 /var/lib/qxrp-validator
 
 # Save payout and node name for the higher-level qXRP validator layer / bonding
 if [ -n "$PAYOUT" ]; then
