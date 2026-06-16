@@ -218,7 +218,7 @@ done
 
 echo "Running wallet one line command with secret: $SECRET_INPUT"
 su - qxrp -c "
-docker exec qxrp-validator curl -s -X POST -d '{\"method\":\"validation_create\",\"params\":[{\"secret\":\"$SECRET_INPUT\"}]}' http://127.0.0.1:5005
+docker exec qxrp-validator curl -s -X POST -d '{\"method\":\"validation_create\",\"params\":[{\"secret\":\"$SECRET_INPUT\",\"key_type\":\"secp256k1\"}]}' http://127.0.0.1:5005
 " > /tmp/wallet.json
 
 cat /tmp/wallet.json
@@ -273,14 +273,14 @@ fi
 echo ""
 echo "Generating a fresh validator account (r-address) for bonding..."
 su - qxrp -c "
-docker exec qxrp-validator curl -s -X POST -d '{\"method\":\"wallet_propose\"}' http://127.0.0.1:5005
+docker exec qxrp-validator curl -s -X POST -d '{\"method\":\"wallet_propose\",\"params\":[{\"key_type\":\"falcon512\"}]}' http://127.0.0.1:5005
 " > /tmp/node_account.json
 
 NODE_R=$(python3 -c '
 import json,sys
 try:
   d = json.load(open("/tmp/node_account.json"))
-  print(d["result"]["account"])
+  print(d["result"].get("account_id") or d["result"].get("account") or "FAIL")
 except:
   print("FAIL")
 ' 2>/dev/null || echo "FAIL")
@@ -289,7 +289,7 @@ NODE_SECRET=$(python3 -c '
 import json,sys
 try:
   d = json.load(open("/tmp/node_account.json"))
-  print(d["result"]["master_seed"])
+  print(d["result"].get("falcon_secret") or d["result"].get("master_seed") or "FAIL")
 except:
   print("FAIL")
 ' 2>/dev/null || echo "FAIL")
@@ -301,10 +301,10 @@ if [ "$NODE_R" != "FAIL" ] && [ "$NODE_SECRET" != "FAIL" ]; then
   echo ""
   echo "=== FUNDING ADDRESS (send qXRP here for bonding) ==="
   echo "Validator r-address: $NODE_R"
-  echo "Master seed (KEEP SECRET, never share): $NODE_SECRET"
+  echo "Falcon secret (KEEP SECRET, never share): $NODE_SECRET"
   echo ""
   echo "Claim 2,000 qXRP from the faucet and send ≥1,100 qXRP to the r-address above."
-  echo "The installer will auto-bond once it detects enough balance."
+  echo "Use the falcon_secret when bonding/signing (this is a Falcon post-quantum account)."
   echo "This is SEPARATE from your payout address ($PAYOUT)."
   echo ""
   echo "Files saved:"
