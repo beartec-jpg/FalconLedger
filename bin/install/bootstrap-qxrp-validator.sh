@@ -252,7 +252,7 @@ if [ "$VALIDATOR_SECRET" != "FAIL" ] && [ "$PUB" != "FAIL" ]; then
   CFG=/var/lib/qxrp-validator/config/xrpld.cfg
   sed -i '/\[validation_seed\]/,+1d' $CFG
   sed -i '/\[validation_falcon_secret\]/,+1d' $CFG
-  cat >> $CFG << 'EOC'
+  cat >> $CFG << EOC
 
 [validation_falcon_secret]
 $VALIDATOR_SECRET
