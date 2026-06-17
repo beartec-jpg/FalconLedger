@@ -57,8 +57,8 @@ doValidationCreate(RPC::JsonContext& context)
 
         auto& [pqPk, pqSk] = *kp;
 
-        obj[jss::validation_public_key] =
-            toBase58(TokenType::NodePublic, PublicKey(pqPk.slice()));
+        // For Falcon validator key, use hex of the pubkey for UNL / identification (full Falcon mode)
+        obj[jss::validation_public_key] = strHex(pqPk.slice());
 
         // The falcon_secret bundles both public and private key.
         obj[jss::falcon_secret] = encodeFalconSecret(pqPk, pqSk);
