@@ -23,10 +23,15 @@ public:
         PublicKey masterPublicKey;
         PublicKey publicKey;
         SecretKey secretKey;
+        std::string falconSecret;  // for Falcon validator keys (full secret bundle)
 
         Keys() = delete;
         Keys(PublicKey const& masterPublic, PublicKey const& pub, SecretKey const& secret)
             : masterPublicKey(masterPublic), publicKey(pub), secretKey(secret)
+        {
+        }
+        Keys(PublicKey const& pub, std::string const& fsecret)
+            : masterPublicKey(pub), publicKey(pub), secretKey(), falconSecret(fsecret)
         {
         }
     };

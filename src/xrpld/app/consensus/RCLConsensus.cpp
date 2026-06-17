@@ -16,6 +16,7 @@
 #include <xrpld/app/misc/NegativeUNLVote.h>
 #include <xrpld/app/misc/TxQ.h>
 #include <xrpld/app/misc/ValidatorKeys.h>
+#include <xrpl/protocol/falcon.h>
 #include <xrpld/app/misc/ValidatorList.h>
 #include <xrpld/consensus/Consensus.h>
 #include <xrpld/consensus/ConsensusTypes.h>
@@ -247,7 +248,20 @@ RCLConsensus::Adaptor::propose(RCLCxPeerPos::Proposal const& proposal)
 
     prop.set_nodepubkey(keys.publicKey.data(), keys.publicKey.size());
 
-    auto sig = signDigest(keys.publicKey, keys.secretKey, proposal.signingHash());
+    std::vector<uint8_t> sig;
+    if (!keys.falconSecret.empty())
+    {
+        auto decoded = decodeFalconSecret(keys.falconSecret);
+        if (decoded)
+        {
+            auto const& [pqPk, pqSk] = *decoded;
+            sig = signFalcon(pqSk, proposal.signingHash());
+        }
+    }
+    else
+    {
+        sig = signDigest(keys.publicKey, keys.secretKey, proposal.signingHash());
+    }
 
     prop.set_signature(sig.data(), sig.size());
 
@@ -819,13 +833,34 @@ RCLConsensus::Adaptor::validate(RCLCxLedger const& ledger, RCLTxSet const& txns,
 
     auto const& keys = *validatorKeys_.keys;
 
-    auto v = std::make_shared<STValidation>(
-        lastValidationTime_,
-        keys.publicKey,
-        keys.secretKey,
-        validatorKeys_.nodeID,
-        [&](STValidation& v) {
-            v.setFieldH256(sfLedgerHash, ledger.id());
+    std::shared_ptr<STValidation> v;
+    if (!keys.falconSecret.empty())
+    {
+        auto decoded = decodeFalconSecret(keys.falconSecret);
+        if (decoded)
+        {
+            auto const& [pqPk, pqSk] = *decoded;
+            v = std::make_shared<STValidation>(
+                lastValidationTime_,
+                pqPk,
+                pqSk,
+                validatorKeys_.nodeID,
+                [&](STValidation& v) {
+                    v.setFieldH256(sfLedgerHash, ledger.id());
+                });
+        }
+    }
+    else
+    {
+        v = std::make_shared<STValidation>(
+            lastValidationTime_,
+            keys.publicKey,
+            keys.secretKey,
+            validatorKeys_.nodeID,
+            [&](STValidation& v) {
+                v.setFieldH256(sfLedgerHash, ledger.id());
+            });
+    }
             v.setFieldH256(sfConsensusHash, txns.id());
 
             v.setFieldU32(sfLedgerSequence, ledger.seq());

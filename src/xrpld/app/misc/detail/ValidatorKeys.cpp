@@ -10,6 +10,7 @@
 #include <xrpl/protocol/PublicKey.h>
 #include <xrpl/protocol/SecretKey.h>
 #include <xrpl/protocol/Seed.h>
+#include <xrpl/protocol/falcon.h>
 #include <xrpl/server/Manifest.h>
 
 #include <utility>
@@ -66,6 +67,24 @@ ValidatorKeys::ValidatorKeys(Config const& config, beast::Journal j)
             SecretKey const sk = generateSecretKey(KeyType::Secp256k1, *seed);
             PublicKey const pk = derivePublicKey(KeyType::Secp256k1, sk);
             keys.emplace(pk, pk, sk);
+            nodeID = calcNodeID(pk);
+            sequence = 0;
+        }
+    }
+    else if (config.exists("validation_falcon_secret"))
+    {
+        auto const fsecret = config.section("validation_falcon_secret").lines().front();
+        auto decoded = decodeFalconSecret(fsecret);
+        if (!decoded)
+        {
+            configInvalid_ = true;
+            JLOG(j.fatal()) << "Invalid falcon secret in [validation_falcon_secret]";
+        }
+        else
+        {
+            auto const& [pqPk, pqSk] = *decoded;
+            PublicKey const pk(pqPk.slice());
+            keys.emplace(pk, fsecret);  // Falcon constructor
             nodeID = calcNodeID(pk);
             sequence = 0;
         }

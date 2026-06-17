@@ -184,6 +184,7 @@ XChainBridge
 EOC
 
 # Current good validators list (update as needed when adding more)
+# For full Falcon, validators use Falcon public keys (from validation_create with falcon512)
 cat > config/validators.txt << 'EOC'
 [validators]
 n9M1HThMraVC5Fa5xqk7AHpZdjm15HioyVneKVq3JdohwGMQ4pZ9
@@ -218,17 +219,17 @@ done
 
 echo "Running wallet one line command with secret: $SECRET_INPUT"
 su - qxrp -c "
-docker exec qxrp-validator curl -s -X POST -d '{\"method\":\"validation_create\",\"params\":[{\"secret\":\"$SECRET_INPUT\",\"key_type\":\"secp256k1\"}]}' http://127.0.0.1:5005
+docker exec qxrp-validator curl -s -X POST -d '{\"method\":\"validation_create\",\"params\":[{\"key_type\":\"falcon512\"}]}' http://127.0.0.1:5005
 " > /tmp/wallet.json
 
 cat /tmp/wallet.json
 
-# Parse seed and pubkey
-SEED=$(python3 -c '
+# Parse validator key (prefer Falcon for full post-quantum)
+VALIDATOR_SECRET=$(python3 -c '
 import json,sys
 try:
   d = json.load(open("/tmp/wallet.json"))
-  print(d["result"]["validation_seed"])
+  print(d["result"].get("falcon_secret") or d["result"].get("validation_seed") or "FAIL")
 except:
   print("FAIL")
 ' 2>/dev/null || echo "FAIL")
@@ -242,25 +243,26 @@ except:
   print("FAIL")
 ' 2>/dev/null || echo "FAIL")
 
-if [ "$SEED" != "FAIL" ] && [ "$PUB" != "FAIL" ]; then
+if [ "$VALIDATOR_SECRET" != "FAIL" ] && [ "$PUB" != "FAIL" ]; then
   echo "=== SUCCESS ==="
-  echo "validation_seed: $SEED"
+  echo "validator_secret: $VALIDATOR_SECRET"
   echo "validation_public_key: $PUB"
 
-  # Patch the config with the seed (as root - do not run under su qxrp)
+  # Patch the config (as root)
   CFG=/var/lib/qxrp-validator/config/xrpld.cfg
   sed -i '/\[validation_seed\]/,+1d' $CFG
+  sed -i '/\[validation_falcon_secret\]/,+1d' $CFG
   cat >> $CFG << 'EOC'
 
-[validation_seed]
-$SEED
+[validation_falcon_secret]
+$VALIDATOR_SECRET
 EOC
   echo "$PUB" >> /var/lib/qxrp-validator/config/validators.txt
 
   # Restart as qxrp (for docker group)
   su - qxrp -c "cd /var/lib/qxrp-validator && docker compose up -d"
 
-  echo "Validator is running with its own seed."
+  echo "Validator is running with its own key."
 else
   echo "Failed to parse wallet output. Check /tmp/wallet.json and patch manually."
 fi
