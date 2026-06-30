@@ -27,6 +27,7 @@ done
 
 SECRET_INPUT="${SECRET_INPUT:-qxrp-val-fresh-$(date +%s)}"
 DOCKER_IMAGE="${QXRP_XRPLD_IMAGE:-qxrp/xrpld:latest}"
+PUBLIC_RPC="${QXRP_PUBLIC_RPC:-http://46.224.0.140:6005}"
 
 echo "=== qXRP Validator Bootstrap (fresh server) ==="
 echo "Using secret (wallet input): $SECRET_INPUT"
@@ -126,6 +127,7 @@ services:
       - "8080:8080"
     environment:
       XRPLD_RPC_URL: http://qxrp-validator:6005
+      NETWORK_RPC_URL: ${PUBLIC_RPC}
     env_file:
       - ./dashboard/.env
     volumes:
@@ -244,7 +246,6 @@ EOC
 
 # Live testnet UNL — must match the bonded fleet (see install-qxrp-validator.sh)
 TRUSTED_KEYS="n9KvHaT7SJmratfNFhzktVasbFUjhMDnLPx6tgnuv3pR93BjMcRd,n94NpYCkXPLdmUDw76LHvXRkJ8EYpc3tduM7MnYdMgGLwKVnzMSw,n9MX4NgUkvgGLpr6qYyPNtyWpq8Vp7bcYBkhVCAqWAYR2a8Z4Xtn,n94wZUjfykCnpoejwvA97iDVdY9bhNCoyxBa4qahSbQH5hMEeBAa"
-PUBLIC_RPC="${QXRP_PUBLIC_RPC:-http://46.224.0.140:6005}"
 MIN_FUND_DROPS=1100000000
 MIN_BOND_DROPS=1000000000
 MIN_SYNC_SEQ=1000
@@ -544,6 +545,8 @@ echo ""
 echo "=== VIEW YOUR VALIDATOR ==="
 echo "Dashboard (browser):  http://${PUBLIC_IP}:8080"
 echo "  Open that URL from your laptop. IP alone is not enough — use port :8080."
+echo "  Or paste this IP in the wallet → Run validator → I've started my node:"
+echo "    ${PUBLIC_IP}"
 echo "  If it does not load, open TCP 8080 in your cloud firewall (DigitalOcean → Networking → Firewalls)."
 echo "Block explorer:       https://q-xrp-faucet.vercel.app/scan"
 echo "Wallet / rewards:     https://q-xrp-faucet.vercel.app/wallet"
