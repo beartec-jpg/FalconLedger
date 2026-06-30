@@ -87,7 +87,7 @@ cat > docker-compose.yml << 'EOC'
 version: "3.8"
 services:
   xrpld:
-    image: qxrp/xrpld:latest
+    image: qxrp/xrpld:falcon
     container_name: qxrp-validator
     restart: unless-stopped
     mem_limit: 4g
@@ -207,15 +207,17 @@ AMM
 XChainBridge
 EOC
 
-# Current good validators list (update as needed when adding more)
-# For full Falcon, validators use Falcon public keys (from validation_create with falcon512)
-cat > config/validators.txt << 'EOC'
-[validators]
-n9M1HThMraVC5Fa5xqk7AHpZdjm15HioyVneKVq3JdohwGMQ4pZ9
-n9K7bH53ZhNVU5LVsTBwCchEJvTX8vTVXYyF5EvGGYTE4nn9GtMF
-n9KtL7AC4C62QvPxixj3EKYUki2i5TNFk8SLrussW7LmuHusSsgT
-n9LrpfYjS4MJhvCEPUEPDAheto4NMrpmbuuFfU1uLUsBbn9sZdU5
-EOC
+# Live testnet UNL (classical n9 validator keys)
+TRUSTED_KEYS="n9M1HThMraVC5Fa5xqk7AHpZdjm15HioyVneKVq3JdohwGMQ4pZ9,n9K7bH53ZhNVU5LVsTBwCchEJvTX8vTVXYyF5EvGGYTE4nn9GtMF,n9KtL7AC4C62QvPxixj3EKYUki2i5TNFk8SLrussW7LmuHusSsgT,n9LrpfYjS4MJhvCEPUEPDAheto4NMrpmbuuFfU1uLUsBbn9sZdU5"
+PUBLIC_RPC="${QXRP_PUBLIC_RPC:-http://46.224.0.140:6005}"
+MIN_FUND_DROPS=1100000000
+MIN_BOND_DROPS=1000000000
+
+{
+  echo "[validators]"
+  IFS=',' read -ra KEYS <<< "$TRUSTED_KEYS"
+  for k in "${KEYS[@]}"; do echo "$k"; done
+} > config/validators.txt
 
 chown -R 1001:1001 /var/lib/qxrp-validator
 
@@ -241,105 +243,151 @@ for i in $(seq 1 30); do
   sleep 3
 done
 
-echo "Running wallet one line command with secret: $SECRET_INPUT"
-docker exec qxrp-validator curl -s -X POST -d '{"method":"validation_create","params":[{"key_type":"falcon512"}]}' http://127.0.0.1:5005 \
-  > /tmp/wallet.json
+echo "Generating validator keys (classical consensus + Falcon identity + node peer key)..."
 
-cat /tmp/wallet.json
+rpc_local() {
+  docker exec qxrp-validator curl -sf -X POST http://127.0.0.1:5005 \
+    -H 'Content-Type: application/json' \
+    -d "{\"method\":\"$1\",\"params\":[$2]}"
+}
 
-# Parse validator key (prefer Falcon for full post-quantum)
-VALIDATOR_SECRET=$(python3 -c '
-import json,sys
-try:
-  d = json.load(open("/tmp/wallet.json"))
-  print(d["result"].get("falcon_secret") or d["result"].get("validation_seed") or "FAIL")
-except:
-  print("FAIL")
-' 2>/dev/null || echo "FAIL")
+VAL_JSON=$(rpc_local validation_create '{"key_type":"secp256k1"}')
+VAL_SEED=$(echo "$VAL_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['validation_seed'])")
+VAL_PUBKEY=$(echo "$VAL_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['validation_public_key'])")
 
-PUB=$(python3 -c '
-import json,sys
-try:
-  d = json.load(open("/tmp/wallet.json"))
-  print(d["result"]["validation_public_key"])
-except:
-  print("FAIL")
-' 2>/dev/null || echo "FAIL")
+WP_JSON=$(rpc_local wallet_propose "{\"seed\":\"${VAL_SEED}\",\"key_type\":\"secp256k1\"}")
+ACCOUNT=$(echo "$WP_JSON" | python3 -c "import sys,json; r=json.load(sys.stdin)['result']; print(r['account_id'])")
+CONSENSUS_KEY=$(echo "$WP_JSON" | python3 -c "import sys,json; r=json.load(sys.stdin)['result']; print((r.get('public_key_hex') or r.get('public_key','')).upper())")
 
-if [ "$VALIDATOR_SECRET" != "FAIL" ] && [ "$PUB" != "FAIL" ]; then
-  echo "=== SUCCESS ==="
-  echo "validator_secret: $VALIDATOR_SECRET"
-  echo "validation_public_key: $PUB"
+NODE_JSON=$(rpc_local wallet_propose '{"key_type":"secp256k1"}')
+NODE_SEED=$(echo "$NODE_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['master_seed'])")
 
-  # Patch the config (as root)
-  CFG=/var/lib/qxrp-validator/config/xrpld.cfg
-  sed -i '/\[validation_seed\]/,+1d' $CFG
-  sed -i '/\[validation_falcon_secret\]/,+1d' $CFG
-  cat >> $CFG << EOC
+FALCON_JSON=$(rpc_local wallet_propose '{"key_type":"falcon512"}')
+FALCON_PK=$(echo "$FALCON_JSON" | python3 -c "import sys,json; r=json.load(sys.stdin)['result']; print((r.get('public_key_hex') or r.get('public_key','')).upper())")
 
-[validation_falcon_secret]
-$VALIDATOR_SECRET
+KEYS_FILE=/var/lib/qxrp-validator/validator-keys.json
+python3 - <<PY
+import json, os
+data = {
+    "validation_seed": "${VAL_SEED}",
+    "validation_public_key": "${VAL_PUBKEY}",
+    "consensus_key_hex": "${CONSENSUS_KEY}",
+    "account_address": "${ACCOUNT}",
+    "falcon_public_key_hex": "${FALCON_PK}",
+    "node_seed": "${NODE_SEED}",
+    "payout_address": "${PAYOUT}",
+    "node_name": "${NODE_NAME}",
+    "network_id": 1001,
+}
+with open("${KEYS_FILE}", "w") as f:
+    json.dump(data, f, indent=2)
+os.chmod("${KEYS_FILE}", 0o600)
+PY
+
+CFG=/var/lib/qxrp-validator/config/xrpld.cfg
+sed -i '/\[validation_seed\]/,+1d' "$CFG"
+sed -i '/\[validation_falcon_secret\]/,+1d' "$CFG"
+sed -i '/\[node_seed\]/,+1d' "$CFG"
+cat >> "$CFG" << EOC
+
+[validation_seed]
+${VAL_SEED}
+
+[node_seed]
+${NODE_SEED}
 EOC
-  echo "$PUB" >> /var/lib/qxrp-validator/config/validators.txt
 
-  (cd /var/lib/qxrp-validator && dc up -d)
+echo "$VAL_PUBKEY" >> /var/lib/qxrp-validator/config/validators.txt
+echo "$ACCOUNT" > /var/lib/qxrp-validator/validator-r-address
+echo "$VAL_SEED" > /var/lib/qxrp-validator/validator-master-seed
 
-  echo "Validator is running with its own key."
-else
-  echo "Failed to parse wallet output. Check /tmp/wallet.json and patch manually."
-fi
-
-# === Generate a regular XRPL account (r-address) for the node itself ===
-# This is the address the user must fund with ≥1,100 qXRP for bonding.
-# It is separate from the payout address.
-echo ""
-echo "Generating a fresh validator account (r-address) for bonding..."
-docker exec qxrp-validator curl -s -X POST -d '{"method":"wallet_propose","params":[{"key_type":"falcon512"}]}' http://127.0.0.1:5005 \
-  > /tmp/node_account.json
-
-NODE_R=$(python3 -c '
-import json,sys
-try:
-  d = json.load(open("/tmp/node_account.json"))
-  print(d["result"].get("account_id") or d["result"].get("account") or "FAIL")
-except:
-  print("FAIL")
-' 2>/dev/null || echo "FAIL")
-
-NODE_SECRET=$(python3 -c '
-import json,sys
-try:
-  d = json.load(open("/tmp/node_account.json"))
-  print(d["result"].get("falcon_secret") or d["result"].get("master_seed") or "FAIL")
-except:
-  print("FAIL")
-' 2>/dev/null || echo "FAIL")
-
-if [ "$NODE_R" != "FAIL" ] && [ "$NODE_SECRET" != "FAIL" ]; then
-  echo "$NODE_R" > /var/lib/qxrp-validator/validator-r-address
-  echo "$NODE_SECRET" > /var/lib/qxrp-validator/validator-master-seed
-
-  echo ""
-  echo "=== FUNDING ADDRESS (send qXRP here for bonding) ==="
-  echo "Validator r-address: $NODE_R"
-  echo "Falcon secret (KEEP SECRET, never share): $NODE_SECRET"
-  echo ""
-  echo "Claim 2,000 qXRP from the faucet and send ≥1,100 qXRP to the r-address above."
-  echo "Use the falcon_secret when bonding/signing (this is a Falcon post-quantum account)."
-  echo "This is SEPARATE from your payout address ($PAYOUT)."
-  echo ""
-  echo "Files saved:"
-  echo "  /var/lib/qxrp-validator/validator-r-address"
-  echo "  /var/lib/qxrp-validator/validator-master-seed"
-else
-  echo "Failed to generate validator account. You will need to create one manually."
-fi
+echo "Restarting validator with peer + validation keys..."
+(cd /var/lib/qxrp-validator && dc up -d --force-recreate)
 
 echo ""
+echo "=== FUND THIS VALIDATOR ADDRESS (≥1,100 qXRP) ==="
+echo "Validator r-address: $ACCOUNT"
+echo "Validation public key: $VAL_PUBKEY"
+echo "Payout address (rewards): $PAYOUT"
+echo ""
+echo "Keys saved: $KEYS_FILE"
+echo ""
+
+# Bond when funded (background-friendly: runs up to 30 min)
+BOND_SCRIPT=/var/lib/qxrp-validator/bond-if-funded.sh
+cat > "$BOND_SCRIPT" << 'BOND'
+#!/bin/bash
+set -euo pipefail
+KEYS_FILE="/var/lib/qxrp-validator/validator-keys.json"
+PUBLIC_RPC="${QXRP_PUBLIC_RPC:-http://46.224.0.140:6005}"
+MIN_FUND=1100000000
+MIN_BOND=1000000000
+
+ACCOUNT=$(python3 -c "import json; print(json.load(open('$KEYS_FILE'))['account_address'])")
+VAL_SEED=$(python3 -c "import json; print(json.load(open('$KEYS_FILE'))['validation_seed'])")
+CONSENSUS_KEY=$(python3 -c "import json; print(json.load(open('$KEYS_FILE'))['consensus_key_hex'])")
+FALCON_PK=$(python3 -c "import json; print(json.load(open('$KEYS_FILE'))['falcon_public_key_hex'])")
+
+rpc_local() {
+  docker exec qxrp-validator curl -sf -X POST http://127.0.0.1:5005 \
+    -H 'Content-Type: application/json' \
+    -d "{\"method\":\"$1\",\"params\":[$2]}"
+}
+rpc_public() {
+  curl -sf --max-time 8 -X POST "$PUBLIC_RPC" \
+    -H 'Content-Type: application/json' \
+    -d "{\"method\":\"$1\",\"params\":[$2]}"
+}
+
+echo "Waiting for ≥1,100 qXRP on ${ACCOUNT}..."
+for i in $(seq 1 180); do
+  BAL=$(rpc_public account_info "{\"account\":\"${ACCOUNT}\",\"ledger_index\":\"validated\"}" 2>/dev/null \
+    | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('result',{}).get('account_data',{}).get('Balance','0'))" 2>/dev/null || echo "0")
+  if [[ "${BAL:-0}" -ge "$MIN_FUND" ]]; then
+    echo "Funded: $(python3 -c "print(int(${BAL})/1000000)") qXRP"
+    break
+  fi
+  [[ $((i % 6)) -eq 0 ]] && echo "  … balance ${BAL} drops (need ${MIN_FUND})"
+  sleep 10
+done
+
+if [[ "${BAL:-0}" -lt "$MIN_FUND" ]]; then
+  echo "Timed out — run $0 again after funding."
+  exit 0
+fi
+
+echo "Submitting ValidatorRegister..."
+REG=$(rpc_local sign "{\"tx_json\":{\"TransactionType\":\"ValidatorRegister\",\"Account\":\"${ACCOUNT}\",\"PublicKey\":\"${FALCON_PK}\",\"ConsensusKey\":\"${CONSENSUS_KEY}\",\"Fee\":\"12\"},\"secret\":\"${VAL_SEED}\"}")
+REG_RESULT=$(echo "$REG" | python3 -c "import sys,json; print(json.load(sys.stdin)['result'].get('engine_result','error'))")
+echo "  ValidatorRegister: $REG_RESULT"
+if [[ "$REG_RESULT" == "tesSUCCESS" || "$REG_RESULT" == "terQUEUED" ]]; then
+  BLOB=$(echo "$REG" | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['tx_blob'])")
+  rpc_public submit "{\"tx_blob\":\"${BLOB}\"}" >/dev/null
+  sleep 4
+fi
+
+echo "Submitting ValidatorBond (1,000 qXRP)..."
+BOND=$(rpc_local sign "{\"tx_json\":{\"TransactionType\":\"ValidatorBond\",\"Account\":\"${ACCOUNT}\",\"ConsensusKey\":\"${CONSENSUS_KEY}\",\"BondedAmount\":\"${MIN_BOND}\",\"Fee\":\"12\"},\"secret\":\"${VAL_SEED}\"}")
+BOND_RESULT=$(echo "$BOND" | python3 -c "import sys,json; print(json.load(sys.stdin)['result'].get('engine_result','error'))")
+echo "  ValidatorBond: $BOND_RESULT"
+if [[ "$BOND_RESULT" == "tesSUCCESS" || "$BOND_RESULT" == "terQUEUED" ]]; then
+  BLOB=$(echo "$BOND" | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['tx_blob'])")
+  rpc_public submit "{\"tx_blob\":\"${BLOB}\"}" >/dev/null
+  echo "Bond submitted."
+elif [[ "$BOND_RESULT" == "tecNO_PERMISSION" ]]; then
+  echo "Already bonded."
+else
+  echo "Bond failed — check docker logs qxrp-validator"
+fi
+BOND
+chmod +x "$BOND_SCRIPT"
+
+echo "Starting auto-bond watcher (logs: /var/lib/qxrp-validator/bond.log)..."
+nohup "$BOND_SCRIPT" > /var/lib/qxrp-validator/bond.log 2>&1 &
+
 echo "=== FINAL OUTPUT ==="
-echo "validation_public_key (add to UNL on other nodes): $PUB"
-if [ -n "$PAYOUT" ]; then echo "Payout address (for rewards): $PAYOUT"; fi
-if [ -n "$NODE_NAME" ]; then echo "Node name: $NODE_NAME"; fi
-if [ "$NODE_R" != "FAIL" ]; then echo "Validator r-address (FUND THIS): $NODE_R"; fi
-echo ""
-echo "Bootstrap complete. Validator container is running."
+echo "Validator r-address (FUND THIS): $ACCOUNT"
+echo "validation_public_key: $VAL_PUBKEY"
+if [ -n "$PAYOUT" ]; then echo "Payout address: $PAYOUT"; fi
+echo "Auto-bond running in background once funded."
+echo "Bootstrap complete."
