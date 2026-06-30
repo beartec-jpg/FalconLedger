@@ -36,8 +36,36 @@ if [ -n "$NODE_NAME" ]; then echo "Node name: $NODE_NAME"; fi
 if ! command -v docker &>/dev/null; then
   echo "Installing Docker..."
   apt-get update -qq
-  apt-get install -y -qq curl docker.io python3 || apt-get install -y -qq curl docker.io docker-compose python3 || true
+  apt-get install -y -qq curl docker.io python3 || true
 fi
+
+# Ubuntu docker.io ships without the Compose v2 plugin; install a compose CLI.
+ensure_compose() {
+  if docker compose version &>/dev/null 2>&1; then
+    return 0
+  fi
+  if command -v docker-compose &>/dev/null; then
+    return 0
+  fi
+  echo "Installing Docker Compose..."
+  apt-get update -qq
+  apt-get install -y -qq docker-compose-v2 2>/dev/null \
+    || apt-get install -y -qq docker-compose 2>/dev/null \
+    || true
+}
+
+dc() {
+  if docker compose version &>/dev/null 2>&1; then
+    docker compose "$@"
+  elif command -v docker-compose &>/dev/null; then
+    docker-compose "$@"
+  else
+    echo "ERROR: Docker Compose not found. Install docker-compose-v2 or docker-compose." >&2
+    exit 1
+  fi
+}
+
+ensure_compose
 
 # Ensure qxrp user
 if ! id qxrp &>/dev/null; then
@@ -56,17 +84,13 @@ cd /var/lib/qxrp-validator
 
 # Write docker-compose.yml
 cat > docker-compose.yml << 'EOC'
+version: "3.8"
 services:
   xrpld:
     image: qxrp/xrpld:latest
     container_name: qxrp-validator
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 4G
-        reservations:
-          memory: 2G
+    mem_limit: 4g
     volumes:
       - ./config:/cfg:ro
       - /var/lib/qxrp-validator:/data
@@ -206,11 +230,11 @@ if [ -n "$NODE_NAME" ]; then
 fi
 
 echo "Starting validator container..."
-su - qxrp -c "cd /var/lib/qxrp-validator && docker compose up -d"
+(cd /var/lib/qxrp-validator && dc up -d)
 
 echo "Waiting for RPC to be ready (up to 90s)..."
 for i in $(seq 1 30); do
-  if su - qxrp -c "docker exec qxrp-validator curl -sf --max-time 3 -X POST -d '{\"method\":\"server_info\"}' http://127.0.0.1:5005 > /dev/null 2>&1"; then
+  if docker exec qxrp-validator curl -sf --max-time 3 -X POST -d '{"method":"server_info"}' http://127.0.0.1:5005 > /dev/null 2>&1; then
     echo "RPC ready!"
     break
   fi
@@ -218,9 +242,8 @@ for i in $(seq 1 30); do
 done
 
 echo "Running wallet one line command with secret: $SECRET_INPUT"
-su - qxrp -c "
-docker exec qxrp-validator curl -s -X POST -d '{\"method\":\"validation_create\",\"params\":[{\"key_type\":\"falcon512\"}]}' http://127.0.0.1:5005
-" > /tmp/wallet.json
+docker exec qxrp-validator curl -s -X POST -d '{"method":"validation_create","params":[{"key_type":"falcon512"}]}' http://127.0.0.1:5005 \
+  > /tmp/wallet.json
 
 cat /tmp/wallet.json
 
@@ -259,8 +282,7 @@ $VALIDATOR_SECRET
 EOC
   echo "$PUB" >> /var/lib/qxrp-validator/config/validators.txt
 
-  # Restart as qxrp (for docker group)
-  su - qxrp -c "cd /var/lib/qxrp-validator && docker compose up -d"
+  (cd /var/lib/qxrp-validator && dc up -d)
 
   echo "Validator is running with its own key."
 else
@@ -272,9 +294,8 @@ fi
 # It is separate from the payout address.
 echo ""
 echo "Generating a fresh validator account (r-address) for bonding..."
-su - qxrp -c "
-docker exec qxrp-validator curl -s -X POST -d '{\"method\":\"wallet_propose\",\"params\":[{\"key_type\":\"falcon512\"}]}' http://127.0.0.1:5005
-" > /tmp/node_account.json
+docker exec qxrp-validator curl -s -X POST -d '{"method":"wallet_propose","params":[{"key_type":"falcon512"}]}' http://127.0.0.1:5005 \
+  > /tmp/node_account.json
 
 NODE_R=$(python3 -c '
 import json,sys
