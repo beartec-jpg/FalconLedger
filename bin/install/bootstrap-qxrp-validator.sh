@@ -125,7 +125,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      XRPLD_RPC_URL: http://xrpld:6005
+      XRPLD_RPC_URL: http://qxrp-validator:6005
     env_file:
       - ./dashboard/.env
     volumes:
