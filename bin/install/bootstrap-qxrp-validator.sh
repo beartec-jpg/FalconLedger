@@ -79,7 +79,12 @@ fi
 echo "Setting up directories..."
 mkdir -p /var/lib/qxrp-validator/config
 mkdir -p /var/lib/qxrp-validator/db /var/lib/qxrp-validator/nudb
+mkdir -p /var/lib/qxrp-validator/dashboard
 rm -rf /var/lib/qxrp-validator/db/* /var/lib/qxrp-validator/nudb/*
+DASH_BASE="https://raw.githubusercontent.com/beartec-jpg/qXRP/develop/tools/dashboard"
+curl -fsSL "${DASH_BASE}/server.py" -o /var/lib/qxrp-validator/dashboard/server.py
+curl -fsSL "${DASH_BASE}/requirements.txt" -o /var/lib/qxrp-validator/dashboard/requirements.txt
+echo "VALIDATOR_ACCOUNT=" > /var/lib/qxrp-validator/dashboard/.env
 chown -R 1001:1001 /var/lib/qxrp-validator
 
 cd /var/lib/qxrp-validator
@@ -110,6 +115,31 @@ services:
       retries: 3
       start_period: 60s
     command: ["--conf", "/cfg/xrpld.cfg"]
+    networks:
+      - qxrp
+
+  dashboard:
+    image: python:3.13-slim
+    container_name: qxrp-dashboard
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      XRPLD_RPC_URL: http://xrpld:6005
+    env_file:
+      - ./dashboard/.env
+    volumes:
+      - ./dashboard:/app:ro
+    working_dir: /app
+    command: ["sh", "-c", "pip install -q -r requirements.txt && python3 server.py"]
+    depends_on:
+      - xrpld
+    networks:
+      - qxrp
+
+networks:
+  qxrp:
+    driver: bridge
 EOC
 
 # Write xrpld.cfg (basic + features, no seed yet)
@@ -304,6 +334,8 @@ echo "$VAL_PUBKEY" >> /var/lib/qxrp-validator/config/validators.txt
 echo "$ACCOUNT" > /var/lib/qxrp-validator/validator-r-address
 echo "$VAL_SEED" > /var/lib/qxrp-validator/validator-master-seed
 chmod 600 /var/lib/qxrp-validator/validator-master-seed
+
+printf 'VALIDATOR_ACCOUNT=%s\n' "$ACCOUNT" > /var/lib/qxrp-validator/dashboard/.env
 
 echo "Restarting validator with node peer key (tracking mode, no validation yet)..."
 (cd /var/lib/qxrp-validator && dc up -d --force-recreate)
@@ -502,9 +534,25 @@ chmod +x "$BOND_SCRIPT"
 echo "Starting auto-bond watcher (logs: /var/lib/qxrp-validator/bond.log)..."
 nohup python3 "$BOND_SCRIPT" > /var/lib/qxrp-validator/bond.log 2>&1 &
 
+PUBLIC_IP=$(curl -sf -4 --max-time 5 ifconfig.me 2>/dev/null || curl -sf -4 --max-time 5 icanhazip.com 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}' || echo "YOUR_SERVER_IP")
+
 echo "=== FINAL OUTPUT ==="
 echo "Validator r-address (FUND THIS): $ACCOUNT"
 echo "validation_public_key: $VAL_PUBKEY"
 if [ -n "$PAYOUT" ]; then echo "Payout address: $PAYOUT"; fi
+echo ""
+echo "=== VIEW YOUR VALIDATOR ==="
+echo "Dashboard (browser):  http://${PUBLIC_IP}:8080"
+echo "  Open that URL from your laptop. IP alone is not enough — use port :8080."
+echo "  If it does not load, open TCP 8080 in your cloud firewall (DigitalOcean → Networking → Firewalls)."
+echo "Block explorer:       https://q-xrp-faucet.vercel.app/scan"
+echo "Wallet / rewards:     https://q-xrp-faucet.vercel.app/wallet"
+echo ""
+echo "=== USEFUL COMMANDS (on this server) ==="
+echo "  docker logs -f qxrp-validator          # live validator logs"
+echo "  tail -f /var/lib/qxrp-validator/bond.log   # auto-bond progress"
+echo "  docker logs -f qxrp-dashboard            # dashboard container"
+echo "  docker ps | grep qxrp                    # container status"
+echo ""
 echo "Auto-bond running in background once funded."
 echo "Bootstrap complete."

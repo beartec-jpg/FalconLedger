@@ -22,6 +22,7 @@ from fastapi.responses import HTMLResponse
 
 RPC_URL = os.environ.get("XRPLD_RPC_URL", "http://127.0.0.1:5005")
 LISTEN_PORT = int(os.environ.get("DASHBOARD_PORT", "8080"))
+VALIDATOR_ACCOUNT = os.environ.get("VALIDATOR_ACCOUNT", "")
 
 app = FastAPI(title="qXRP Validator Dashboard", docs_url=None, redoc_url=None)
 
@@ -55,23 +56,23 @@ def index() -> str:
     ledger_seq = vl.get("seq", 0)
     ledger_hash = vl.get("hash", "")
 
-    # Bond / reputation data (if validator is registered)
-    bond_data: Dict[str, Any] = {}
-    if pubkey != "N/A":
-        bond_data = rpc("account_objects", {
-            "account": pubkey,
-            "type": "validator_bond",
+    # Bond / reputation data (validator r-address from VALIDATOR_ACCOUNT env)
+    bond_obj: Dict[str, Any] = {}
+    if VALIDATOR_ACCOUNT:
+        bond_data = rpc("ledger_entry", {
+            "validator_bond": {"account": VALIDATOR_ACCOUNT},
             "ledger_index": "validated",
         })
-
-    bond_obj = {}
-    objects = bond_data.get("account_objects", [])
-    if objects:
-        bond_obj = objects[0]
+        bond_obj = bond_data.get("node", {})
 
     composite_score = bond_obj.get("CompositeScore", "N/A")
-    bond_status = bond_obj.get("BondStatus", "N/A")
-    bond_amount = bond_obj.get("BondAmount", "N/A")
+    raw_bond_status = bond_obj.get("BondStatus", "N/A")
+    bond_status = (
+        {0: "registered", 1: "bonded"}.get(raw_bond_status, str(raw_bond_status))
+        if isinstance(raw_bond_status, int)
+        else raw_bond_status
+    )
+    bond_amount = bond_obj.get("BondedAmount", bond_obj.get("BondAmount", "N/A"))
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
