@@ -1,0 +1,31 @@
+{
+  "name": "falcon-ledger-agent-wallet",
+  "version": "0.1.0",
+  "description": "Agent-first wallet for the Falcon Ledger quantum-resistant blockchain",
+  "private": false,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "14.2.35",
+    "react": "^18",
+    "react-dom": "^18",
+    "xrpl": "^4.0.0",
+    "lucide-react": "^0.400.0",
+    "clsx": "^2.1.0",
+    "qrcode.react": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "autoprefixer": "^10.0.1",
+    "postcss": "^8",
+    "tailwindcss": "^3.4.0",
+    "typescript": "^5"
+  }
+}
