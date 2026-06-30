@@ -26,7 +26,7 @@ set -euo pipefail
 
 # ── Defaults (Falcon testnet) ─────────────────────────────────────────────────
 # Pin to the Falcon-capable build — never use floating :latest across a validator fleet.
-DOCKER_IMAGE="${QXRP_XRPLD_IMAGE:-qxrp/xrpld:falcon}"
+DOCKER_IMAGE="${QXRP_XRPLD_IMAGE:-qxrp/xrpld:latest}"
 NETWORK_ID=1001
 PUBLIC_RPC="${QXRP_PUBLIC_RPC:-http://46.224.0.140:6005}"
 BOOTSTRAP_PEERS="46.224.0.140:51235,167.233.55.43:51235,204.168.175.194:51235,89.167.109.241:51235"

@@ -26,6 +26,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 SECRET_INPUT="${SECRET_INPUT:-qxrp-val-fresh-$(date +%s)}"
+DOCKER_IMAGE="${QXRP_XRPLD_IMAGE:-qxrp/xrpld:latest}"
 
 echo "=== qXRP Validator Bootstrap (fresh server) ==="
 echo "Using secret (wallet input): $SECRET_INPUT"
@@ -82,12 +83,12 @@ chown -R 1001:1001 /var/lib/qxrp-validator
 
 cd /var/lib/qxrp-validator
 
-# Write docker-compose.yml
-cat > docker-compose.yml << 'EOC'
+# Write docker-compose.yml (public hub ships :latest; override with QXRP_XRPLD_IMAGE)
+cat > docker-compose.yml << EOC
 version: "3.8"
 services:
   xrpld:
-    image: qxrp/xrpld:falcon
+    image: ${DOCKER_IMAGE}
     container_name: qxrp-validator
     restart: unless-stopped
     mem_limit: 4g
