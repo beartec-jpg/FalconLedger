@@ -660,6 +660,7 @@ JSS(validated_ledgers);           // out: NetworkOPs
 JSS(validation_key);              // out: ValidationCreate, ValidationSeed
 JSS(validation_private_key);      // out: ValidationCreate
 JSS(validation_public_key);       // out: ValidationCreate, ValidationSeed
+JSS(validation_public_key_hex);   // out: ValidationCreate (classical keys)
 JSS(validation_quorum);           // out: NetworkOPs
 JSS(validation_seed);             // out: ValidationCreate, ValidationSeed
 JSS(validations);                 // out: AmendmentTableImpl

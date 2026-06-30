@@ -286,7 +286,14 @@ CFG
     -H 'Content-Type: application/json' \
     -d "{\"method\":\"wallet_propose\",\"params\":[{\"seed\":\"${VAL_SEED}\",\"key_type\":\"secp256k1\"}]}")
   ACCOUNT=$(echo "$WP_JSON" | python3 -c "import sys,json; r=json.load(sys.stdin)['result']; print(r['account_id'])")
-  CONSENSUS_KEY=$(echo "$WP_JSON" | python3 -c "import sys,json; r=json.load(sys.stdin)['result']; print((r.get('public_key_hex') or r.get('public_key','')).upper())")
+
+  VAL_DETAIL=$(docker exec qxrp_keygen_boot curl -sf -X POST http://127.0.0.1:5999 \
+    -H 'Content-Type: application/json' \
+    -d "{\"method\":\"validation_create\",\"params\":[{\"secret\":\"${VAL_SEED}\",\"key_type\":\"secp256k1\"}]}")
+  CONSENSUS_KEY=$(echo "$VAL_DETAIL" | python3 -c "import sys,json; print(json.load(sys.stdin)['result'].get('validation_public_key_hex','').upper())")
+  if [ -z "$CONSENSUS_KEY" ]; then
+    CONSENSUS_KEY=$(echo "$WP_JSON" | python3 -c "import sys,json; r=json.load(sys.stdin)['result']; print((r.get('public_key_hex') or r.get('public_key','')).upper())")
+  fi
 
   NODE_JSON=$(docker exec qxrp_keygen_boot curl -sf -X POST http://127.0.0.1:5999 \
     -H 'Content-Type: application/json' \

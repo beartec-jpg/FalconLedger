@@ -294,7 +294,15 @@ VAL_PUBKEY=$(echo "$VAL_JSON" | python3 -c "import sys,json; print(json.load(sys
 
 WP_JSON=$(rpc_local wallet_propose "{\"seed\":\"${VAL_SEED}\",\"key_type\":\"secp256k1\"}")
 ACCOUNT=$(echo "$WP_JSON" | python3 -c "import sys,json; r=json.load(sys.stdin)['result']; print(r['account_id'])")
-CONSENSUS_KEY=$(echo "$WP_JSON" | python3 -c "import sys,json; r=json.load(sys.stdin)['result']; print((r.get('public_key_hex') or r.get('public_key','')).upper())")
+
+# sfConsensusKey must be the validation public key bytes (same as UNL n9), NOT
+# the wallet master key — otherwise epoch scoring cannot find the bond SLE.
+VAL_DETAIL=$(rpc_local validation_create "{\"secret\":\"${VAL_SEED}\",\"key_type\":\"secp256k1\"}")
+CONSENSUS_KEY=$(echo "$VAL_DETAIL" | python3 -c "import sys,json; print(json.load(sys.stdin)['result'].get('validation_public_key_hex','').upper())")
+if [ -z "$CONSENSUS_KEY" ]; then
+  echo "WARNING: validation_public_key_hex not in RPC — using wallet key (scoring may fail until image upgrade)"
+  CONSENSUS_KEY=$(echo "$WP_JSON" | python3 -c "import sys,json; r=json.load(sys.stdin)['result']; print((r.get('public_key_hex') or r.get('public_key','')).upper())")
+fi
 
 NODE_JSON=$(rpc_local wallet_propose '{"key_type":"secp256k1"}')
 NODE_SEED=$(echo "$NODE_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['master_seed'])")
@@ -534,6 +542,30 @@ chmod +x "$BOND_SCRIPT"
 
 echo "Starting auto-bond watcher (logs: /var/lib/qxrp-validator/bond.log)..."
 nohup python3 "$BOND_SCRIPT" > /var/lib/qxrp-validator/bond.log 2>&1 &
+
+# Hourly ClaimReward cron (no-op until composite scores exist after epoch boundary)
+CLAIM_SCRIPT="/var/lib/qxrp-validator/claim-rewards.sh"
+cat > "$CLAIM_SCRIPT" <<'CLAIMEOF'
+#!/usr/bin/env bash
+set -euo pipefail
+KEYS_FILE="/var/lib/qxrp-validator/validator-keys.json"
+CONSENSUS_KEY=$(python3 -c "import json; print(json.load(open('${KEYS_FILE}'))['consensus_key_hex'])")
+ACCOUNT=$(python3 -c "import json; print(json.load(open('${KEYS_FILE}'))['account_address'])")
+VAL_SEED=$(python3 -c "import json; print(json.load(open('${KEYS_FILE}'))['validation_seed'])")
+SIGN=$(docker exec qxrp-validator curl -sf -X POST http://127.0.0.1:5005 \
+  -H 'Content-Type: application/json' \
+  -d "{\"method\":\"sign\",\"params\":[{\"tx_json\":{\"TransactionType\":\"ClaimReward\",\"Account\":\"${ACCOUNT}\",\"ConsensusKey\":\"${CONSENSUS_KEY}\",\"Fee\":\"12\"},\"secret\":\"${VAL_SEED}\"}]}")
+RESULT=$(echo "$SIGN" | python3 -c "import sys,json; print(json.load(sys.stdin)['result'].get('engine_result',''))")
+[[ "$RESULT" == "tesSUCCESS" ]] || exit 0
+BLOB=$(echo "$SIGN" | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['tx_blob'])")
+docker exec qxrp-validator curl -sf -X POST http://127.0.0.1:5005 \
+  -H 'Content-Type: application/json' \
+  -d "{\"method\":\"submit\",\"params\":[{\"tx_blob\":\"${BLOB}\"}]}" >/dev/null
+CLAIMEOF
+chmod +x "$CLAIM_SCRIPT"
+CRON_LINE="17 * * * * ${CLAIM_SCRIPT} >> /var/lib/qxrp-validator/claim.log 2>&1"
+( crontab -l 2>/dev/null | grep -vF "$CLAIM_SCRIPT"; echo "$CRON_LINE" ) | crontab -
+echo "Reward claimer installed (hourly cron: ${CLAIM_SCRIPT})"
 
 PUBLIC_IP=$(curl -sf -4 --max-time 5 ifconfig.me 2>/dev/null || curl -sf -4 --max-time 5 icanhazip.com 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}' || echo "YOUR_SERVER_IP")
 

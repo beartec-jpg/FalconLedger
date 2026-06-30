@@ -76,8 +76,12 @@ doValidationCreate(RPC::JsonContext& context)
 
         auto const privateKey = generateSecretKey(keyType, *seed);
 
+        auto const valPk = derivePublicKey(keyType, privateKey);
         obj[jss::validation_public_key] =
-            toBase58(TokenType::NodePublic, derivePublicKey(keyType, privateKey));
+            toBase58(TokenType::NodePublic, valPk);
+        // Raw classical key bytes for ValidatorRegister sfConsensusKey (must
+        // match the UNL n9 key so epoch scoring can resolve the bond SLE).
+        obj[jss::validation_public_key_hex] = strHex(valPk.slice());
 
         obj[jss::validation_private_key] = toBase58(TokenType::NodePrivate, privateKey);
 

@@ -6,8 +6,8 @@
 // applyValidatorScoring() runs once per epoch boundary (seq % kQXRP_LEDGERS_PER_EPOCH == 0).
 // It builds a 256-ledger validation-count table from RCLValidations, then for each trusted
 // UNL key it:
-//   1. Derives AccountID = calcAccountID(pubKey)
-//   2. Looks up ltVALIDATOR_BOND for that account
+//   1. Looks up ltVALIDATOR_BOND via calcValidatorBondID(pubKey.slice())
+//   2. Falls back to legacy bond/UNL pairing when consensus key != UNL key
 //   3. Computes signal BPS values (uptime, vote accuracy, latency, consistency)
 //   4. Multiplies the raw weighted score by sfSlashMultiplier / kBPS_DENOM
 //   5. Writes updated scoring fields back to ltVALIDATOR_BOND

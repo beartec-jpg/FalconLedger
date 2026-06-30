@@ -21,13 +21,102 @@
 #include <xrpl/protocol/SField.h>
 #include <xrpl/protocol/STLedgerEntry.h>
 #include <xrpl/protocol/UintTypes.h>
+#include <xrpl/protocol/tokens.h>
 
 #include <algorithm>
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <vector>
 
 namespace xrpl {
+
+namespace {
+
+std::shared_ptr<SLE const>
+findValidatorBond(ReadView const& view, PublicKey const& pubKey)
+{
+    // Bonds are keyed by calcValidatorBondID(sfConsensusKey) which must be
+    // the same bytes as the UNL validation public key (not the wallet master).
+    if (auto sle = view.read(keylet::validatorBond(calcValidatorBondID(pubKey.slice()))))
+        return sle;
+    if (auto sle = view.read(keylet::validatorBond(calcAccountID(pubKey))))
+        return sle;
+    return nullptr;
+}
+
+struct ScoringTarget
+{
+    std::shared_ptr<SLE> bond;
+    NodeID nodeID{};
+};
+
+void
+scoreBond(
+    ScoringTarget& target,
+    hash_map<NodeID, std::uint32_t> const& scoreTable,
+    LedgerIndex seq,
+    OpenView& view,
+    std::uint32_t& aggregateScore,
+    beast::Journal j)
+{
+    auto sleBond = target.bond;
+    auto const validationCount = [&]() -> std::uint32_t {
+        if (auto it = scoreTable.find(target.nodeID); it != scoreTable.end())
+            return it->second;
+        return 0;
+    }();
+
+    auto const uptimeBps = std::min(
+        static_cast<std::uint32_t>(
+            static_cast<std::uint64_t>(validationCount) * kBPS_DENOM /
+            kFLAG_LEDGER_INTERVAL),
+        kBPS_DENOM);
+
+    auto const voteAccBps = uptimeBps;
+    constexpr std::uint32_t kLATENCY_NEUTRAL_BPS = 5'000;
+    auto const consistencyBps = uptimeBps;
+
+    auto const rawScore = static_cast<std::uint32_t>(
+        (static_cast<std::uint64_t>(uptimeBps)      * kSCORE_WEIGHT_UPTIME +
+         static_cast<std::uint64_t>(voteAccBps)     * kSCORE_WEIGHT_VOTE_ACC +
+         static_cast<std::uint64_t>(kLATENCY_NEUTRAL_BPS) * kSCORE_WEIGHT_LATENCY +
+         static_cast<std::uint64_t>(consistencyBps) * kSCORE_WEIGHT_CONSISTENCY) /
+        100u);
+
+    auto const slashMult = sleBond->getFieldU32(sfSlashMultiplier);
+
+    auto const compositeScore = static_cast<std::uint32_t>(
+        (static_cast<__int128>(rawScore) * slashMult) / kBPS_DENOM);
+
+    auto setScore = [&](SField const& f, std::uint32_t v) {
+        if (v == 0)
+            sleBond->makeFieldAbsent(f);
+        else
+            sleBond->setFieldU32(f, v);
+    };
+    setScore(sfUptimeBps,       uptimeBps);
+    setScore(sfVoteAccuracyBps, voteAccBps);
+    setScore(sfLatencyScoreBps, kLATENCY_NEUTRAL_BPS);
+    setScore(sfConsistencyBps,  consistencyBps);
+    setScore(sfCompositeScore,  compositeScore);
+    sleBond->setFieldU32(sfPreviousTxnLgrSeq, seq);
+    view.rawReplace(sleBond);
+
+    JLOG(j.info()) << "qXRP ValidatorScoring: account=" << sleBond->getAccountID(sfAccount)
+                   << " validations=" << validationCount
+                   << " uptimeBps=" << uptimeBps
+                   << " rawScore=" << rawScore
+                   << " slashMult=" << slashMult
+                   << " compositeScore=" << compositeScore;
+
+    if (compositeScore <= std::numeric_limits<std::uint32_t>::max() - aggregateScore)
+        aggregateScore += compositeScore;
+    else
+        aggregateScore = std::numeric_limits<std::uint32_t>::max();
+}
+
+}  // namespace
 
 void
 applyValidatorScoring(
@@ -38,7 +127,6 @@ applyValidatorScoring(
     Application& app,
     beast::Journal j)
 {
-    // Gate: amendment + epoch boundary only
     if (!rules.enabled(featureProofOfParticipation))
         return;
     if (seq == 0 || seq % kQXRP_LEDGERS_PER_EPOCH != 0)
@@ -46,17 +134,8 @@ applyValidatorScoring(
 
     JLOG(j.debug()) << "qXRP ValidatorScoring: epoch boundary at ledger " << seq;
 
-    // ── 1. Build a NodeID → validation-count table for the last 256 ledgers ──
-    //
-    // Mirrors NegativeUNLVote::buildScoreTable(). The parent ledger's skip list
-    // contains the most recent kFLAG_LEDGER_INTERVAL (256) ancestor hashes.
-
     auto& validations = app.getValidations();
 
-    // Keep the full scoring window [seq-256, seq+256) fresh so that when this
-    // epoch's data is consumed AND so the next epoch's scoring data is retained.
-    // Using just (seq-1) as the low bound caused pre-epoch validations to expire
-    // from the 10-minute cache before scoring fired (256 ledgers * 3.5s ≈ 15 min).
     auto const windowLow =
         (seq > kFLAG_LEDGER_INTERVAL) ? (seq - kFLAG_LEDGER_INTERVAL) : LedgerIndex{1};
     validations.setSeqToKeep(windowLow, seq + kFLAG_LEDGER_INTERVAL);
@@ -80,8 +159,6 @@ applyValidatorScoring(
         return;
     }
 
-    // Build score table: NodeID → number of trusted validations seen in window.
-    // We pre-populate with all current UNL NodeIDs so absent validators get 0.
     auto const unlKeys = app.getValidators().getTrustedMasterKeys();
 
     hash_map<NodeID, std::uint32_t> scoreTable;
@@ -89,9 +166,6 @@ applyValidatorScoring(
     for (auto const& k : unlKeys)
         scoreTable.emplace(calcNodeID(k), std::uint32_t{0});
 
-    // Sequence offset: parent has seq = (this ledger's seq) - 1.
-    // The skip list's most recent entry is the grandparent (seq - 2), so each
-    // ancestor i (0 = most recent) corresponds to ledger sequence seq - 2 - i.
     std::uint32_t totalValsFound = 0;
     for (std::uint32_t i = 0; i < kFLAG_LEDGER_INTERVAL; ++i)
     {
@@ -105,7 +179,6 @@ applyValidatorScoring(
             if (auto it = scoreTable.find(nid); it != scoreTable.end())
                 ++it->second;
         }
-        // Diagnostic: log first few ancestor lookups at info level
         if (i < 3)
         {
             JLOG(j.info()) << "qXRP ValidatorScoring diag: i=" << i
@@ -117,133 +190,100 @@ applyValidatorScoring(
     JLOG(j.info()) << "qXRP ValidatorScoring diag: seq=" << seq
                    << " scoreTableSize=" << scoreTable.size()
                    << " totalValsFoundAcross256=" << totalValsFound;
-    // Log scoreTable keys
-    for (auto const& [nid, cnt] : scoreTable)
-        JLOG(j.info()) << "qXRP ValidatorScoring diag: scoreTable nodeID=" << nid << " count=" << cnt;
-    // Log one example validation nodeID from first ancestor
-    {
-        auto const ancestorHash = ledgerAncestors[numAncestors - 1];
-        auto const ancestorSeq  = static_cast<LedgerIndex>(seq - 2);
-        auto const vals = validations.getTrustedForLedger(ancestorHash, ancestorSeq);
-        for (auto const& v : vals)
-            JLOG(j.info()) << "qXRP ValidatorScoring diag: val nodeID=" << v->getNodeID();
-    }
 
-    // ── 2. Score each bonded validator and update ltVALIDATOR_BOND ──
+    // ── 2. Map bonded validators → UNL NodeID and score ──
 
-    std::uint32_t aggregateScore = 0;
+    hash_set<uint256> scoredBondKeys;
+    std::vector<ScoringTarget> targets;
+    targets.reserve(unlKeys.size());
+
+    std::vector<std::shared_ptr<SLE const>> legacyBonds;
+    std::vector<PublicKey> legacyUnl;
+
     for (auto const& pubKey : unlKeys)
     {
-        // Map UNL key → bond account.  In qXRP validators bond from the account
-        // whose AccountID is derived from their validation public key.
-        auto const accountID = calcAccountID(pubKey);
-        auto sleBond = std::const_pointer_cast<SLE>(view.read(keylet::validatorBond(accountID)));
-        if (!sleBond)
+        auto sleConst = findValidatorBond(view, pubKey);
+        if (!sleConst)
         {
-            JLOG(j.info()) << "qXRP ValidatorScoring diag: accountID=" << accountID << " no bond SLE";
+            JLOG(j.info()) << "qXRP ValidatorScoring diag: no bond for UNL key "
+                           << toBase58(TokenType::NodePublic, pubKey);
+            legacyUnl.push_back(pubKey);
             continue;
         }
 
-        // Only score actively bonded validators; skip registered-only / unbonding.
-        if (sleBond->getFieldU32(sfBondStatus) != kBOND_STATUS_BONDED)
+        if (sleConst->getFieldU32(sfBondStatus) != kBOND_STATUS_BONDED)
         {
-            JLOG(j.info()) << "qXRP ValidatorScoring diag: accountID=" << accountID
-                           << " BondStatus=" << sleBond->getFieldU32(sfBondStatus)
-                           << " != BONDED(" << kBOND_STATUS_BONDED << ") - skipping";
+            JLOG(j.info()) << "qXRP ValidatorScoring diag: bond "
+                           << sleConst->getAccountID(sfAccount)
+                           << " status=" << sleConst->getFieldU32(sfBondStatus)
+                           << " (not bonded)";
             continue;
         }
 
-        auto const nodeID = calcNodeID(pubKey);
-        auto const validationCount = [&]() -> std::uint32_t {
-            if (auto it = scoreTable.find(nodeID); it != scoreTable.end())
-                return it->second;
-            return 0;
-        }();
+        auto const bondKey = sleConst->key().key;
+        if (scoredBondKeys.count(bondKey))
+            continue;
 
-        // ── signal computation ──
-        //
-        // uptimeBps : fraction of the 256-ledger window where a trusted
-        //             validation was observed. Clamped to [0, kBPS_DENOM].
-        auto const uptimeBps = std::min(
-            static_cast<std::uint32_t>(
-                static_cast<std::uint64_t>(validationCount) * kBPS_DENOM /
-                kFLAG_LEDGER_INTERVAL),
-            kBPS_DENOM);
-
-        // voteAccuracyBps: trusted validations are already pre-filtered by the
-        // RCL validation layer, so every counted validation is "accurate".  MVP:
-        // equate with uptime.
-        auto const voteAccBps = uptimeBps;
-
-        // latencyBps: per-message latency data is not tracked in the ledger
-        // state.  Use a neutral mid-point (50%) for the MVP.
-        constexpr std::uint32_t kLATENCY_NEUTRAL_BPS = 5'000;
-
-        // consistencyBps: participation streak consistency.  MVP: equate with
-        // uptime (a validator that is up consistently is consistent).
-        auto const consistencyBps = uptimeBps;
-
-        // ── raw weighted composite score ──
-        //
-        // rawScore = (uptime*40 + voteAcc*30 + latency*15 + consistency*10) / 100
-        // The slash-multiplier weight (5%) is applied separately below so that
-        // slashing always reduces the final score even when all other signals
-        // are at 100%.
-        auto const rawScore = static_cast<std::uint32_t>(
-            (static_cast<std::uint64_t>(uptimeBps)      * kSCORE_WEIGHT_UPTIME +
-             static_cast<std::uint64_t>(voteAccBps)     * kSCORE_WEIGHT_VOTE_ACC +
-             static_cast<std::uint64_t>(kLATENCY_NEUTRAL_BPS) * kSCORE_WEIGHT_LATENCY +
-             static_cast<std::uint64_t>(consistencyBps) * kSCORE_WEIGHT_CONSISTENCY) /
-            100u);
-
-        // sfSlashMultiplier starts at kBPS_DENOM (10 000 = 100%) and is
-        // decremented by each ValidatorSlash transaction.
-        auto const slashMult = sleBond->getFieldU32(sfSlashMultiplier);
-
-        // compositeScore = rawScore * slashMult / kBPS_DENOM
-        // Uses __int128 to avoid overflow on 32-bit × 32-bit before division.
-        auto const compositeScore = static_cast<std::uint32_t>(
-            (static_cast<__int128>(rawScore) * slashMult) / kBPS_DENOM);
-
-        // ── write scoring signals onto the bond object ──
-        // All scoring fields are SoeDefault (default = 0).  setFieldU32 throws
-        // if you try to explicitly store the default value, so we use
-        // makeFieldAbsent to reset a field back to 0 when the score is zero.
-        auto setScore = [&](SField const& f, std::uint32_t v) {
-            if (v == 0)
-                sleBond->makeFieldAbsent(f);
-            else
-                sleBond->setFieldU32(f, v);
-        };
-        setScore(sfUptimeBps,       uptimeBps);
-        setScore(sfVoteAccuracyBps, voteAccBps);
-        setScore(sfLatencyScoreBps, kLATENCY_NEUTRAL_BPS);
-        setScore(sfConsistencyBps,  consistencyBps);
-        setScore(sfCompositeScore,  compositeScore);
-        sleBond->setFieldU32(sfPreviousTxnLgrSeq, seq);
-        view.rawReplace(sleBond);
-
-        JLOG(j.info()) << "qXRP ValidatorScoring: accountID=" << accountID
-                       << " validations=" << validationCount
-                       << " uptimeBps=" << uptimeBps
-                       << " rawScore=" << rawScore
-                       << " slashMult=" << slashMult
-                       << " compositeScore=" << compositeScore;
-
-        // Saturating add to prevent overflow on the aggregate.
-        if (compositeScore <= std::numeric_limits<std::uint32_t>::max() - aggregateScore)
-            aggregateScore += compositeScore;
-        else
-            aggregateScore = std::numeric_limits<std::uint32_t>::max();
+        scoredBondKeys.insert(bondKey);
+        targets.push_back({
+            std::const_pointer_cast<SLE>(sleConst),
+            calcNodeID(pubKey),
+        });
     }
 
-    // ── 3. Write aggregate composite score back to ltREWARD_EPOCH ──
-    //
-    // applyRewardEpoch() already created / updated this singleton earlier in
-    // the same OpenView accumulation pass.
+    // Legacy: bonds keyed by wallet master (sfAccount) while UNL uses n9.
+    for (auto const& sleConst : view.sles)
+    {
+        if (sleConst->getType() != ltVALIDATOR_BOND)
+            continue;
+        if (sleConst->getFieldU32(sfBondStatus) != kBOND_STATUS_BONDED)
+            continue;
+        if (scoredBondKeys.count(sleConst->key().key))
+            continue;
+        legacyBonds.push_back(sleConst);
+    }
+
+    // Pair legacy wallet-keyed bonds with unmatched UNL keys (sorted stable).
+    if (!legacyBonds.empty() && !legacyUnl.empty())
+    {
+        std::sort(
+            legacyBonds.begin(),
+            legacyBonds.end(),
+            [](auto const& a, auto const& b) {
+                return a->getAccountID(sfAccount) < b->getAccountID(sfAccount);
+            });
+        std::sort(
+            legacyUnl.begin(),
+            legacyUnl.end(),
+            [](PublicKey const& a, PublicKey const& b) {
+                return toBase58(TokenType::NodePublic, a) <
+                    toBase58(TokenType::NodePublic, b);
+            });
+
+        auto const n = std::min(legacyBonds.size(), legacyUnl.size());
+        JLOG(j.warn()) << "qXRP ValidatorScoring: legacy bond/UNL pairing for "
+                       << n << " validators (re-bond with validation_public_key_hex "
+                       << "as ConsensusKey to remove this fallback)";
+
+        for (std::size_t i = 0; i < n; ++i)
+        {
+            auto const& sleConst = legacyBonds[i];
+            if (scoredBondKeys.count(sleConst->key().key))
+                continue;
+            scoredBondKeys.insert(sleConst->key().key);
+            targets.push_back({
+                std::const_pointer_cast<SLE>(sleConst),
+                calcNodeID(legacyUnl[i]),
+            });
+        }
+    }
+
+    std::uint32_t aggregateScore = 0;
+    for (auto& target : targets)
+        scoreBond(target, scoreTable, seq, view, aggregateScore, j);
+
     if (auto sleEpoch = std::const_pointer_cast<SLE>(view.read(keylet::rewardEpoch())))
     {
-        // sfAggregateCompositeScore is SoeDefault; must not explicitly set 0.
         if (aggregateScore == 0)
             sleEpoch->makeFieldAbsent(sfAggregateCompositeScore);
         else
@@ -258,7 +298,7 @@ applyValidatorScoring(
 
     JLOG(j.debug()) << "qXRP ValidatorScoring: seq=" << seq
                     << " aggregateCompositeScore=" << aggregateScore
-                    << " scored " << unlKeys.size() << " UNL keys.";
+                    << " scored " << targets.size() << " bonded validators.";
 }
 
 }  // namespace xrpl
