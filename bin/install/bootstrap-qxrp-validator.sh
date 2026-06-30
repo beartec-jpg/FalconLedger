@@ -75,10 +75,11 @@ if ! id qxrp &>/dev/null; then
   usermod -aG docker qxrp || true
 fi
 
-# Setup directories
+# Setup directories (wipe stale ledger data from any previous broken run)
 echo "Setting up directories..."
 mkdir -p /var/lib/qxrp-validator/config
 mkdir -p /var/lib/qxrp-validator/db /var/lib/qxrp-validator/nudb
+rm -rf /var/lib/qxrp-validator/db/* /var/lib/qxrp-validator/nudb/*
 chown -R 1001:1001 /var/lib/qxrp-validator
 
 cd /var/lib/qxrp-validator
@@ -178,9 +179,12 @@ time.apple.com
 time.nist.gov
 pool.ntp.org
 
-# Bootstrap peer: the 8GB full history node
+# Bootstrap peers (full-history + fleet validators)
 [ips_fixed]
 46.224.0.140 51235
+167.233.55.43 51235
+204.168.175.194 51235
+89.167.109.241 51235
 
 [transaction_queue]
 minimum_txn_in_ledger = 100
@@ -208,11 +212,12 @@ AMM
 XChainBridge
 EOC
 
-# Live testnet UNL (classical n9 validator keys)
-TRUSTED_KEYS="n9M1HThMraVC5Fa5xqk7AHpZdjm15HioyVneKVq3JdohwGMQ4pZ9,n9K7bH53ZhNVU5LVsTBwCchEJvTX8vTVXYyF5EvGGYTE4nn9GtMF,n9KtL7AC4C62QvPxixj3EKYUki2i5TNFk8SLrussW7LmuHusSsgT,n9LrpfYjS4MJhvCEPUEPDAheto4NMrpmbuuFfU1uLUsBbn9sZdU5"
+# Live testnet UNL — must match the bonded fleet (see install-qxrp-validator.sh)
+TRUSTED_KEYS="n9KvHaT7SJmratfNFhzktVasbFUjhMDnLPx6tgnuv3pR93BjMcRd,n94NpYCkXPLdmUDw76LHvXRkJ8EYpc3tduM7MnYdMgGLwKVnzMSw,n9MX4NgUkvgGLpr6qYyPNtyWpq8Vp7bcYBkhVCAqWAYR2a8Z4Xtn,n94wZUjfykCnpoejwvA97iDVdY9bhNCoyxBa4qahSbQH5hMEeBAa"
 PUBLIC_RPC="${QXRP_PUBLIC_RPC:-http://46.224.0.140:6005}"
 MIN_FUND_DROPS=1100000000
 MIN_BOND_DROPS=1000000000
+MIN_SYNC_SEQ=1000
 
 {
   echo "[validators]"
@@ -291,9 +296,6 @@ sed -i '/\[validation_falcon_secret\]/,+1d' "$CFG"
 sed -i '/\[node_seed\]/,+1d' "$CFG"
 cat >> "$CFG" << EOC
 
-[validation_seed]
-${VAL_SEED}
-
 [node_seed]
 ${NODE_SEED}
 EOC
@@ -301,8 +303,41 @@ EOC
 echo "$VAL_PUBKEY" >> /var/lib/qxrp-validator/config/validators.txt
 echo "$ACCOUNT" > /var/lib/qxrp-validator/validator-r-address
 echo "$VAL_SEED" > /var/lib/qxrp-validator/validator-master-seed
+chmod 600 /var/lib/qxrp-validator/validator-master-seed
 
-echo "Restarting validator with peer + validation keys..."
+echo "Restarting validator with node peer key (tracking mode, no validation yet)..."
+(cd /var/lib/qxrp-validator && dc up -d --force-recreate)
+
+echo "Waiting for ledger sync before enabling validation (up to 10 min)..."
+SYNCED=0
+for i in $(seq 1 120); do
+  INFO=$(docker exec qxrp-validator curl -sf -X POST http://127.0.0.1:5005 \
+    -H 'Content-Type: application/json' \
+    -d '{"method":"server_info","params":[{}]}' 2>/dev/null || echo '{}')
+  STATE=$(echo "$INFO" | python3 -c "import sys,json; print(json.load(sys.stdin).get('result',{}).get('info',{}).get('server_state',''))" 2>/dev/null || echo "")
+  SEQ=$(echo "$INFO" | python3 -c "import sys,json; print(json.load(sys.stdin).get('result',{}).get('info',{}).get('validated_ledger',{}).get('seq',0))" 2>/dev/null || echo "0")
+  LEDGERS=$(echo "$INFO" | python3 -c "import sys,json; print(json.load(sys.stdin).get('result',{}).get('info',{}).get('complete_ledgers',''))" 2>/dev/null || echo "")
+  if [[ $((i % 6)) -eq 1 ]]; then
+    echo "  … state=${STATE:-?} seq=${SEQ} ledgers=${LEDGERS:-?}"
+  fi
+  if [[ "${STATE}" == "full" || "${STATE}" == "proposing" ]] && [[ "${SEQ}" -gt "${MIN_SYNC_SEQ}" ]]; then
+    SYNCED=1
+    echo "Ledger sync OK (seq ${SEQ})."
+    break
+  fi
+  sleep 5
+done
+if [[ "$SYNCED" -eq 0 ]]; then
+  echo "WARNING: sync not confirmed — bonding may fail until the node catches up."
+fi
+
+cat >> "$CFG" << EOC
+
+[validation_seed]
+${VAL_SEED}
+EOC
+
+echo "Enabling validation and restarting..."
 (cd /var/lib/qxrp-validator && dc up -d --force-recreate)
 
 echo ""
@@ -318,17 +353,19 @@ echo ""
 BOND_SCRIPT=/var/lib/qxrp-validator/bond-if-funded.py
 cat > "$BOND_SCRIPT" << 'BOND'
 #!/usr/bin/env python3
-"""Wait for validator funding, then ValidatorRegister + ValidatorBond."""
+"""Wait for funding + local sync, then bond via sign (local) + submit (public RPC)."""
 import json
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.request
 
 KEYS_FILE = "/var/lib/qxrp-validator/validator-keys.json"
 PUBLIC_RPC = __import__("os").environ.get("QXRP_PUBLIC_RPC", "http://46.224.0.140:6005")
 MIN_FUND = 1_100_000_000
 MIN_BOND = 1_000_000_000
+MIN_SYNC_SEQ = 1000
 
 
 def rpc(url, method, params=None):
@@ -348,12 +385,48 @@ def rpc_local(method, params=None):
     return json.loads(out)
 
 
-def submit_tx(tx_json, secret):
-    r = rpc_local("submit", {"tx_json": tx_json, "secret": secret})
-    result = r.get("result", r)
-    if "error" in result:
-        raise RuntimeError(f"{result.get('error')}: {result.get('error_message', '')}")
-    return result
+def local_validated_seq():
+    try:
+        info = rpc_local("server_info", {})
+        return int(info.get("result", {}).get("info", {}).get("validated_ledger", {}).get("seq", 0))
+    except Exception:
+        return 0
+
+
+def wait_for_local_sync():
+    print("Waiting for local validated ledger (needed for signing)...")
+    for i in range(120):
+        seq = local_validated_seq()
+        if seq > MIN_SYNC_SEQ:
+            print(f"  Local ledger ready (seq {seq}).")
+            return
+        if i % 6 == 0:
+            print(f"  … local seq {seq} (need > {MIN_SYNC_SEQ})")
+        time.sleep(5)
+    print("ERROR: local node has no validated ledger — check: docker logs qxrp-validator")
+    sys.exit(1)
+
+
+def sign_and_submit_public(tx_json, secret):
+    """Sign on local admin RPC; broadcast signed blob via public RPC."""
+    sign = rpc_local("sign", {"tx_json": tx_json, "secret": secret})
+    result = sign.get("result", sign)
+    if result.get("error"):
+        err = result.get("error", "error")
+        msg = result.get("error_message", "")
+        raise RuntimeError(f"{err}: {msg}")
+
+    blob = result["tx_blob"]
+    sign_eng = result.get("engine_result", "")
+
+    sub = rpc(PUBLIC_RPC, "submit", {"tx_blob": blob})
+    sres = sub.get("result", sub)
+    if sres.get("error") and not sres.get("engine_result"):
+        raise RuntimeError(f"{sres.get('error')}: {sres.get('error_message', '')}")
+
+    eng = sres.get("engine_result", sign_eng or "unknown")
+    msg = sres.get("engine_result_message", result.get("engine_result_message", ""))
+    return eng, msg
 
 
 def main():
@@ -372,7 +445,7 @@ def main():
             if bal >= MIN_FUND:
                 print(f"Funded: {bal / 1_000_000} qXRP")
                 break
-        except Exception:
+        except (urllib.error.URLError, KeyError, ValueError):
             bal = 0
         if i % 6 == 0:
             print(f"  … balance {bal} drops (need {MIN_FUND})")
@@ -381,35 +454,41 @@ def main():
         print("Timed out — run again after funding.")
         return
 
+    wait_for_local_sync()
+
     print("Submitting ValidatorRegister...")
-    reg = submit_tx({
-        "TransactionType": "ValidatorRegister",
-        "Account": account,
-        "PublicKey": falcon_pk,
-        "ConsensusKey": consensus,
-        "Fee": "12",
-    }, secret)
-    eng = reg.get("engine_result", "unknown")
-    print(f"  ValidatorRegister: {eng}")
-    if eng not in ("tesSUCCESS", "tecDUPLICATE", "terQUEUED"):
-        print(f"  message: {reg.get('engine_result_message', '')}")
+    try:
+        eng, msg = sign_and_submit_public({
+            "TransactionType": "ValidatorRegister",
+            "Account": account,
+            "PublicKey": falcon_pk,
+            "ConsensusKey": consensus,
+            "Fee": "12",
+        }, secret)
+    except RuntimeError as e:
+        print(f"  ValidatorRegister: error — {e}")
         sys.exit(1)
-    time.sleep(4)
+    print(f"  ValidatorRegister: {eng}" + (f" — {msg}" if msg else ""))
+    if eng not in ("tesSUCCESS", "tecDUPLICATE", "terQUEUED"):
+        sys.exit(1)
+    time.sleep(5)
 
     print("Submitting ValidatorBond (1,000 qXRP)...")
-    bond = submit_tx({
-        "TransactionType": "ValidatorBond",
-        "Account": account,
-        "ConsensusKey": consensus,
-        "BondedAmount": str(MIN_BOND),
-        "Fee": "12",
-    }, secret)
-    eng = bond.get("engine_result", "unknown")
-    print(f"  ValidatorBond: {eng}")
+    try:
+        eng, msg = sign_and_submit_public({
+            "TransactionType": "ValidatorBond",
+            "Account": account,
+            "ConsensusKey": consensus,
+            "BondedAmount": str(MIN_BOND),
+            "Fee": "12",
+        }, secret)
+    except RuntimeError as e:
+        print(f"  ValidatorBond: error — {e}")
+        sys.exit(1)
+    print(f"  ValidatorBond: {eng}" + (f" — {msg}" if msg else ""))
     if eng == "tecNO_PERMISSION":
         print("  Already bonded.")
     elif eng not in ("tesSUCCESS", "terQUEUED"):
-        print(f"  message: {bond.get('engine_result_message', '')}")
         sys.exit(1)
     else:
         print("Bond complete.")
