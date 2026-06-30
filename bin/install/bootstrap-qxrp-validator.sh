@@ -314,77 +314,114 @@ echo ""
 echo "Keys saved: $KEYS_FILE"
 echo ""
 
-# Bond when funded (background-friendly: runs up to 30 min)
-BOND_SCRIPT=/var/lib/qxrp-validator/bond-if-funded.sh
+# Bond when funded (Python — avoids bash JSON limits with long Falcon hex keys)
+BOND_SCRIPT=/var/lib/qxrp-validator/bond-if-funded.py
 cat > "$BOND_SCRIPT" << 'BOND'
-#!/bin/bash
-set -euo pipefail
-KEYS_FILE="/var/lib/qxrp-validator/validator-keys.json"
-PUBLIC_RPC="${QXRP_PUBLIC_RPC:-http://46.224.0.140:6005}"
-MIN_FUND=1100000000
-MIN_BOND=1000000000
+#!/usr/bin/env python3
+"""Wait for validator funding, then ValidatorRegister + ValidatorBond."""
+import json
+import subprocess
+import sys
+import time
+import urllib.request
 
-ACCOUNT=$(python3 -c "import json; print(json.load(open('$KEYS_FILE'))['account_address'])")
-VAL_SEED=$(python3 -c "import json; print(json.load(open('$KEYS_FILE'))['validation_seed'])")
-CONSENSUS_KEY=$(python3 -c "import json; print(json.load(open('$KEYS_FILE'))['consensus_key_hex'])")
-FALCON_PK=$(python3 -c "import json; print(json.load(open('$KEYS_FILE'))['falcon_public_key_hex'])")
+KEYS_FILE = "/var/lib/qxrp-validator/validator-keys.json"
+PUBLIC_RPC = __import__("os").environ.get("QXRP_PUBLIC_RPC", "http://46.224.0.140:6005")
+MIN_FUND = 1_100_000_000
+MIN_BOND = 1_000_000_000
 
-rpc_local() {
-  docker exec qxrp-validator curl -sf -X POST http://127.0.0.1:5005 \
-    -H 'Content-Type: application/json' \
-    -d "{\"method\":\"$1\",\"params\":[$2]}"
-}
-rpc_public() {
-  curl -sf --max-time 8 -X POST "$PUBLIC_RPC" \
-    -H 'Content-Type: application/json' \
-    -d "{\"method\":\"$1\",\"params\":[$2]}"
-}
 
-echo "Waiting for ≥1,100 qXRP on ${ACCOUNT}..."
-for i in $(seq 1 180); do
-  BAL=$(rpc_public account_info "{\"account\":\"${ACCOUNT}\",\"ledger_index\":\"validated\"}" 2>/dev/null \
-    | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('result',{}).get('account_data',{}).get('Balance','0'))" 2>/dev/null || echo "0")
-  if [[ "${BAL:-0}" -ge "$MIN_FUND" ]]; then
-    echo "Funded: $(python3 -c "print(int(${BAL})/1000000)") qXRP"
-    break
-  fi
-  [[ $((i % 6)) -eq 0 ]] && echo "  … balance ${BAL} drops (need ${MIN_FUND})"
-  sleep 10
-done
+def rpc(url, method, params=None):
+    body = json.dumps({"method": method, "params": [params or {}]}).encode()
+    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        return json.loads(resp.read())
 
-if [[ "${BAL:-0}" -lt "$MIN_FUND" ]]; then
-  echo "Timed out — run $0 again after funding."
-  exit 0
-fi
 
-echo "Submitting ValidatorRegister..."
-REG=$(rpc_local sign "{\"tx_json\":{\"TransactionType\":\"ValidatorRegister\",\"Account\":\"${ACCOUNT}\",\"PublicKey\":\"${FALCON_PK}\",\"ConsensusKey\":\"${CONSENSUS_KEY}\",\"Fee\":\"12\"},\"secret\":\"${VAL_SEED}\"}")
-REG_RESULT=$(echo "$REG" | python3 -c "import sys,json; print(json.load(sys.stdin)['result'].get('engine_result','error'))")
-echo "  ValidatorRegister: $REG_RESULT"
-if [[ "$REG_RESULT" == "tesSUCCESS" || "$REG_RESULT" == "terQUEUED" ]]; then
-  BLOB=$(echo "$REG" | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['tx_blob'])")
-  rpc_public submit "{\"tx_blob\":\"${BLOB}\"}" >/dev/null
-  sleep 4
-fi
+def rpc_local(method, params=None):
+    payload = json.dumps({"method": method, "params": [params or {}]})
+    out = subprocess.check_output(
+        ["docker", "exec", "qxrp-validator", "curl", "-sf", "-X", "POST",
+         "http://127.0.0.1:5005", "-H", "Content-Type: application/json", "-d", payload],
+        text=True,
+    )
+    return json.loads(out)
 
-echo "Submitting ValidatorBond (1,000 qXRP)..."
-BOND=$(rpc_local sign "{\"tx_json\":{\"TransactionType\":\"ValidatorBond\",\"Account\":\"${ACCOUNT}\",\"ConsensusKey\":\"${CONSENSUS_KEY}\",\"BondedAmount\":\"${MIN_BOND}\",\"Fee\":\"12\"},\"secret\":\"${VAL_SEED}\"}")
-BOND_RESULT=$(echo "$BOND" | python3 -c "import sys,json; print(json.load(sys.stdin)['result'].get('engine_result','error'))")
-echo "  ValidatorBond: $BOND_RESULT"
-if [[ "$BOND_RESULT" == "tesSUCCESS" || "$BOND_RESULT" == "terQUEUED" ]]; then
-  BLOB=$(echo "$BOND" | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['tx_blob'])")
-  rpc_public submit "{\"tx_blob\":\"${BLOB}\"}" >/dev/null
-  echo "Bond submitted."
-elif [[ "$BOND_RESULT" == "tecNO_PERMISSION" ]]; then
-  echo "Already bonded."
-else
-  echo "Bond failed — check docker logs qxrp-validator"
-fi
+
+def submit_tx(tx_json, secret):
+    r = rpc_local("submit", {"tx_json": tx_json, "secret": secret})
+    result = r.get("result", r)
+    if "error" in result:
+        raise RuntimeError(f"{result.get('error')}: {result.get('error_message', '')}")
+    return result
+
+
+def main():
+    keys = json.load(open(KEYS_FILE))
+    account = keys["account_address"]
+    secret = keys["validation_seed"]
+    consensus = keys["consensus_key_hex"]
+    falcon_pk = keys["falcon_public_key_hex"]
+
+    print(f"Waiting for ≥1,100 qXRP on {account}...")
+    bal = 0
+    for i in range(180):
+        try:
+            info = rpc(PUBLIC_RPC, "account_info", {"account": account, "ledger_index": "validated"})
+            bal = int(info["result"]["account_data"]["Balance"])
+            if bal >= MIN_FUND:
+                print(f"Funded: {bal / 1_000_000} qXRP")
+                break
+        except Exception:
+            bal = 0
+        if i % 6 == 0:
+            print(f"  … balance {bal} drops (need {MIN_FUND})")
+        time.sleep(10)
+    else:
+        print("Timed out — run again after funding.")
+        return
+
+    print("Submitting ValidatorRegister...")
+    reg = submit_tx({
+        "TransactionType": "ValidatorRegister",
+        "Account": account,
+        "PublicKey": falcon_pk,
+        "ConsensusKey": consensus,
+        "Fee": "12",
+    }, secret)
+    eng = reg.get("engine_result", "unknown")
+    print(f"  ValidatorRegister: {eng}")
+    if eng not in ("tesSUCCESS", "tecDUPLICATE", "terQUEUED"):
+        print(f"  message: {reg.get('engine_result_message', '')}")
+        sys.exit(1)
+    time.sleep(4)
+
+    print("Submitting ValidatorBond (1,000 qXRP)...")
+    bond = submit_tx({
+        "TransactionType": "ValidatorBond",
+        "Account": account,
+        "ConsensusKey": consensus,
+        "BondedAmount": str(MIN_BOND),
+        "Fee": "12",
+    }, secret)
+    eng = bond.get("engine_result", "unknown")
+    print(f"  ValidatorBond: {eng}")
+    if eng == "tecNO_PERMISSION":
+        print("  Already bonded.")
+    elif eng not in ("tesSUCCESS", "terQUEUED"):
+        print(f"  message: {bond.get('engine_result_message', '')}")
+        sys.exit(1)
+    else:
+        print("Bond complete.")
+
+
+if __name__ == "__main__":
+    main()
 BOND
 chmod +x "$BOND_SCRIPT"
 
 echo "Starting auto-bond watcher (logs: /var/lib/qxrp-validator/bond.log)..."
-nohup "$BOND_SCRIPT" > /var/lib/qxrp-validator/bond.log 2>&1 &
+nohup python3 "$BOND_SCRIPT" > /var/lib/qxrp-validator/bond.log 2>&1 &
 
 echo "=== FINAL OUTPUT ==="
 echo "Validator r-address (FUND THIS): $ACCOUNT"
