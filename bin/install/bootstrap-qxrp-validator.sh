@@ -280,7 +280,7 @@ for i in $(seq 1 30); do
   sleep 3
 done
 
-echo "Generating validator keys (classical consensus + Falcon identity + node peer key)..."
+echo "Generating Falcon-512 validator keys (account + consensus + on-chain identity)..."
 
 rpc_local() {
   docker exec qxrp-validator curl -sf -X POST http://127.0.0.1:5005 \
@@ -288,37 +288,23 @@ rpc_local() {
     -d "{\"method\":\"$1\",\"params\":[$2]}"
 }
 
-VAL_JSON=$(rpc_local validation_create '{"key_type":"secp256k1"}')
-VAL_SEED=$(echo "$VAL_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['validation_seed'])")
-VAL_PUBKEY=$(echo "$VAL_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['validation_public_key'])")
-
-WP_JSON=$(rpc_local wallet_propose "{\"seed\":\"${VAL_SEED}\",\"key_type\":\"secp256k1\"}")
-ACCOUNT=$(echo "$WP_JSON" | python3 -c "import sys,json; r=json.load(sys.stdin)['result']; print(r['account_id'])")
-
-# sfConsensusKey must be the validation public key bytes (same as UNL n9), NOT
-# the wallet master key — otherwise epoch scoring cannot find the bond SLE.
-VAL_DETAIL=$(rpc_local validation_create "{\"secret\":\"${VAL_SEED}\",\"key_type\":\"secp256k1\"}")
-CONSENSUS_KEY=$(echo "$VAL_DETAIL" | python3 -c "import sys,json; print(json.load(sys.stdin)['result'].get('validation_public_key_hex','').upper())")
-if [ -z "$CONSENSUS_KEY" ]; then
-  echo "WARNING: validation_public_key_hex not in RPC — using wallet key (scoring may fail until image upgrade)"
-  CONSENSUS_KEY=$(echo "$WP_JSON" | python3 -c "import sys,json; r=json.load(sys.stdin)['result']; print((r.get('public_key_hex') or r.get('public_key','')).upper())")
-fi
+FALCON_JSON=$(rpc_local wallet_propose '{"key_type":"falcon512"}')
+ACCOUNT=$(echo "$FALCON_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['account_id'])")
+FALCON_SECRET=$(echo "$FALCON_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['falcon_secret'])")
+FALCON_PK=$(echo "$FALCON_JSON" | python3 -c "import sys,json; r=json.load(sys.stdin)['result']; print((r.get('public_key_hex') or r.get('public_key','')).upper())")
 
 NODE_JSON=$(rpc_local wallet_propose '{"key_type":"secp256k1"}')
 NODE_SEED=$(echo "$NODE_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['master_seed'])")
-
-FALCON_JSON=$(rpc_local wallet_propose '{"key_type":"falcon512"}')
-FALCON_PK=$(echo "$FALCON_JSON" | python3 -c "import sys,json; r=json.load(sys.stdin)['result']; print((r.get('public_key_hex') or r.get('public_key','')).upper())")
 
 KEYS_FILE=/var/lib/qxrp-validator/validator-keys.json
 python3 - <<PY
 import json, os
 data = {
-    "validation_seed": "${VAL_SEED}",
-    "validation_public_key": "${VAL_PUBKEY}",
-    "consensus_key_hex": "${CONSENSUS_KEY}",
-    "account_address": "${ACCOUNT}",
+    "falcon_secret": "${FALCON_SECRET}",
+    "validation_public_key_hex": "${FALCON_PK}",
+    "consensus_key_hex": "${FALCON_PK}",
     "falcon_public_key_hex": "${FALCON_PK}",
+    "account_address": "${ACCOUNT}",
     "node_seed": "${NODE_SEED}",
     "payout_address": "${PAYOUT}",
     "node_name": "${NODE_NAME}",
@@ -339,10 +325,8 @@ cat >> "$CFG" << EOC
 ${NODE_SEED}
 EOC
 
-echo "$VAL_PUBKEY" >> /var/lib/qxrp-validator/config/validators.txt
+grep -q "$FALCON_PK" /var/lib/qxrp-validator/config/validators.txt 2>/dev/null || echo "$FALCON_PK" >> /var/lib/qxrp-validator/config/validators.txt
 echo "$ACCOUNT" > /var/lib/qxrp-validator/validator-r-address
-echo "$VAL_SEED" > /var/lib/qxrp-validator/validator-master-seed
-chmod 600 /var/lib/qxrp-validator/validator-master-seed
 
 printf 'VALIDATOR_ACCOUNT=%s\n' "$ACCOUNT" > /var/lib/qxrp-validator/dashboard/.env
 
@@ -374,17 +358,17 @@ fi
 
 cat >> "$CFG" << EOC
 
-[validation_seed]
-${VAL_SEED}
+[validation_falcon_secret]
+${FALCON_SECRET}
 EOC
 
-echo "Enabling validation and restarting..."
+echo "Enabling Falcon validation and restarting..."
 (cd /var/lib/qxrp-validator && dc up -d --force-recreate)
 
 echo ""
 echo "=== FUND THIS VALIDATOR ADDRESS (≥1,100 qXRP) ==="
 echo "Validator r-address: $ACCOUNT"
-echo "Validation public key: $VAL_PUBKEY"
+echo "Falcon validator public key (hex): $FALCON_PK"
 echo "Payout address (rewards): $PAYOUT"
 echo ""
 echo "Keys saved: $KEYS_FILE"
@@ -448,9 +432,9 @@ def wait_for_local_sync():
     sys.exit(1)
 
 
-def sign_and_submit_public(tx_json, secret):
+def sign_and_submit_public(tx_json, falcon_secret):
     """Sign on local admin RPC; broadcast signed blob via public RPC."""
-    sign = rpc_local("sign", {"tx_json": tx_json, "secret": secret})
+    sign = rpc_local("sign", {"tx_json": tx_json, "falcon_secret": falcon_secret})
     result = sign.get("result", sign)
     if result.get("error"):
         err = result.get("error", "error")
@@ -473,7 +457,7 @@ def sign_and_submit_public(tx_json, secret):
 def main():
     keys = json.load(open(KEYS_FILE))
     account = keys["account_address"]
-    secret = keys["validation_seed"]
+    falcon_secret = keys["falcon_secret"]
     consensus = keys["consensus_key_hex"]
     falcon_pk = keys["falcon_public_key_hex"]
 
@@ -505,7 +489,7 @@ def main():
             "PublicKey": falcon_pk,
             "ConsensusKey": consensus,
             "Fee": "12",
-        }, secret)
+        }, falcon_secret)
     except RuntimeError as e:
         print(f"  ValidatorRegister: error — {e}")
         sys.exit(1)
@@ -522,7 +506,7 @@ def main():
             "ConsensusKey": consensus,
             "BondedAmount": str(MIN_BOND),
             "Fee": "12",
-        }, secret)
+        }, falcon_secret)
     except RuntimeError as e:
         print(f"  ValidatorBond: error — {e}")
         sys.exit(1)
@@ -551,10 +535,10 @@ set -euo pipefail
 KEYS_FILE="/var/lib/qxrp-validator/validator-keys.json"
 CONSENSUS_KEY=$(python3 -c "import json; print(json.load(open('${KEYS_FILE}'))['consensus_key_hex'])")
 ACCOUNT=$(python3 -c "import json; print(json.load(open('${KEYS_FILE}'))['account_address'])")
-VAL_SEED=$(python3 -c "import json; print(json.load(open('${KEYS_FILE}'))['validation_seed'])")
+FALCON_SECRET=$(python3 -c "import json; print(json.load(open('${KEYS_FILE}'))['falcon_secret'])")
 SIGN=$(docker exec qxrp-validator curl -sf -X POST http://127.0.0.1:5005 \
   -H 'Content-Type: application/json' \
-  -d "{\"method\":\"sign\",\"params\":[{\"tx_json\":{\"TransactionType\":\"ClaimReward\",\"Account\":\"${ACCOUNT}\",\"ConsensusKey\":\"${CONSENSUS_KEY}\",\"Fee\":\"12\"},\"secret\":\"${VAL_SEED}\"}]}")
+  -d "{\"method\":\"sign\",\"params\":[{\"tx_json\":{\"TransactionType\":\"ClaimReward\",\"Account\":\"${ACCOUNT}\",\"ConsensusKey\":\"${CONSENSUS_KEY}\",\"Fee\":\"12\"},\"falcon_secret\":\"${FALCON_SECRET}\"}]}")
 RESULT=$(echo "$SIGN" | python3 -c "import sys,json; print(json.load(sys.stdin)['result'].get('engine_result',''))")
 [[ "$RESULT" == "tesSUCCESS" ]] || exit 0
 BLOB=$(echo "$SIGN" | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['tx_blob'])")
@@ -571,7 +555,7 @@ PUBLIC_IP=$(curl -sf -4 --max-time 5 ifconfig.me 2>/dev/null || curl -sf -4 --ma
 
 echo "=== FINAL OUTPUT ==="
 echo "Validator r-address (FUND THIS): $ACCOUNT"
-echo "validation_public_key: $VAL_PUBKEY"
+echo "Falcon validator public key (hex): $FALCON_PK"
 if [ -n "$PAYOUT" ]; then echo "Payout address: $PAYOUT"; fi
 echo ""
 echo "=== VIEW YOUR VALIDATOR ==="

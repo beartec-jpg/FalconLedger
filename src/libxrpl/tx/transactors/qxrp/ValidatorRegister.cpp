@@ -29,9 +29,12 @@ ValidatorRegister::preflight(PreflightContext const& ctx)
     if (!isValidNodeKey(makeSlice(pkBlob)))
         return temINVALID_FLAG;
 
-    // sfConsensusKey must be a classical secp256k1 or ed25519 node key.
+    // sfConsensusKey must be the same Falcon key used in consensus / UNL.
     auto const ckBlob = ctx.tx.getFieldVL(sfConsensusKey);
-    if (!publicKeyType(makeSlice(ckBlob)))
+    if (!isValidNodeKey(makeSlice(ckBlob)))
+        return temINVALID_FLAG;
+
+    if (pkBlob != ckBlob)
         return temINVALID_FLAG;
 
     return tesSUCCESS;
@@ -61,8 +64,8 @@ ValidatorRegister::doApply()
     // by mapping trusted UNL keys → calcValidatorBondID(sfConsensusKey).
     auto sleBond = std::make_shared<SLE>(keylet::validatorBond(calcValidatorBondID(makeSlice(ckBlob))));
     sleBond->setAccountID(sfAccount, account);
-    sleBond->setFieldVL(sfPublicKey, pkBlob);     // Falcon key (on-chain identity)
-    sleBond->setFieldVL(sfConsensusKey, ckBlob);  // classical key (scoring lookup)
+    sleBond->setFieldVL(sfPublicKey, pkBlob);
+    sleBond->setFieldVL(sfConsensusKey, ckBlob);
     sleBond->setFieldAmount(sfBondedAmount, STAmount{XRPAmount{0}});
     sleBond->setFieldU32(sfBondStatus, kBOND_STATUS_REGISTERED);
     sleBond->setFieldU32(sfSlashMultiplier, kBPS_DENOM);  // start at 10 000 = clean

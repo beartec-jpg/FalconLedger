@@ -4,90 +4,50 @@
 #include <xrpld/core/ConfigSections.h>
 
 #include <xrpl/basics/Log.h>
-#include <xrpl/basics/base64.h>
-#include <xrpl/beast/utility/Journal.h>
 #include <xrpl/protocol/KeyType.h>
 #include <xrpl/protocol/PublicKey.h>
-#include <xrpl/protocol/SecretKey.h>
-#include <xrpl/protocol/Seed.h>
 #include <xrpl/protocol/falcon.h>
-#include <xrpl/server/Manifest.h>
 
 #include <utility>
 
 namespace xrpl {
 ValidatorKeys::ValidatorKeys(Config const& config, beast::Journal j)
 {
-    if (config.exists(SECTION_VALIDATOR_TOKEN) && config.exists(SECTION_VALIDATION_SEED))
+    if (config.exists(SECTION_VALIDATOR_TOKEN))
     {
         configInvalid_ = true;
-        JLOG(j.fatal()) << "Cannot specify both [" SECTION_VALIDATION_SEED
-                           "] and [" SECTION_VALIDATOR_TOKEN "]";
+        JLOG(j.fatal()) << "Classical [" SECTION_VALIDATOR_TOKEN
+                           "] is disabled on Falcon Ledger; use ["
+                        << SECTION_VALIDATION_FALCON_SECRET << "]";
         return;
     }
 
-    if (config.exists(SECTION_VALIDATOR_TOKEN))
+    if (config.exists(SECTION_VALIDATION_SEED))
     {
-        // token is non-const so it can be moved from
-        if (auto token = loadValidatorToken(config.section(SECTION_VALIDATOR_TOKEN).lines()))
-        {
-            auto const pk = derivePublicKey(KeyType::Secp256k1, token->validationSecret);
-            auto const m = deserializeManifest(base64Decode(token->manifest));
+        configInvalid_ = true;
+        JLOG(j.fatal()) << "Classical [" SECTION_VALIDATION_SEED
+                           "] is disabled on Falcon Ledger; use ["
+                        << SECTION_VALIDATION_FALCON_SECRET << "]";
+        return;
+    }
 
-            if (!m || pk != m->signingKey)
-            {
-                configInvalid_ = true;
-                JLOG(j.fatal()) << "Invalid token specified in [" SECTION_VALIDATOR_TOKEN "]";
-            }
-            else
-            {
-                keys.emplace(m->masterKey, pk, token->validationSecret);
-                nodeID = calcNodeID(m->masterKey);
-                sequence = m->sequence;
-                manifest = std::move(token->manifest);
-            }
-        }
-        else
-        {
-            configInvalid_ = true;
-            JLOG(j.fatal()) << "Invalid token specified in [" SECTION_VALIDATOR_TOKEN "]";
-        }
-    }
-    else if (config.exists(SECTION_VALIDATION_SEED))
+    if (!config.exists(SECTION_VALIDATION_FALCON_SECRET))
+        return;
+
+    auto const fsecret = config.section(SECTION_VALIDATION_FALCON_SECRET).lines().front();
+    auto decoded = decodeFalconSecret(fsecret);
+    if (!decoded)
     {
-        auto const seed =
-            parseBase58<Seed>(config.section(SECTION_VALIDATION_SEED).lines().front());
-        if (!seed)
-        {
-            configInvalid_ = true;
-            JLOG(j.fatal()) << "Invalid seed specified in [" SECTION_VALIDATION_SEED "]";
-        }
-        else
-        {
-            SecretKey const sk = generateSecretKey(KeyType::Secp256k1, *seed);
-            PublicKey const pk = derivePublicKey(KeyType::Secp256k1, sk);
-            keys.emplace(pk, pk, sk);
-            nodeID = calcNodeID(pk);
-            sequence = 0;
-        }
+        configInvalid_ = true;
+        JLOG(j.fatal()) << "Invalid falcon secret in [" SECTION_VALIDATION_FALCON_SECRET
+                           "]";
+        return;
     }
-    else if (config.exists("validation_falcon_secret"))
-    {
-        auto const fsecret = config.section("validation_falcon_secret").lines().front();
-        auto decoded = decodeFalconSecret(fsecret);
-        if (!decoded)
-        {
-            configInvalid_ = true;
-            JLOG(j.fatal()) << "Invalid falcon secret in [validation_falcon_secret]";
-        }
-        else
-        {
-            auto const& [pqPk, pqSk] = *decoded;
-            PublicKey const pk(pqPk.slice());
-            keys.emplace(pk, fsecret);  // Falcon constructor
-            nodeID = calcNodeID(pk);
-            sequence = 0;
-        }
-    }
+
+    auto const& [pqPk, pqSk] = *decoded;
+    PublicKey const pk(pqPk.slice());
+    keys.emplace(pk, fsecret);
+    nodeID = calcNodeID(pk);
+    sequence = 0;
 }
 }  // namespace xrpl

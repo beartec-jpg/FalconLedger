@@ -671,6 +671,34 @@ Config::loadFromString(std::string const& fileContents)
                                   "] and [" SECTION_VALIDATOR_TOKEN "] config sections");
     }
 
+    if (exists(SECTION_VALIDATION_SEED) && exists(SECTION_VALIDATION_FALCON_SECRET))
+    {
+        Throw<std::runtime_error>("Cannot have both [" SECTION_VALIDATION_SEED
+                                  "] and [" SECTION_VALIDATION_FALCON_SECRET
+                                  "] config sections");
+    }
+
+    if (exists(SECTION_VALIDATOR_TOKEN) && exists(SECTION_VALIDATION_FALCON_SECRET))
+    {
+        Throw<std::runtime_error>("Cannot have both [" SECTION_VALIDATOR_TOKEN
+                                  "] and [" SECTION_VALIDATION_FALCON_SECRET
+                                  "] config sections");
+    }
+
+    if (exists(SECTION_VALIDATION_SEED))
+    {
+        Throw<std::runtime_error>(
+            "Classical [" SECTION_VALIDATION_SEED
+            "] is disabled on Falcon Ledger; use [" SECTION_VALIDATION_FALCON_SECRET "]");
+    }
+
+    if (exists(SECTION_VALIDATOR_TOKEN))
+    {
+        Throw<std::runtime_error>(
+            "Classical [" SECTION_VALIDATOR_TOKEN
+            "] is disabled on Falcon Ledger; use [" SECTION_VALIDATION_FALCON_SECRET "]");
+    }
+
     if (getSingleSection(secConfig, SECTION_NETWORK_QUORUM, strTemp, j_))
         NETWORK_QUORUM = beast::lexicalCastThrow<std::size_t>(strTemp);
 
@@ -717,7 +745,7 @@ Config::loadFromString(std::string const& fileContents)
 
     // By default, validators don't have pathfinding enabled, unless it is
     // explicitly requested by the server's admin.
-    if (exists(SECTION_VALIDATION_SEED) || exists(SECTION_VALIDATOR_TOKEN))
+    if (exists(SECTION_VALIDATION_FALCON_SECRET))
         PATH_SEARCH_MAX = 0;
 
     if (getSingleSection(secConfig, SECTION_PATH_SEARCH_OLD, strTemp, j_))

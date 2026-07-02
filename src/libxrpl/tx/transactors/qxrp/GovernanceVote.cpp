@@ -58,9 +58,8 @@ GovernanceVote::preflight(PreflightContext const& ctx)
     if (!ctx.rules.enabled(featureProofOfParticipation))
         return temDISABLED;
 
-    // sfConsensusKey must be a classical secp256k1 or ed25519 node key.
     auto const ckBlob = ctx.tx.getFieldVL(sfConsensusKey);
-    if (!publicKeyType(makeSlice(ckBlob)))
+    if (!isValidNodeKey(makeSlice(ckBlob)))
         return temINVALID_FLAG;
 
     // sfVoteWeight reused: 1 = yes, 0 = no; any other value is malformed.

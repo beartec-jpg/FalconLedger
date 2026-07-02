@@ -220,7 +220,7 @@ applyValidatorScoring(
             continue;
         }
 
-        auto const bondKey = sleConst->key().key;
+        auto const bondKey = sleConst->key();
         if (scoredBondKeys.count(bondKey))
             continue;
 
@@ -238,7 +238,7 @@ applyValidatorScoring(
             continue;
         if (sleConst->getFieldU32(sfBondStatus) != kBOND_STATUS_BONDED)
             continue;
-        if (scoredBondKeys.count(sleConst->key().key))
+        if (scoredBondKeys.count(sleConst->key()))
             continue;
         legacyBonds.push_back(sleConst);
     }
@@ -268,9 +268,9 @@ applyValidatorScoring(
         for (std::size_t i = 0; i < n; ++i)
         {
             auto const& sleConst = legacyBonds[i];
-            if (scoredBondKeys.count(sleConst->key().key))
+            if (scoredBondKeys.count(sleConst->key()))
                 continue;
-            scoredBondKeys.insert(sleConst->key().key);
+            scoredBondKeys.insert(sleConst->key());
             targets.push_back({
                 std::const_pointer_cast<SLE>(sleConst),
                 calcNodeID(legacyUnl[i]),

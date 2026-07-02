@@ -87,7 +87,8 @@ private:
     PublicKey publicKey_;
     uint256 suppression_;
     Proposal proposal_;
-    boost::container::static_vector<std::uint8_t, 72> signature_;
+    // Falcon-512 signatures are ~666 bytes; Falcon-1024 ~1280 bytes.
+    boost::container::static_vector<std::uint8_t, 2048> signature_;
 
     template <class Hasher>
     void

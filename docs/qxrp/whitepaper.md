@@ -1,12 +1,12 @@
 # Falcon Ledger White Paper
 
-**Version 2.0 — June 2026**
+**Version 2.1 — July 2026**
 
 ---
 
 <div align="center">
 
-![Falcon Ledger Coin](Screenshot_20260524-223407.png)
+![Falcon Ledger](https://q-xrp-faucet.vercel.app/icon-512.png)
 
 _Falcon Ledger — Quantum-Resistant. Validator-Rewarding. No Company. No Escrow. No Dumps._
 
@@ -169,16 +169,21 @@ Every validator on Falcon Ledger registers an 898-byte Falcon public key
 Falcon-derived identity. Falcon verification is deterministic, fully local,
 and requires no external services or network calls.
 
-### 4.3 Pure Falcon — No Classical Keys
+### 4.3 Falcon-Native Authority — No Classical Signing Paths
 
 Falcon Ledger does not use classical signature schemes (secp256k1 or ed25519) for
-any purpose. Every wallet is created with a Falcon key pair. Every transaction is
-signed with Falcon. Every validator identity is Falcon. There is no hybrid mode
-and no migration path from classical keys — the protocol is Falcon-native from
-genesis.
+account authority, validator consensus, on-chain validator transactions, or
+trusted validator list (UNL) identity. Every wallet is created with a Falcon key
+pair. Every transaction is signed with Falcon. Every validator consensus message
+is signed and verified with Falcon.
 
-This eliminates an entire class of quantum risk: there are no classical keys
-anywhere in the system that a future quantum computer could compromise.
+**P2P overlay only:** Validators may configure a separate `node_seed` for
+peer-to-peer overlay identity and handshakes. This key does not sign consensus
+proposals, validations, or rewards — it is not part of validator authority or
+bonding.
+
+There is no hybrid mode for consensus or account authority — the protocol is
+Falcon-native for every security-critical path.
 
 ### 4.4 Design Principles
 
@@ -414,9 +419,9 @@ and remaining work are tracked in the [Roadmap](../../ROADMAP.md).
 
 ### Completed
 
-- ✅ Direct fork of XRPL reference implementation (network ID 999, replay-protected)
-- ✅ Falcon-512 validator signatures registered and proposing on all nodes
-- ✅ Falcon-512 transaction signing — all wallets and transactions use Falcon keys
+- ✅ Direct fork of XRPL reference implementation (replay-protected; testnet network ID 1001)
+- ✅ Falcon-512 transaction signing — all wallets and transactions use Falcon keys (verified on testnet)
+- 🔲 Full Falcon validator consensus fleet upgrade (`validation_falcon_secret`, Falcon hex UNL) — rolling out July 2026
 - ✅ Protocol treasury — deterministic account, no private key, locked by protocol
 - ✅ Epoch emission with halving schedule — first halving confirmed on-chain (50→25 bps)
 - ✅ Dynamic fee burn + validator reward split — 40%–70% burn, remainder to validators

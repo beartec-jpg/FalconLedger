@@ -304,6 +304,15 @@ calcAccountID(PublicKey const& pk);
 [[nodiscard]] bool
 isValidNodeKey(Slice s) noexcept;
 
+/// Parse a Falcon validator public key from a validators.txt / UNL entry.
+/// Accepts hex-encoded Falcon-512/1024 keys (0xFB/0xFC prefix).
+[[nodiscard]] std::optional<PublicKey>
+parseValidatorPublicKey(std::string const& token);
+
+/// Returns true if @a s is a Falcon signing public key (account or validator).
+[[nodiscard]] bool
+isFalconSigningKey(Slice s) noexcept;
+
 /// Derive the bond-entry AccountID for any valid node public key.
 ///
 /// For both classical and post-quantum keys the result is

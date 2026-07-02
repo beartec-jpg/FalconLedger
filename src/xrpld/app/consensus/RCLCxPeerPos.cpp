@@ -5,6 +5,7 @@
 #include <xrpl/basics/chrono.h>
 #include <xrpl/beast/utility/instrumentation.h>
 #include <xrpl/json/json_value.h>
+#include <xrpl/protocol/KeyType.h>
 #include <xrpl/protocol/PublicKey.h>
 #include <xrpl/protocol/Serializer.h>
 #include <xrpl/protocol/jss.h>
@@ -22,10 +23,8 @@ RCLCxPeerPos::RCLCxPeerPos(
     Proposal const& proposal)  // trivially copyable
     : publicKey_(publicKey), suppression_(suppression), proposal_(proposal)
 {
-    // The maximum allowed size of a signature is 72 bytes; we verify
-    // this elsewhere, but we want to be extra careful here:
     XRPL_ASSERT(
-        !signature.empty() && signature.size() <= signature_.capacity(),
+        signature.empty() || signature.size() <= signature_.capacity(),
         "xrpl::RCLCxPeerPos::RCLCxPeerPos : valid signature size");
 
     if (!signature.empty() && signature.size() <= signature_.capacity())
@@ -35,7 +34,23 @@ RCLCxPeerPos::RCLCxPeerPos(
 bool
 RCLCxPeerPos::checkSign() const
 {
-    return verifyDigest(publicKey(), proposal_.signingHash(), signature(), false);
+    if (signature().empty())
+        return false;
+
+    auto const keyType = signingPubKeyType(publicKey().slice());
+    if (!keyType)
+        return false;
+
+    if (*keyType == KeyType::Falcon512 || *keyType == KeyType::Falcon1024)
+    {
+        auto const hash = proposal_.signingHash();
+        return verify(
+            publicKey().slice(),
+            Slice(hash.data(), hash.size()),
+            signature());
+    }
+
+    return false;
 }
 
 json::Value

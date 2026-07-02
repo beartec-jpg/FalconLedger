@@ -119,12 +119,8 @@ STValidation::isValid() const noexcept
         }
         else
         {
-            // Classical secp256k1: use digest-based verification.
-            valid_ = verifyDigest(
-                getSignerPublic(),
-                getSigningHash(),
-                makeSlice(getFieldVL(sfSignature)),
-                (getFlags() & kVF_FULLY_CANONICAL_SIG) != 0u);
+            // Classical validations are disabled on Falcon Ledger.
+            valid_ = false;
         }
     }
 

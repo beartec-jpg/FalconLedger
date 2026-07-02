@@ -66,6 +66,27 @@
 namespace xrpl::RPC {
 namespace detail {
 
+static json::Value
+redactRpcRequestForLog(json::Value const& request)
+{
+    static auto const kSensitiveFields = std::to_array<char const*>({
+        jss::secret,
+        jss::seed,
+        jss::seed_hex,
+        jss::passphrase,
+        jss::falcon_secret,
+        jss::validation_seed,
+    });
+
+    json::Value redacted = request;
+    for (auto const* field : kSensitiveFields)
+    {
+        if (redacted.isMember(field))
+            redacted[field] = "<redacted>";
+    }
+    return redacted;
+}
+
 // Used to pass extra parameters used when returning a
 // a SigningFor object.
 class SigningForParams
@@ -1013,7 +1034,7 @@ transactionSign(
     using namespace detail;
 
     auto j = app.getJournal("RPCHandler");
-    JLOG(j.debug()) << "transactionSign: " << jvRequest;
+    JLOG(j.debug()) << "transactionSign: " << redactRpcRequestForLog(jvRequest);
 
     // Add and amend fields based on the transaction type.
     SigningForParams signForParams;
@@ -1049,7 +1070,7 @@ transactionSubmit(
 
     auto const& ledger = app.getOpenLedger().current();
     auto j = app.getJournal("RPCHandler");
-    JLOG(j.debug()) << "transactionSubmit: " << jvRequest;
+    JLOG(j.debug()) << "transactionSubmit: " << redactRpcRequestForLog(jvRequest);
 
     // Add and amend fields based on the transaction type.
     SigningForParams signForParams;
@@ -1167,9 +1188,11 @@ transactionSignFor(
     std::chrono::seconds validatedLedgerAge,
     Application& app)
 {
+    using namespace detail;
+
     auto const& ledger = app.getOpenLedger().current();
     auto j = app.getJournal("RPCHandler");
-    JLOG(j.debug()) << "transactionSignFor: " << jvRequest;
+    JLOG(j.debug()) << "transactionSignFor: " << redactRpcRequestForLog(jvRequest);
 
     // Verify presence of the signer's account field.
     char const accountField[] = "account";
@@ -1280,13 +1303,14 @@ transactionSubmitMultiSigned(
     Application& app,
     ProcessTransactionFn const& processTransaction)
 {
+    using namespace detail;
+
     auto const& ledger = app.getOpenLedger().current();
     auto j = app.getJournal("RPCHandler");
-    JLOG(j.debug()) << "transactionSubmitMultiSigned: " << jvRequest;
+    JLOG(j.debug()) << "transactionSubmitMultiSigned: " << redactRpcRequestForLog(jvRequest);
 
     // When multi-signing, the "Sequence" and "SigningPubKey" fields must
     // be passed in by the caller.
-    using namespace detail;
     {
         json::Value err = checkMultiSignFields(jvRequest);
         if (RPC::containsError(err))

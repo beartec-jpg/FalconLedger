@@ -5,9 +5,9 @@
 # Fund each validator account from genesis and submit ValidatorRegister +
 # ValidatorBond so the 5-node regtest network starts earning rewards.
 #
-# Falcon dual-key design:
-#   sfPublicKey    (PublicKey)    = Falcon-512 post-quantum key (898 bytes)
-#   sfConsensusKey (ConsensusKey) = classical secp256k1 key (33 bytes)
+# Falcon-only design:
+#   sfPublicKey == sfConsensusKey — Falcon-512 post-quantum key (898 bytes)
+#   seeds.txt stores one falcon_secret per validator (consensus + account signing)
 #
 # Usage:
 #   python3 scripts/bond-validators.py              # bond all validators
@@ -63,20 +63,37 @@ def generate_falcon512_test_key() -> str:
     return raw.hex().upper()
 
 
-def get_classical_pubkey_hex(port: int, seed: str) -> str:
-    """
-    Derive the validator's classical secp256k1 public key hex (33 bytes, 66 hex
-    chars) from its validation seed by calling wallet_propose on the local node.
+def falcon_pubkey_from_secret(port: int, falcon_secret: str) -> str:
+    """Return uppercase Falcon public key hex embedded in falcon_secret."""
+    # falcon_secret layout: pubkey bytes || secret bytes (hex-encoded)
+    raw = bytes.fromhex(falcon_secret)
+    if len(raw) < 2 or raw[0] not in (0xFB, 0xFC):
+        raise RuntimeError("Invalid falcon_secret prefix")
+    pub_len = 898 if raw[0] == 0xFB else 1794
+    return raw[:pub_len].hex().upper()
 
-    The returned key is the same one stored in validators.txt (same seed →
-    same private key → same public key), so ValidatorScoring can resolve the
-    bond SLE via calcAccountID(consensusKey) == bond keylet.
-    """
-    wp = rpc(port, "wallet_propose", {"seed": seed, "key_type": "secp256k1"})["result"]
-    pk = wp.get("public_key_hex") or wp.get("public_key", "")
-    if not pk:
-        raise RuntimeError(f"wallet_propose did not return public_key for seed {seed!r}: {wp}")
-    return pk.upper()
+
+def falcon_account_from_secret(falcon_secret: str) -> str:
+    """Derive r-address from Falcon public key embedded in falcon_secret."""
+    import hashlib
+    pk_hex = falcon_pubkey_from_secret(0, falcon_secret)
+    pub = bytes.fromhex(pk_hex)
+    account_bytes = hashlib.new("ripemd160", hashlib.sha256(pub).digest()).digest()
+    alphabet = "rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz"
+    payload = b"\x00" + account_bytes
+    checksum = hashlib.sha256(hashlib.sha256(payload).digest()).digest()[:4]
+    data = payload + checksum
+    num = int.from_bytes(data, "big")
+    chars = []
+    while num:
+        num, rem = divmod(num, 58)
+        chars.append(alphabet[rem])
+    for b in data:
+        if b == 0:
+            chars.append(alphabet[0])
+        else:
+            break
+    return "".join(reversed(chars))
 
 
 # ── RPC helpers ────────────────────────────────────────────────────────────────
@@ -90,8 +107,14 @@ def rpc(port, method, params=None):
         return json.loads(resp.read())
 
 
-def sign_and_submit(port, tx_json, secret):
-    """Sign a transaction with *secret* and submit it; return the result dict."""
+def sign_and_submit(port, tx_json, falcon_secret):
+    """Sign a Falcon transaction and submit it; return the result dict."""
+    r = rpc(port, "submit", {"tx_json": tx_json, "falcon_secret": falcon_secret})
+    return r["result"]
+
+
+def sign_and_submit_classical(port, tx_json, secret):
+    """Sign with a classical genesis/bootstrap secret (funding only)."""
     r = rpc(port, "submit", {"tx_json": tx_json, "secret": secret})
     return r["result"]
 
@@ -166,29 +189,20 @@ def do_bond(seeds):
     })["result"]["account_data"]["Sequence"]
     print(f"Genesis sequence : {genesis_seq}\n")
 
-    for i, seed in enumerate(seeds):
+    for i, falcon_secret in enumerate(seeds):
         vnum = i + 1
         port = BASE_PORT + i
         print(f"── Validator {vnum} ──────────────────────────────────")
 
-        # Derive account and classical public key from seed
-        wp      = rpc(BASE_PORT, "wallet_propose", {"seed": seed, "key_type": "secp256k1"})["result"]
-        address = wp["account_id"]
-        classical_pk_hex = (wp.get("public_key_hex") or wp.get("public_key", "")).upper()
-        if not classical_pk_hex:
-            print(f"  ERROR: could not get public_key from wallet_propose for validator {vnum}")
-            sys.exit(1)
-
-        # Generate a Falcon-512 test public key (syntactically valid: 0xFB prefix + 897 random bytes)
-        falcon_pk_hex = generate_falcon512_test_key()
+        falcon_pk_hex = falcon_pubkey_from_secret(port, falcon_secret)
+        address = falcon_account_from_secret(falcon_secret)
         print(f"  account       : {address}")
-        print(f"  consensus key : {classical_pk_hex[:16]}…  (33 bytes secp256k1)")
         print(f"  falcon key    : {falcon_pk_hex[:16]}…  (898 bytes Falcon-512)")
 
         # Fund if the account doesn't exist yet
         if not account_exists(BASE_PORT, address):
             print(f"  funding  : {FUND_DROPS} drops ({FUND_DROPS // DROPS_PER_QXRP} qXRP)…")
-            r = sign_and_submit(BASE_PORT, {
+            r = sign_and_submit_classical(BASE_PORT, {
                 "TransactionType": "Payment",
                 "Account":         GENESIS_ACCOUNT,
                 "Destination":     address,
@@ -207,16 +221,15 @@ def do_bond(seeds):
         else:
             print("  account already funded")
 
-        # ValidatorRegister — requires Falcon sfPublicKey + classical sfConsensusKey
-        # idempotent (tecDUPLICATE = already registered)
-        print("  ValidatorRegister (Falcon + ConsensusKey)…")
+        # ValidatorRegister — Falcon sfPublicKey == sfConsensusKey
+        print("  ValidatorRegister (Falcon)…")
         r = sign_and_submit(port, {
             "TransactionType": "ValidatorRegister",
             "Account":         address,
-            "PublicKey":       falcon_pk_hex,    # sfPublicKey  = Falcon-512 key
-            "ConsensusKey":    classical_pk_hex, # sfConsensusKey = classical secp256k1
+            "PublicKey":       falcon_pk_hex,
+            "ConsensusKey":    falcon_pk_hex,
             "Fee":             "12",
-        }, seed)
+        }, falcon_secret)
         eng = r["engine_result"]
         if eng not in ("tesSUCCESS", "tecDUPLICATE"):
             print(f"  ERROR register: {eng} — {r.get('engine_result_message', '')}")
@@ -225,15 +238,14 @@ def do_bond(seeds):
             wait_validated(port, r["tx_json"]["hash"])
         print(f"  register : {eng}")
 
-        # ValidatorBond — keyed by sfConsensusKey (classical key), no Falcon key needed
         print(f"  ValidatorBond ({MIN_BOND_DROPS} drops = 1 000 qXRP)…")
         r = sign_and_submit(port, {
             "TransactionType": "ValidatorBond",
             "Account":         address,
-            "ConsensusKey":    classical_pk_hex, # sfConsensusKey for bond lookup
+            "ConsensusKey":    falcon_pk_hex,
             "BondedAmount":    str(MIN_BOND_DROPS),
             "Fee":             "12",
-        }, seed)
+        }, falcon_secret)
         eng = r["engine_result"]
         if eng == "tecNO_PERMISSION":
             print("  bond     : already bonded ✓")
@@ -256,9 +268,8 @@ def do_bond(seeds):
 # ── monitor flow ───────────────────────────────────────────────────────────────
 def do_monitor(seeds):
     addresses = []
-    for seed in seeds:
-        wp = rpc(BASE_PORT, "wallet_propose", {"seed": seed, "key_type": "secp256k1"})["result"]
-        addresses.append(wp["account_id"])
+    for falcon_secret in seeds:
+        addresses.append(falcon_account_from_secret(falcon_secret))
     print("Monitoring epoch progress (Ctrl-C to stop)\n")
     last_epoch = -1
 
@@ -306,12 +317,11 @@ def do_monitor(seeds):
 # ── claim flow ─────────────────────────────────────────────────────────────────
 def do_claim(seeds):
     print("=== Claiming rewards ===\n")
-    for i, seed in enumerate(seeds):
+    for i, falcon_secret in enumerate(seeds):
         vnum = i + 1
         port = BASE_PORT + i
-        wp      = rpc(BASE_PORT, "wallet_propose", {"seed": seed, "key_type": "secp256k1"})["result"]
-        address = wp["account_id"]
-        classical_pk_hex = (wp.get("public_key_hex") or wp.get("public_key", "")).upper()
+        address = falcon_account_from_secret(falcon_secret)
+        falcon_pk_hex = falcon_pubkey_from_secret(port, falcon_secret)
         bs      = bond_status(BASE_PORT, address)
         if not bs:
             print(f"v{vnum}: not registered — skip")
@@ -331,9 +341,9 @@ def do_claim(seeds):
         r   = sign_and_submit(port, {
             "TransactionType": "ClaimReward",
             "Account":         address,
-            "ConsensusKey":    classical_pk_hex,  # sfConsensusKey for bond lookup
+            "ConsensusKey":    falcon_pk_hex,
             "Fee":             "12",
-        }, seed)
+        }, falcon_secret)
         eng = r["engine_result"]
         print(f"  ClaimReward: {eng}")
         if eng == "tesSUCCESS":

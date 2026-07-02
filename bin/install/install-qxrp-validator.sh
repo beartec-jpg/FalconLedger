@@ -30,7 +30,8 @@ DOCKER_IMAGE="${QXRP_XRPLD_IMAGE:-qxrp/xrpld:latest}"
 NETWORK_ID=1001
 PUBLIC_RPC="${QXRP_PUBLIC_RPC:-http://46.224.0.140:6005}"
 BOOTSTRAP_PEERS="46.224.0.140:51235,167.233.55.43:51235,204.168.175.194:51235,89.167.109.241:51235"
-TRUSTED_KEYS="n9KvHaT7SJmratfNFhzktVasbFUjhMDnLPx6tgnuv3pR93BjMcRd,n94NpYCkXPLdmUDw76LHvXRkJ8EYpc3tduM7MnYdMgGLwKVnzMSw,n9MX4NgUkvgGLpr6qYyPNtyWpq8Vp7bcYBkhVCAqWAYR2a8Z4Xtn,n94wZUjfykCnpoejwvA97iDVdY9bhNCoyxBa4qahSbQH5hMEeBAa"
+# Comma-separated Falcon validator public keys (uppercase hex). Required for UNL.
+TRUSTED_KEYS="${QXRP_TRUSTED_FALCON_KEYS:-}"
 PAYOUT_ADDRESS=""
 NODE_NAME="my-qxrp-node"
 MIN_FUND_DROPS=1100000000   # 1,100 qXRP (reserve + 1000 bond + fees)
@@ -276,34 +277,17 @@ CFG
     sleep 1
   done
 
-  VAL_JSON=$(docker exec qxrp_keygen_boot curl -sf -X POST http://127.0.0.1:5999 \
+  FALCON_JSON=$(docker exec qxrp_keygen_boot curl -sf -X POST http://127.0.0.1:5999 \
     -H 'Content-Type: application/json' \
-    -d '{"method":"validation_create","params":[{"key_type":"secp256k1"}]}')
-  VAL_SEED=$(echo "$VAL_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['validation_seed'])")
-  VAL_PUBKEY=$(echo "$VAL_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['validation_public_key'])")
-
-  WP_JSON=$(docker exec qxrp_keygen_boot curl -sf -X POST http://127.0.0.1:5999 \
-    -H 'Content-Type: application/json' \
-    -d "{\"method\":\"wallet_propose\",\"params\":[{\"seed\":\"${VAL_SEED}\",\"key_type\":\"secp256k1\"}]}")
-  ACCOUNT=$(echo "$WP_JSON" | python3 -c "import sys,json; r=json.load(sys.stdin)['result']; print(r['account_id'])")
-
-  VAL_DETAIL=$(docker exec qxrp_keygen_boot curl -sf -X POST http://127.0.0.1:5999 \
-    -H 'Content-Type: application/json' \
-    -d "{\"method\":\"validation_create\",\"params\":[{\"secret\":\"${VAL_SEED}\",\"key_type\":\"secp256k1\"}]}")
-  CONSENSUS_KEY=$(echo "$VAL_DETAIL" | python3 -c "import sys,json; print(json.load(sys.stdin)['result'].get('validation_public_key_hex','').upper())")
-  if [ -z "$CONSENSUS_KEY" ]; then
-    CONSENSUS_KEY=$(echo "$WP_JSON" | python3 -c "import sys,json; r=json.load(sys.stdin)['result']; print((r.get('public_key_hex') or r.get('public_key','')).upper())")
-  fi
+    -d '{"method":"wallet_propose","params":[{"key_type":"falcon512"}]}')
+  ACCOUNT=$(echo "$FALCON_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['account_id'])")
+  FALCON_SECRET=$(echo "$FALCON_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['falcon_secret'])")
+  FALCON_PK=$(echo "$FALCON_JSON" | python3 -c "import sys,json; r=json.load(sys.stdin)['result']; print((r.get('public_key_hex') or r.get('public_key','')).upper())")
 
   NODE_JSON=$(docker exec qxrp_keygen_boot curl -sf -X POST http://127.0.0.1:5999 \
     -H 'Content-Type: application/json' \
     -d '{"method":"wallet_propose","params":[{"key_type":"secp256k1"}]}')
   NODE_SEED=$(echo "$NODE_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['master_seed'])")
-
-  FALCON_JSON=$(docker exec qxrp_keygen_boot curl -sf -X POST http://127.0.0.1:5999 \
-    -H 'Content-Type: application/json' \
-    -d '{"method":"wallet_propose","params":[{"key_type":"falcon512"}]}')
-  FALCON_PK=$(echo "$FALCON_JSON" | python3 -c "import sys,json; r=json.load(sys.stdin)['result']; print((r.get('public_key_hex') or r.get('public_key','')).upper())")
 
   docker stop qxrp_keygen_boot >/dev/null 2>&1 || true
   rm -rf "$BOOT_DIR"
@@ -312,11 +296,11 @@ CFG
   python3 - <<PY
 import json, os
 data = {
-    "validation_seed": "${VAL_SEED}",
-    "validation_public_key": "${VAL_PUBKEY}",
-    "consensus_key_hex": "${CONSENSUS_KEY}",
-    "account_address": "${ACCOUNT}",
+    "falcon_secret": "${FALCON_SECRET}",
+    "validation_public_key_hex": "${FALCON_PK}",
+    "consensus_key_hex": "${FALCON_PK}",
     "falcon_public_key_hex": "${FALCON_PK}",
+    "account_address": "${ACCOUNT}",
     "node_seed": "${NODE_SEED}",
     "payout_address": "${PAYOUT_ADDRESS}",
     "node_name": "${NODE_NAME}",
@@ -329,19 +313,21 @@ PY
   log "Keys saved to $KEYS_FILE"
 fi
 
-VAL_SEED=$(python3 -c "import json; print(json.load(open('${KEYS_FILE}'))['validation_seed'])")
-VAL_PUBKEY=$(python3 -c "import json; print(json.load(open('${KEYS_FILE}'))['validation_public_key'])")
+FALCON_SECRET=$(python3 -c "import json; print(json.load(open('${KEYS_FILE}'))['falcon_secret'])")
+FALCON_PK=$(python3 -c "import json; print(json.load(open('${KEYS_FILE}'))['falcon_public_key_hex'])")
 NODE_SEED=$(python3 -c "import json; print(json.load(open('${KEYS_FILE}'))['node_seed'])")
 ACCOUNT=$(python3 -c "import json; print(json.load(open('${KEYS_FILE}'))['account_address'])")
 CONSENSUS_KEY=$(python3 -c "import json; print(json.load(open('${KEYS_FILE}'))['consensus_key_hex'])")
-FALCON_PK=$(python3 -c "import json; print(json.load(open('${KEYS_FILE}'))['falcon_public_key_hex'])")
 
 # ── validators.txt ────────────────────────────────────────────────────────────
 {
   echo "[validators]"
-  echo "$VAL_PUBKEY"
+  echo "$FALCON_PK"
   IFS=',' read -ra KEYS <<< "$TRUSTED_KEYS"
-  for k in "${KEYS[@]}"; do echo "$k"; done
+  for k in "${KEYS[@]}"; do
+    k="${k//[[:space:]]/}"
+    [[ -n "$k" && "$k" != "$FALCON_PK" ]] && echo "$k"
+  done
 } > "$VALIDATORS_FILE"
 
 # ── xrpld.cfg ─────────────────────────────────────────────────────────────────
@@ -364,8 +350,8 @@ medium
 [validation_quorum]
 ${QUORUM}
 
-[validation_seed]
-${VAL_SEED}
+[validation_falcon_secret]
+${FALCON_SECRET}
 
 [node_seed]
 ${NODE_SEED}
@@ -466,7 +452,7 @@ if [[ "$FUNDED" -eq 0 ]]; then
 fi
 
 log "Submitting ValidatorRegister..."
-REG=$(rpc_local sign "{\"tx_json\":{\"TransactionType\":\"ValidatorRegister\",\"Account\":\"${ACCOUNT}\",\"PublicKey\":\"${FALCON_PK}\",\"ConsensusKey\":\"${CONSENSUS_KEY}\",\"Fee\":\"12\"},\"secret\":\"${VAL_SEED}\"}")
+REG=$(rpc_local sign "{\"tx_json\":{\"TransactionType\":\"ValidatorRegister\",\"Account\":\"${ACCOUNT}\",\"PublicKey\":\"${FALCON_PK}\",\"ConsensusKey\":\"${CONSENSUS_KEY}\",\"Fee\":\"12\"},\"falcon_secret\":\"${FALCON_SECRET}\"}")
 REG_RESULT=$(echo "$REG" | python3 -c "import sys,json; print(json.load(sys.stdin)['result'].get('engine_result','error'))")
 log "  ValidatorRegister: ${REG_RESULT}"
 
@@ -477,7 +463,7 @@ if [[ "$REG_RESULT" == "tesSUCCESS" || "$REG_RESULT" == "terQUEUED" ]]; then
 fi
 
 log "Submitting ValidatorBond (1,000 qXRP)..."
-BOND=$(rpc_local sign "{\"tx_json\":{\"TransactionType\":\"ValidatorBond\",\"Account\":\"${ACCOUNT}\",\"ConsensusKey\":\"${CONSENSUS_KEY}\",\"BondedAmount\":\"${MIN_BOND_DROPS}\",\"Fee\":\"12\"},\"secret\":\"${VAL_SEED}\"}")
+BOND=$(rpc_local sign "{\"tx_json\":{\"TransactionType\":\"ValidatorBond\",\"Account\":\"${ACCOUNT}\",\"ConsensusKey\":\"${CONSENSUS_KEY}\",\"BondedAmount\":\"${MIN_BOND_DROPS}\",\"Fee\":\"12\"},\"falcon_secret\":\"${FALCON_SECRET}\"}")
 BOND_RESULT=$(echo "$BOND" | python3 -c "import sys,json; print(json.load(sys.stdin)['result'].get('engine_result','error'))")
 log "  ValidatorBond: ${BOND_RESULT}"
 
@@ -501,11 +487,11 @@ KEYS_FILE="__KEYS_FILE__"
 SERVICE="__SERVICE__"
 CONSENSUS_KEY=$(python3 -c "import json; print(json.load(open('${KEYS_FILE}'))['consensus_key_hex'])")
 ACCOUNT=$(python3 -c "import json; print(json.load(open('${KEYS_FILE}'))['account_address'])")
-VAL_SEED=$(python3 -c "import json; print(json.load(open('${KEYS_FILE}'))['validation_seed'])")
+FALCON_SECRET=$(python3 -c "import json; print(json.load(open('${KEYS_FILE}'))['falcon_secret'])")
 
 SIGN=$(docker exec "${SERVICE}" curl -sf -X POST http://127.0.0.1:5005 \
   -H 'Content-Type: application/json' \
-  -d "{\"method\":\"sign\",\"params\":[{\"tx_json\":{\"TransactionType\":\"ClaimReward\",\"Account\":\"${ACCOUNT}\",\"ConsensusKey\":\"${CONSENSUS_KEY}\",\"Fee\":\"12\"},\"secret\":\"${VAL_SEED}\"}]}")
+  -d "{\"method\":\"sign\",\"params\":[{\"tx_json\":{\"TransactionType\":\"ClaimReward\",\"Account\":\"${ACCOUNT}\",\"ConsensusKey\":\"${CONSENSUS_KEY}\",\"Fee\":\"12\"},\"falcon_secret\":\"${FALCON_SECRET}\"}]}")
 
 RESULT=$(echo "$SIGN" | python3 -c "import sys,json; print(json.load(sys.stdin)['result'].get('engine_result',''))")
 [[ "$RESULT" == "tesSUCCESS" ]] || exit 0
@@ -527,7 +513,7 @@ STATE=$(rpc_local server_info | python3 -c "import sys,json; print(json.load(sys
 big "VALIDATOR READY"
 echo "  Container : ${SERVICE_NAME}"
 echo "  Address   : ${ACCOUNT}"
-echo "  Pubkey    : ${VAL_PUBKEY}"
+echo "  Falcon PK : ${FALCON_PK}"
 echo "  Payout    : ${PAYOUT_ADDRESS}"
 echo "  State     : ${STATE}"
 echo "  Logs      : docker logs -f ${SERVICE_NAME}"

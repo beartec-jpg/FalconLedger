@@ -31,7 +31,10 @@ public:
         {
         }
         Keys(PublicKey const& pub, std::string const& fsecret)
-            : masterPublicKey(pub), publicKey(pub), secretKey(), falconSecret(fsecret)
+            : masterPublicKey(pub)
+            , publicKey(pub)
+            , secretKey(std::array<std::uint8_t, SecretKey::kSIZE>{})
+            , falconSecret(fsecret)
         {
         }
     };

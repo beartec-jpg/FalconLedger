@@ -164,8 +164,9 @@ STValidation::STValidation(SerialIter& sit, LookupNodeID&& lookupNodeID, bool ch
     , signingPubKey_([this]() {
         auto const spk = getFieldVL(sfSigningPubKey);
 
-        // Accept both classical (secp256k1/ed25519) and PQ (Falcon) keys.
-        if (!signingPubKeyType(makeSlice(spk)))
+        auto const keyType = signingPubKeyType(makeSlice(spk));
+        if (!keyType ||
+            (*keyType != KeyType::Falcon512 && *keyType != KeyType::Falcon1024))
             Throw<std::runtime_error>("Invalid public key in validation");
 
         return PublicKey{makeSlice(spk)};

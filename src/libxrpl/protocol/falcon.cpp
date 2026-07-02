@@ -13,6 +13,7 @@
 #include <xrpl/basics/StringUtilities.h>
 #include <xrpl/basics/contract.h>
 #include <xrpl/basics/strHex.h>
+#include <xrpl/crypto/secure_erase.h>
 #include <xrpl/protocol/KeyType.h>
 
 #include <oqs/oqs.h>
@@ -130,7 +131,9 @@ encodeFalconSecret(PQPublicKey const& pk, PQSecretKey const& sk)
     buf.reserve(ps.size() + sk.size());
     buf.insert(buf.end(), ps.data(), ps.data() + ps.size());
     buf.insert(buf.end(), sk.data(), sk.data() + sk.size());
-    return strHex(buf);
+    auto const encoded = strHex(buf);
+    secureErase(buf.data(), buf.size());
+    return encoded;
 }
 
 std::optional<std::pair<PQPublicKey, PQSecretKey>>
@@ -173,6 +176,7 @@ decodeFalconSecret(std::string const& hex)
         PQPublicKey pk(Slice(base, pubTotal));
         std::vector<std::uint8_t> secBytes(base + pubTotal, base + pubTotal + secLen);
         PQSecretKey sk(type, std::move(secBytes));
+        secureErase(secBytes.data(), secBytes.size());
         return std::make_pair(std::move(pk), std::move(sk));
     }
     catch (std::exception const&)

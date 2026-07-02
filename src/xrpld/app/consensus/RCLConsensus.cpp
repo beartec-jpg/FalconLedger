@@ -249,18 +249,16 @@ RCLConsensus::Adaptor::propose(RCLCxPeerPos::Proposal const& proposal)
     prop.set_nodepubkey(keys.publicKey.data(), keys.publicKey.size());
 
     std::vector<uint8_t> sig;
-    if (!keys.falconSecret.empty())
+    auto decoded = decodeFalconSecret(keys.falconSecret);
+    if (!decoded)
     {
-        auto decoded = decodeFalconSecret(keys.falconSecret);
-        if (decoded)
-        {
-            auto const& [pqPk, pqSk] = *decoded;
-            sig = signFalcon(pqSk, proposal.signingHash());
-        }
+        JLOG(j_.error()) << "RCLConsensus::Adaptor::propose: invalid Falcon validator secret";
+        return;
     }
-    else
     {
-        sig = signDigest(keys.publicKey, keys.secretKey, proposal.signingHash());
+        auto const& [pqPk, pqSk] = *decoded;
+        auto const hash = proposal.signingHash();
+        sig = signFalcon(pqSk, Slice(hash.data(), hash.size()));
     }
 
     prop.set_signature(sig.data(), sig.size());
@@ -270,8 +268,8 @@ RCLConsensus::Adaptor::propose(RCLCxPeerPos::Proposal const& proposal)
         proposal.prevLedger(),
         proposal.proposeSeq(),
         proposal.closeTime(),
-        keys.publicKey,
-        sig);
+        keys.publicKey.slice(),
+        Slice(sig.data(), sig.size()));
 
     app_.getHashRouter().addSuppression(suppression);
 
@@ -833,34 +831,21 @@ RCLConsensus::Adaptor::validate(RCLCxLedger const& ledger, RCLTxSet const& txns,
 
     auto const& keys = *validatorKeys_.keys;
 
-    std::shared_ptr<STValidation> v;
-    if (!keys.falconSecret.empty())
+    auto decoded = decodeFalconSecret(keys.falconSecret);
+    if (!decoded)
     {
-        auto decoded = decodeFalconSecret(keys.falconSecret);
-        if (decoded)
-        {
-            auto const& [pqPk, pqSk] = *decoded;
-            v = std::make_shared<STValidation>(
-                lastValidationTime_,
-                pqPk,
-                pqSk,
-                validatorKeys_.nodeID,
-                [&](STValidation& v) {
-                    v.setFieldH256(sfLedgerHash, ledger.id());
-                });
-        }
+        JLOG(j_.error()) << "RCLConsensus::Adaptor::validate: invalid Falcon validator secret";
+        return;
     }
-    else
-    {
-        v = std::make_shared<STValidation>(
-            lastValidationTime_,
-            keys.publicKey,
-            keys.secretKey,
-            validatorKeys_.nodeID,
-            [&](STValidation& v) {
-                v.setFieldH256(sfLedgerHash, ledger.id());
-            });
-    }
+
+    auto const& [pqPk, pqSk] = *decoded;
+    std::shared_ptr<STValidation> v = std::make_shared<STValidation>(
+        lastValidationTime_,
+        pqPk,
+        pqSk,
+        validatorKeys_.nodeID,
+        [&](STValidation& v) {
+            v.setFieldH256(sfLedgerHash, ledger.id());
             v.setFieldH256(sfConsensusHash, txns.id());
 
             v.setFieldU32(sfLedgerSequence, ledger.seq());

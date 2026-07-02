@@ -114,11 +114,13 @@ namespace detail {
 NotTEC
 preflightCheckSigningKey(STObject const& sigObject, beast::Journal j)
 {
-    if (auto const spk = sigObject.getFieldVL(sfSigningPubKey);
-        !spk.empty() && !signingPubKeyType(makeSlice(spk)))
+    if (auto const spk = sigObject.getFieldVL(sfSigningPubKey); !spk.empty())
     {
-        JLOG(j.debug()) << "preflightCheckSigningKey: invalid signing key";
-        return temBAD_SIGNATURE;
+        if (!isFalconSigningKey(makeSlice(spk)))
+        {
+            JLOG(j.debug()) << "preflightCheckSigningKey: classical signing keys are disabled";
+            return temBAD_SIGNATURE;
+        }
     }
     return tesSUCCESS;
 }
@@ -707,10 +709,10 @@ Transactor::checkSign(
     // Check Single Sign
     XRPL_ASSERT(!pkSigner.empty(), "xrpl::Transactor::checkSign : non-empty signer");
 
-    if (!signingPubKeyType(makeSlice(pkSigner)))
+    if (!isFalconSigningKey(makeSlice(pkSigner)))
     {
-        JLOG(j.trace()) << "checkSign: signing public key type is unknown";
-        return tefBAD_AUTH;  // FIXME: should be better error!
+        JLOG(j.trace()) << "checkSign: classical signing keys are disabled";
+        return tefBAD_AUTH;
     }
 
     // Look up the account.
@@ -749,7 +751,7 @@ Transactor::checkBatchSign(PreclaimContext const& ctx)
         else
         {
             // LCOV_EXCL_START
-            if (!signingPubKeyType(makeSlice(pkSigner)))
+            if (!isFalconSigningKey(makeSlice(pkSigner)))
                 return tefBAD_AUTH;
             // LCOV_EXCL_STOP
 
@@ -874,9 +876,9 @@ Transactor::checkMultiSign(
 
         // spk being non-empty in non-simulate is checked in
         // STTx::checkMultiSign
-        if (!spk.empty() && !signingPubKeyType(makeSlice(spk)))
+        if (!spk.empty() && !isFalconSigningKey(makeSlice(spk)))
         {
-            JLOG(j.trace()) << "checkMultiSign: signing public key type is unknown";
+            JLOG(j.trace()) << "checkMultiSign: classical signing keys are disabled";
             return tefBAD_SIGNATURE;
         }
 

@@ -127,19 +127,19 @@ CFG
 
     for i in $(seq 1 $NVALIDATORS); do
         RESP=$(rpc "$BOOTSTRAP_RPC_PORT" \
-               "{\"method\":\"validation_create\",\"params\":[{\"secret\":\"qxrp-regtest-v${i}\"}]}")
-        SEED=$(json_field "$RESP"   result.validation_seed)
-        PUBKEY=$(json_field "$RESP" result.validation_public_key)
-        SEEDS+=("$SEED")
+               '{"method":"wallet_propose","params":[{"key_type":"falcon512"}]}')
+        SECRET=$(json_field "$RESP" result.falcon_secret)
+        PUBKEY=$(json_field "$RESP" result.public_key_hex)
+        SEEDS+=("$SECRET")
         PUBKEYS+=("$PUBKEY")
-        log "  Validator $i  pubkey=$PUBKEY"
+        log "  Validator $i  falcon_pk=${PUBKEY:0:16}…"
     done
 
     log "  Stopping bootstrap node..."
     kill "$BOOTSTRAP_PID" 2>/dev/null || true
     wait "$BOOTSTRAP_PID" 2>/dev/null || true
 
-    # Persist generated keys
+    # Persist generated keys (falcon_secret per line — used for consensus + tx signing)
     printf '%s\n' "${SEEDS[@]}"   > "$RUNTIME_DIR/seeds.txt"
     printf '[validators]\n'        > "$VALFILE"
     printf '%s\n' "${PUBKEYS[@]}" >> "$VALFILE"
@@ -178,7 +178,7 @@ tiny
 [validation_quorum]
 $QUORUM
 
-[validation_seed]
+[validation_falcon_secret]
 ${SEEDS[$((i-1))]}
 
 [validators_file]

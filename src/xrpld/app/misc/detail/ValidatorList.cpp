@@ -255,11 +255,11 @@ ValidatorList::load(
             return false;
         }
 
-        auto const id = parseBase58<PublicKey>(TokenType::NodePublic, match[1].str());
+        auto const id = parseValidatorPublicKey(match[1].str());
 
         if (!id)
         {
-            JLOG(j_.error()) << "Invalid node identity: " << match[1];
+            JLOG(j_.error()) << "Invalid Falcon validator key (hex required): " << match[1];
             return false;
         }
 

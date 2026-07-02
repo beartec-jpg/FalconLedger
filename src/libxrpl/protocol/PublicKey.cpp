@@ -244,7 +244,7 @@ verifyDigest(
     bool mustBeFullyCanonical) noexcept
 {
     if (publicKeyType(publicKey) != KeyType::Secp256k1)
-        logicError("sign: secp256k1 required for digest signing");
+        return false;
     auto const canonicality = ecdsaCanonicality(sig);
     if (!canonicality)
         return false;
@@ -372,10 +372,30 @@ calcNodeID(PublicKey const& pk)
 bool
 isValidNodeKey(Slice s) noexcept
 {
-    // Only Falcon-512 (0xFB) and Falcon-1024 (0xFC) post-quantum keys are
-    // accepted as validator node keys.  Classical secp256k1/ed25519 keys
-    // are stored in sfConsensusKey and validated via publicKeyType() directly.
     return pqPublicKeyType(s).has_value();
+}
+
+bool
+isFalconSigningKey(Slice s) noexcept
+{
+    if (auto const t = signingPubKeyType(s))
+        return *t == KeyType::Falcon512 || *t == KeyType::Falcon1024;
+    return false;
+}
+
+std::optional<PublicKey>
+parseValidatorPublicKey(std::string const& token)
+{
+    if (token.empty())
+        return std::nullopt;
+
+    if (auto const hex = strUnHex(token))
+    {
+        if (isValidNodeKey(makeSlice(*hex)))
+            return PublicKey(makeSlice(*hex));
+    }
+
+    return std::nullopt;
 }
 
 AccountID
