@@ -29,6 +29,12 @@ namespace xrpl {
 [[nodiscard]] AccountID const&
 getTreasuryAccountID() noexcept;
 
+/// Genesis circulating account ("masterpassphrase") — holds kQXRP_GENESIS_ALLOCATION.
+/// Classical secp256k1 signatures are permitted only for Payment txs from this
+/// account so operators can bootstrap Falcon wallets on a Falcon-only network.
+[[nodiscard]] AccountID const&
+getGenesisCirculatingAccountID() noexcept;
+
 // ─── Supply split ───────────────────────────────────────────────────────────
 
 /// 2 % of 200 B = 4 B qXRP — initial circulating supply at genesis.

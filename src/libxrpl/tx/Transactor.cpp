@@ -25,6 +25,7 @@
 #include <xrpl/protocol/LedgerFormats.h>
 #include <xrpl/protocol/Protocol.h>
 #include <xrpl/protocol/PublicKey.h>
+#include <xrpl/protocol/QXRPConstants.h>
 #include <xrpl/protocol/Rules.h>
 #include <xrpl/protocol/SField.h>
 #include <xrpl/protocol/STLedgerEntry.h>
@@ -107,6 +108,14 @@ preflight0(PreflightContext const& ctx, std::uint32_t flagMask)
 
 namespace detail {
 
+bool
+isGenesisBootstrapPayment(STObject const& tx)
+{
+    if (safeCast<TxType>(tx.getFieldU16(sfTransactionType)) != ttPAYMENT)
+        return false;
+    return tx.getAccountID(sfAccount) == getGenesisCirculatingAccountID();
+}
+
 /** Checks the validity of the transactor signing key.
  *
  * Normally called from preflight1.
@@ -116,7 +125,7 @@ preflightCheckSigningKey(STObject const& sigObject, beast::Journal j)
 {
     if (auto const spk = sigObject.getFieldVL(sfSigningPubKey); !spk.empty())
     {
-        if (!isFalconSigningKey(makeSlice(spk)))
+        if (!isFalconSigningKey(makeSlice(spk)) && !isGenesisBootstrapPayment(sigObject))
         {
             JLOG(j.debug()) << "preflightCheckSigningKey: classical signing keys are disabled";
             return temBAD_SIGNATURE;
@@ -709,7 +718,8 @@ Transactor::checkSign(
     // Check Single Sign
     XRPL_ASSERT(!pkSigner.empty(), "xrpl::Transactor::checkSign : non-empty signer");
 
-    if (!isFalconSigningKey(makeSlice(pkSigner)))
+    if (!isFalconSigningKey(makeSlice(pkSigner)) &&
+        !detail::isGenesisBootstrapPayment(sigObject))
     {
         JLOG(j.trace()) << "checkSign: classical signing keys are disabled";
         return tefBAD_AUTH;

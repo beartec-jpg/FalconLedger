@@ -28,4 +28,12 @@ getTreasuryAccountID() noexcept
     return kID;
 }
 
+AccountID const&
+getGenesisCirculatingAccountID() noexcept
+{
+    static AccountID const kID = calcAccountID(
+        generateKeyPair(KeyType::Secp256k1, generateSeed("masterpassphrase")).first);
+    return kID;
+}
+
 }  // namespace xrpl
