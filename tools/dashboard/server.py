@@ -317,11 +317,12 @@ h1 { margin:0; font-size:1.55rem; letter-spacing:-.02em; }
 .live-pill { display:inline-flex; align-items:center; gap:8px; padding:6px 12px; border-radius:999px; background:#102018; border:1px solid #1f4d38; color:var(--good); font-size:.75rem; font-weight:600; }
 .live-dot { width:8px; height:8px; border-radius:50%; background:var(--good); box-shadow:0 0 12px var(--good); animation:pulse 1.6s infinite; }
 @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.45;transform:scale(.85)} }
-.wrap { padding:8px 28px 32px; }
+.wrap { padding:8px 16px 32px; }
+@media (min-width:640px){ .wrap { padding:8px 28px 32px; } }
 .section-title { font-size:.72rem; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); margin:18px 0 12px; font-weight:700; }
-.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:14px; }
-.card { background:linear-gradient(180deg,#162236 0%,var(--card) 100%); border:1px solid var(--border); border-radius:14px; padding:16px 16px 14px; cursor:pointer; transition:transform .15s,border-color .15s,box-shadow .15s; position:relative; overflow:hidden; }
-.card:hover { transform:translateY(-2px); border-color:#3a5578; box-shadow:0 8px 28px rgba(0,0,0,.35), 0 0 0 1px rgba(76,201,240,.08); }
+.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,210px),1fr)); gap:14px; }
+.card { background:linear-gradient(180deg,#162236 0%,var(--card) 100%); border:1px solid var(--border); border-radius:14px; padding:16px 16px 14px; cursor:pointer; -webkit-tap-highlight-color:transparent; touch-action:manipulation; transition:transform .15s,border-color .15s,box-shadow .15s; position:relative; overflow:hidden; user-select:none; }
+.card:hover,.card:active { transform:translateY(-2px); border-color:#3a5578; box-shadow:0 8px 28px rgba(0,0,0,.35), 0 0 0 1px rgba(76,201,240,.08); }
 .card::after { content:''; position:absolute; inset:auto -30% -60% auto; width:120px; height:120px; background:radial-gradient(circle, var(--glow), transparent 70%); pointer-events:none; opacity:.5; }
 .label { font-size:.68rem; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; margin-bottom:8px; }
 .value { font-size:1.55rem; font-weight:800; line-height:1.1; }
@@ -339,7 +340,17 @@ th { color:var(--muted); font-size:.68rem; text-transform:uppercase; letter-spac
 .modal-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
 .modal-head h3 { margin:0; font-size:1.1rem; }
 .close { background:#1a2738; border:1px solid var(--border); color:var(--text); border-radius:8px; padding:6px 12px; cursor:pointer; }
-.chart-box { height:320px; }
+.chart-box { height:320px; min-height:220px; position:relative; }
+.chart-fallback { font-size:.8rem; color:var(--muted); padding:12px 0; max-height:280px; overflow:auto; }
+@media (max-width:640px){
+  header { padding:16px 16px 8px; }
+  h1 { font-size:1.25rem; }
+  .modal { padding:0; align-items:stretch; }
+  .modal.open { display:flex; }
+  .modal-box { width:100%; max-width:100%; height:100%; border-radius:0; border-left:none; border-right:none; display:flex; flex-direction:column; }
+  .chart-box { flex:1; height:auto; min-height:50vh; }
+}
+body.modal-open { overflow:hidden; position:fixed; width:100%; }
 .footer { margin-top:22px; color:var(--muted); font-size:.75rem; }
 a { color:var(--accent); text-decoration:none; }
 .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:.68rem; border:1px solid var(--border); background:#101a28; color:var(--muted); }
@@ -379,7 +390,7 @@ a { color:var(--accent); text-decoration:none; }
       <h3 id="modalTitle">Metric</h3>
       <button class="close" onclick="closeModal()">Close</button>
     </div>
-    <div class="chart-box"><canvas id="modalChart"></canvas></div>
+    <div class="chart-box"><canvas id="modalChart"></canvas><div id="chartFallback" class="chart-fallback" hidden></div></div>
   </div>
 </div>
 
@@ -400,6 +411,8 @@ const METRICS = {
 
 let modalChart = null;
 let lastLedger = 0;
+let tileSeq = 0;
+let historyCache = [];
 
 function cls(state, good, warn) {
   if (good.includes(state)) return 'good';
@@ -408,25 +421,29 @@ function cls(state, good, warn) {
 }
 
 function tile(id, label, value, sub, metric, valueClass='') {
-  return `<div class="card" data-metric="${metric}" onclick="openChart('${metric}','${label}')">
+  const tid = 't' + (++tileSeq);
+  return `<div class="card" data-metric="${metric}" data-label="${label.replace(/"/g,'')}" data-tile="${tid}" role="button" tabindex="0" aria-label="${label} chart">
     <div class="label">${label}</div>
     <div class="value ${valueClass}" id="${id}">${value}</div>
-    <canvas class="spark" id="spark_${metric}"></canvas>
-    <div class="hint">${sub} · 24h chart</div>
+    <canvas class="spark" data-spark="${metric}" data-tile="${tid}"></canvas>
+    <div class="hint">${sub} · tap for 24h</div>
   </div>`;
 }
 
 function drawSpark(canvas, points, color) {
   if (!canvas || !points.length) return;
+  const cssW = canvas.clientWidth || canvas.parentElement?.clientWidth || 180;
+  if (cssW < 2) return;
   const ctx = canvas.getContext('2d');
-  const w = canvas.width = canvas.clientWidth * devicePixelRatio;
-  const h = canvas.height = canvas.clientHeight * devicePixelRatio;
+  const ratio = Math.min(window.devicePixelRatio || 1, 2);
+  const w = canvas.width = Math.floor(cssW * ratio);
+  const h = canvas.height = Math.floor(34 * ratio);
   const vals = points.map(p => p.v ?? 0);
   const min = Math.min(...vals), max = Math.max(...vals);
   const span = Math.max(max - min, 1);
   ctx.clearRect(0,0,w,h);
   ctx.strokeStyle = color;
-  ctx.lineWidth = 2 * devicePixelRatio;
+  ctx.lineWidth = 2 * ratio;
   ctx.beginPath();
   vals.forEach((v,i) => {
     const x = (i / Math.max(vals.length-1,1)) * (w-8) + 4;
@@ -436,19 +453,18 @@ function drawSpark(canvas, points, color) {
   ctx.stroke();
 }
 
-async function fetchHistory(metric) {
-  const r = await fetch('/api/history?metric=' + metric);
-  const j = await r.json();
-  return j.points || [];
+function historyForMetric(metric) {
+  return historyCache.map(p => ({ t: p.t, v: p[metric] }));
 }
 
 async function refresh() {
-  const [stats, ...histories] = await Promise.all([
+  const [stats, histAll] = await Promise.all([
     fetch('/api/stats').then(r => r.json()),
-    ...Object.keys(METRICS).map(m => fetchHistory(m))
+    fetch('/api/history').then(r => r.json()),
   ]);
+  historyCache = histAll.points || [];
   const histMap = {};
-  Object.keys(METRICS).forEach((m,i) => { histMap[m] = histories[i]; });
+  Object.keys(METRICS).forEach((m) => { histMap[m] = historyForMetric(m); });
 
   const node = stats.node || {};
   const net = stats.network || {};
@@ -501,9 +517,17 @@ async function refresh() {
   </tr>`).join('');
   document.getElementById('valTable').innerHTML = rows || '<tr><td colspan="4">No validators</td></tr>';
 
-  Object.entries(METRICS).forEach(([m, cfg]) => {
-    const c = document.getElementById('spark_' + m);
-    if (c) drawSpark(c, histMap[m].slice(-40), cfg.color);
+  document.querySelectorAll('canvas.spark').forEach((c) => {
+    const m = c.dataset.spark;
+    const cfg = METRICS[m] || { color: '#4cc9f0' };
+    drawSpark(c, (histMap[m] || []).slice(-40), cfg.color);
+  });
+  requestAnimationFrame(() => {
+    document.querySelectorAll('canvas.spark').forEach((c) => {
+      const m = c.dataset.spark;
+      const cfg = METRICS[m] || { color: '#4cc9f0' };
+      drawSpark(c, (histMap[m] || []).slice(-40), cfg.color);
+    });
   });
 
   const ratePts = histMap.ledger_rate_per_min || [];
@@ -512,36 +536,81 @@ async function refresh() {
   if (el) el.textContent = (lastRate || 0).toFixed(1) + '/min';
 }
 
+function renderChartFallback(points, cfg) {
+  const el = document.getElementById('chartFallback');
+  const canvas = document.getElementById('modalChart');
+  canvas.hidden = true;
+  el.hidden = false;
+  if (!points.length) {
+    el.textContent = 'Collecting data — check back in a few minutes.';
+    return;
+  }
+  const rows = points.slice(-12).map(p => {
+    const t = new Date(p.t * 1000).toLocaleString();
+    return `${t}: ${p.v ?? 0}`;
+  });
+  el.innerHTML = '<strong>' + cfg.title + '</strong><br>' + rows.join('<br>');
+}
+
 function openChart(metric, label) {
   const cfg = METRICS[metric] || { title: label, color: '#4cc9f0' };
+  const points = historyForMetric(metric);
   document.getElementById('modalTitle').textContent = cfg.title + ' · last 24h';
   document.getElementById('modal').classList.add('open');
-  fetchHistory(metric).then(points => {
-    const labels = points.map(p => new Date(p.t * 1000).toLocaleTimeString());
-    const data = points.map(p => p.v ?? 0);
-    if (modalChart) modalChart.destroy();
-    modalChart = new Chart(document.getElementById('modalChart'), {
+  document.body.classList.add('modal-open');
+  const canvas = document.getElementById('modalChart');
+  const fallback = document.getElementById('chartFallback');
+  canvas.hidden = false;
+  fallback.hidden = true;
+  if (modalChart) { modalChart.destroy(); modalChart = null; }
+  if (typeof Chart === 'undefined') {
+    renderChartFallback(points, cfg);
+    return;
+  }
+  const labels = points.map(p => new Date(p.t * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+  const data = points.map(p => p.v ?? 0);
+  requestAnimationFrame(() => {
+    modalChart = new Chart(canvas, {
       type: 'line',
       data: { labels, datasets: [{ label: cfg.title, data, borderColor: cfg.color, backgroundColor: cfg.color + '33', fill: true, tension: .25, pointRadius: 0, borderWidth: 2 }] },
       options: {
-        responsive: true, maintainAspectRatio: false,
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 200 },
         plugins: { legend: { display: false } },
+        interaction: { mode: 'index', intersect: false },
         scales: {
-          x: { ticks: { maxTicksLimit: 8, color: '#8ba3bf' }, grid: { color: '#1b2838' } },
+          x: { ticks: { maxTicksLimit: window.innerWidth < 640 ? 5 : 8, color: '#8ba3bf', maxRotation: 0 }, grid: { color: '#1b2838' } },
           y: { ticks: { color: '#8ba3bf' }, grid: { color: '#1b2838' } }
         }
       }
     });
+    setTimeout(() => { if (modalChart) modalChart.resize(); }, 80);
   });
 }
 
 function closeModal() {
   document.getElementById('modal').classList.remove('open');
+  document.body.classList.remove('modal-open');
 }
+
+function onCardActivate(e) {
+  const card = e.target.closest('.card[data-metric]');
+  if (!card) return;
+  e.preventDefault();
+  openChart(card.dataset.metric, card.dataset.label || card.dataset.metric);
+}
+
 document.getElementById('modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
+document.addEventListener('click', onCardActivate);
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+  if (e.key === 'Enter' && e.target.closest('.card[data-metric]')) onCardActivate(e);
+});
 
 refresh();
 setInterval(refresh, 15000);
+window.addEventListener('resize', () => { if (modalChart) modalChart.resize(); });
 </script>
 </body>
 </html>"""
