@@ -1,0 +1,9 @@
+{
+  "name": "qxrp-bridge-scripts",
+  "private": true,
+  "type": "commonjs",
+  "dependencies": {
+    "ethers": "^6.13.0",
+    "solc": "0.8.28"
+  }
+}

@@ -101,3 +101,6 @@ cfg/*
 
 # Backup files
 *.bak
+
+# Bridge deploy script deps (npm install in scripts/)
+scripts/node_modules/
