@@ -9,9 +9,11 @@ STABLES_STATE="${STABLES_STATE_FILE:-/var/lib/qxrp-stables/stables_state.json}"
 CONTAINER="${DOCKER_CONTAINER:-qxrp-full}"
 STABLES_MANIFEST="${STABLES_MANIFEST:-${REPO_ROOT}/config/testnet-stables.json}"
 
-echo "==> Installing bridge-deposit-relay.py to ${STATE_DIR}"
+echo "==> Installing bridge relay scripts to ${STATE_DIR}"
 install -d -m 0750 "${STATE_DIR}"
 install -m 0755 "${SCRIPT_DIR}/bridge-deposit-relay.py" "${STATE_DIR}/bridge-deposit-relay.py"
+install -m 0755 "${SCRIPT_DIR}/bridge-withdraw-relay.py" "${STATE_DIR}/bridge-withdraw-relay.py"
+install -m 0755 "${SCRIPT_DIR}/bridge-sepolia-withdraw.js" "${STATE_DIR}/bridge-sepolia-withdraw.js"
 install -m 0644 "${REPO_ROOT}/config/usdc-bridge.json" "${STATE_DIR}/usdc-bridge.json"
 
 if [[ ! -f "${STABLES_STATE}" ]]; then
@@ -36,10 +38,12 @@ Environment=BRIDGE_MANIFEST=${STATE_DIR}/usdc-bridge.json
 Environment=STABLES_MANIFEST=${STABLES_MANIFEST}
 Environment=SEPOLIA_RPC_URL=https://ethereum-sepolia-rpc.publicnode.com
 Environment=SEPOLIA_LOCK_CONTRACT=0x05712e9BC202cE3F1E601caCb1C82fc3AC9D8651
+Environment=BRIDGE_WITHDRAW_STATE_FILE=${STATE_DIR}/withdraw_state.json
 Environment=PUBLIC_RPC_URL=http://127.0.0.1:6005
 Environment=ADMIN_RPC_URL=http://127.0.0.1:5005
 Environment=DOCKER_CONTAINER=${CONTAINER}
-ExecStart=/usr/bin/python3 ${STATE_DIR}/bridge-deposit-relay.py --loop --interval 30
+# SEPOLIA_OWNER_PRIVATE_KEY must be set in /etc/systemd/system/qxrp-bridge-relay.service.d/override.conf
+ExecStart=/bin/bash -c '/usr/bin/python3 ${STATE_DIR}/bridge-deposit-relay.py --loop --interval 30 & /usr/bin/python3 ${STATE_DIR}/bridge-withdraw-relay.py --loop --interval 30 & wait'
 Restart=on-failure
 RestartSec=10
 

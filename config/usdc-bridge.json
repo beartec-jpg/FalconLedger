@@ -22,5 +22,11 @@
     "script": "scripts/bridge-deposit-relay.py",
     "state_file": "/var/lib/qxrp-bridge/relay_state.json",
     "poll_interval_seconds": 30
+  },
+  "withdraw_relay": {
+    "script": "scripts/bridge-withdraw-relay.py",
+    "state_file": "/var/lib/qxrp-bridge/withdraw_state.json",
+    "poll_interval_seconds": 30,
+    "memo_type": "sepolia-withdraw"
   }
 }

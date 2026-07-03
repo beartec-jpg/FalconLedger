@@ -30,7 +30,16 @@ contract FalconCollateralLock {
         string falconAccount
     );
     event DepositReleased(bytes32 indexed depositId, address indexed recipient, uint256 amount);
+    event WithdrawalReleased(
+        bytes32 indexed withdrawalId,
+        address indexed recipient,
+        uint256 amount,
+        string falconAccount,
+        string falconTxHash
+    );
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+
+    mapping(bytes32 => bool) public processedWithdrawals;
 
     modifier onlyOwner() {
         require(msg.sender == owner, "not owner");
@@ -70,6 +79,26 @@ contract FalconCollateralLock {
         });
 
         emit DepositCreated(depositId, msg.sender, amount, falconAccount);
+    }
+
+    /// @notice Release USDC after Falcon QUC is returned to the issuer (bridge-out).
+    /// @dev Testnet v1: owner-operated relay. Mainnet: validator multisig attestation.
+    function withdraw(
+        uint256 amount,
+        address recipient,
+        bytes32 withdrawalId,
+        string calldata falconAccount,
+        string calldata falconTxHash
+    ) external onlyOwner {
+        require(amount > 0, "amount required");
+        require(recipient != address(0), "zero recipient");
+        require(!processedWithdrawals[withdrawalId], "already processed");
+        require(bytes(falconAccount).length > 0, "falcon account required");
+        require(bytes(falconTxHash).length > 0, "falcon tx required");
+
+        processedWithdrawals[withdrawalId] = true;
+        require(usdc.transfer(recipient, amount), "transfer failed");
+        emit WithdrawalReleased(withdrawalId, recipient, amount, falconAccount, falconTxHash);
     }
 
     /// @notice Testnet / interim release back to depositor. Replace with validator-signed release on mainnet.
