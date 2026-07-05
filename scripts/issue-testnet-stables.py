@@ -457,6 +457,7 @@ def write_manifest(
         "rpc_url": rpc_url,
         "issued_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "genesis": GENESIS_ACCOUNT,
+        "bridge_only": all(v == "bridge" for v in liquidity.values()),
         "liquidity_provider": lp.get("address", ""),
         "tokens": tokens,
         "env": {
@@ -474,6 +475,11 @@ def write_manifest(
 def main() -> int:
     parser = argparse.ArgumentParser(description="Issue qUSDC and qUSDT on Falcon Ledger testnet")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--bridge-only",
+        action="store_true",
+        help="Create issuer accounts only — no bootstrap mint/AMM/DEX (F-USDC from Sepolia bridge)",
+    )
     parser.add_argument("--reset", action="store_true")
     parser.add_argument("--admin-rpc", default=os.environ.get("ADMIN_RPC_URL", "http://127.0.0.1:5005"))
     parser.add_argument("--public-rpc", default=os.environ.get("PUBLIC_RPC_URL", "http://46.224.0.140:6005"))
@@ -524,17 +530,25 @@ def main() -> int:
         ("qUSDT", QUSDT_CURRENCY, QUSDT_SUPPLY),
     ]
 
-    print("── Liquidity provider ───────────────────────────────────────")
-    lp = create_liquidity_provider(rpc, state, args.dry_run, state_path)
-    print()
+    lp: dict | None = None
+    if not args.bridge_only:
+        print("── Liquidity provider ───────────────────────────────────────")
+        lp = create_liquidity_provider(rpc, state, args.dry_run, state_path)
+        print()
+    else:
+        warn("Bridge-only mode — skipping LP funding, bootstrap mint, and AMM/DEX seed")
 
     for token_name, currency, supply in tokens:
         print(f"── {token_name} ──────────────────────────────────────────────")
         issuer = create_issuer(rpc, state, token_name, args.dry_run, state_path)
         set_default_ripple(rpc, issuer, token_name, args.dry_run)
-        set_trust_line(rpc, lp, currency, issuer["address"], supply, token_name, args.dry_run)
-        issue_tokens(rpc, issuer, lp, currency, supply, token_name, args.dry_run)
-        liquidity[token_name] = create_amm(rpc, lp, currency, issuer["address"], token_name, args.dry_run)
+        if args.bridge_only:
+            liquidity[token_name] = "bridge"
+        else:
+            assert lp is not None
+            set_trust_line(rpc, lp, currency, issuer["address"], supply, token_name, args.dry_run)
+            issue_tokens(rpc, issuer, lp, currency, supply, token_name, args.dry_run)
+            liquidity[token_name] = create_amm(rpc, lp, currency, issuer["address"], token_name, args.dry_run)
         print()
 
     if not args.dry_run:
