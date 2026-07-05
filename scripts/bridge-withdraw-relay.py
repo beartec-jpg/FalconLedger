@@ -193,7 +193,9 @@ def release_on_sepolia(
         )
         return True, "dry-run"
 
-    script = REPO_ROOT / "scripts" / "bridge-sepolia-withdraw.js"
+    script = Path(__file__).resolve().parent / "bridge-sepolia-withdraw.js"
+    if not script.exists():
+        script = REPO_ROOT / "scripts" / "bridge-sepolia-withdraw.js"
     env = os.environ.copy()
     cmd = [
         "node", str(script),
