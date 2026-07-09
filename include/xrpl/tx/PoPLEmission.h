@@ -65,29 +65,26 @@ cidEmissionBps(std::uint32_t epochNum) noexcept
     return std::max(kQXRP_CID_EPOCH_FLOOR_BPS, rounded);
 }
 
-/** PoPL LP allocation as a fraction of total epoch emission, in bps.
-    Tapers linearly from 50 % at epoch 1 to 30 % from epoch 24 onward. */
+/** PoPL LP basket as bps of total epoch emission from active provider count.
+
+    Each distinct vault depositor (non-zero share MPT) adds 1 % (100 bps) to the
+    LP basket, capped at 50 providers → 50 %. Validators receive the remainder. */
 [[nodiscard]] inline std::uint32_t
-poplLpAllocationBps(std::uint32_t epochNum) noexcept
+poplLpParticipationBps(std::uint32_t providerCount) noexcept
 {
-    if (epochNum <= 1)
-        return kQXRP_POPL_LP_START_BPS;
+    if (providerCount == 0)
+        return 0;
 
-    if (epochNum >= kQXRP_POPL_TAPER_EPOCHS)
-        return kQXRP_POPL_LP_END_BPS;
-
-    auto const taper =
-        (kQXRP_POPL_LP_START_BPS - kQXRP_POPL_LP_END_BPS) * (epochNum - 1) /
-        (kQXRP_POPL_TAPER_EPOCHS - 1);
-
-    return kQXRP_POPL_LP_START_BPS - taper;
+    auto const capped = std::min(providerCount, kQXRP_POPL_LP_MAX_PROVIDERS);
+    auto const bps = capped * kQXRP_POPL_LP_BPS_PER_PROVIDER;
+    return std::min(bps, kQXRP_POPL_LP_MAX_BPS);
 }
 
 /** Validator allocation as bps of total emission (complement of LP share). */
 [[nodiscard]] inline std::uint32_t
-poplValidatorAllocationBps(std::uint32_t epochNum) noexcept
+poplValidatorParticipationBps(std::uint32_t providerCount) noexcept
 {
-    return kBPS_DENOM - poplLpAllocationBps(epochNum);
+    return kBPS_DENOM - poplLpParticipationBps(providerCount);
 }
 
 }  // namespace xrpl

@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <unordered_set>
 
 namespace xrpl {
 
@@ -37,6 +38,39 @@ aggregateVaultShareSupply(ReadView const& view)
             total += sleIssuance->getFieldU64(sfOutstandingAmount);
     }
     return total;
+}
+
+std::uint32_t
+countActiveLpProviders(ReadView const& view)
+{
+    std::unordered_set<uint256> shareMptIDs;
+    for (auto const& sle : view.sles)
+    {
+        if (!sle || sle->getType() != ltVAULT)
+            continue;
+
+        shareMptIDs.insert(sle->at(sfShareMPTID));
+    }
+
+    if (shareMptIDs.empty())
+        return 0;
+
+    std::unordered_set<AccountID> providers;
+    for (auto const& sle : view.sles)
+    {
+        if (!sle || sle->getType() != ltMPTOKEN)
+            continue;
+
+        if (!shareMptIDs.count(sle->at(sfMPTokenIssuanceID)))
+            continue;
+
+        if (sle->getFieldU64(sfMPTAmount) == 0)
+            continue;
+
+        providers.insert(sle->getAccountID(sfAccount));
+    }
+
+    return static_cast<std::uint32_t>(providers.size());
 }
 
 }  // namespace
@@ -77,7 +111,8 @@ applyRewardEpoch(
 
     // ── CID: yearly-average budget with per-epoch micro-decline ───────────
     std::uint32_t const emissionBps = cidEmissionBps(epochNum);
-    std::uint32_t const lpAllocBps = poplLpAllocationBps(epochNum);
+    std::uint32_t const lpProviderCount = countActiveLpProviders(view);
+    std::uint32_t const lpAllocBps = poplLpParticipationBps(lpProviderCount);
     std::uint64_t const aggregateLPShares = aggregateVaultShareSupply(view);
 
     // ── Epoch pool balance ────────────────────────────────────────────────
@@ -154,6 +189,7 @@ applyRewardEpoch(
     JLOG(j.info()) << "applyRewardEpoch: epoch=" << epochNum
                    << " pool=" << poolDrops << " drops"
                    << " emissionBps=" << emissionBps
+                   << " lpProviders=" << lpProviderCount
                    << " lpAllocBps=" << lpAllocBps
                    << " aggregateLPShares=" << aggregateLPShares
                    << " burnBps=" << burnBps;

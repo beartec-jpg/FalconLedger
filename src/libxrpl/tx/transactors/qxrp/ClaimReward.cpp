@@ -93,7 +93,7 @@ ClaimReward::doApply()
 
     auto const lpAllocBps = sleEpoch->isFieldPresent(sfLPAllocationBps)
         ? sleEpoch->getFieldU32(sfLPAllocationBps)
-        : poplLpAllocationBps(currentEpoch);
+        : 0;
     auto const validatorBps = kBPS_DENOM - lpAllocBps;
 
     auto const emissionDrops = emissionRate.xrp().drops();

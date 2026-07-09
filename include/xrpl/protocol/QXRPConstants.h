@@ -106,14 +106,14 @@ constexpr std::uint32_t kQXRP_CID_DECLINE_DEN = 10'816;
 
 // ─── PoPL emission split (validator / LP) ────────────────────────────────────
 
-/// LP share of total emission at epoch 1 (50 %).
-constexpr std::uint32_t kQXRP_POPL_LP_START_BPS = 5'000;
+/// LP basket grows 1 % of total emission per active provider (100 bps each).
+constexpr std::uint32_t kQXRP_POPL_LP_BPS_PER_PROVIDER = 100;
 
-/// LP share after the taper completes (30 %).
-constexpr std::uint32_t kQXRP_POPL_LP_END_BPS = 3'000;
+/// Provider count at which the LP basket reaches its maximum (50 %).
+constexpr std::uint32_t kQXRP_POPL_LP_MAX_PROVIDERS = 50;
 
-/// Epoch count over which LP allocation tapers from start → end (inclusive).
-constexpr std::uint32_t kQXRP_POPL_TAPER_EPOCHS = 24;
+/// Maximum LP share of total emission (50 % = 5 000 bps).
+constexpr std::uint32_t kQXRP_POPL_LP_MAX_BPS = 5'000;
 
 // Legacy halving constants (retained for reference / tests only).
 [[maybe_unused]] constexpr std::uint32_t kQXRP_EPOCHS_PER_HALVING = 208;
