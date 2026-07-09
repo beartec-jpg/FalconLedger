@@ -172,6 +172,16 @@ def find_vault_for_owner(rpc: RpcClient, owner: str) -> dict | None:
         return None
 
 
+def object_id(obj: dict | None, *keys: str) -> str | None:
+    if not obj:
+        return None
+    for key in keys:
+        val = obj.get(key)
+        if val:
+            return str(val)
+    return None
+
+
 def find_broker_for_owner(rpc: RpcClient, owner: str) -> dict | None:
     try:
         r = rpc.public("account_objects", {
@@ -273,7 +283,7 @@ def main() -> int:
         return 1
 
     vault_obj = find_vault_for_owner(rpc, lp_addr)
-    vault_id = vault_obj.get("VaultID") if vault_obj else None
+    vault_id = object_id(vault_obj, "VaultID", "index")
 
     if not vault_id:
         if not submit_tx(rpc, lp_secret, {
@@ -285,13 +295,13 @@ def main() -> int:
         if not args.dry_run:
             time.sleep(4)
             vault_obj = find_vault_for_owner(rpc, lp_addr)
-            vault_id = vault_obj.get("VaultID") if vault_obj else None
+            vault_id = object_id(vault_obj, "VaultID", "index")
             if not vault_id:
                 return 1
             ok(f"VaultID: {vault_id}")
 
     broker_obj = find_broker_for_owner(rpc, lp_addr)
-    broker_id = broker_obj.get("LoanBrokerID") if broker_obj else None
+    broker_id = object_id(broker_obj, "LoanBrokerID", "index")
 
     if not broker_id:
         if not submit_tx(rpc, lp_secret, {
@@ -307,7 +317,7 @@ def main() -> int:
         if not args.dry_run:
             time.sleep(4)
             broker_obj = find_broker_for_owner(rpc, lp_addr)
-            broker_id = broker_obj.get("LoanBrokerID") if broker_obj else None
+            broker_id = object_id(broker_obj, "LoanBrokerID", "index")
             if not broker_id:
                 return 1
             ok(f"LoanBrokerID: {broker_id}")
