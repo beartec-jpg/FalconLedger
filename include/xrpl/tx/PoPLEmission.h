@@ -10,18 +10,39 @@
 
 namespace xrpl {
 
-/** Continuous Inflationary Decline (CID) emission rate for a 1-based epoch. */
+/** Yearly-average CID emission target (bps of treasury per year) for a 1-based epoch. */
+[[nodiscard]] inline std::uint32_t
+cidYearlyAvgBps(std::uint32_t epochNum) noexcept
+{
+    if (epochNum == 0)
+        return kQXRP_CID_YEARLY_START_BPS;
+
+    auto const year = (epochNum - 1) / kQXRP_EPOCHS_PER_YEAR;
+    auto const decline = kQXRP_CID_YEARLY_STEP_BPS * year;
+    if (decline >= kQXRP_CID_YEARLY_START_BPS - kQXRP_CID_YEARLY_FLOOR_BPS)
+        return kQXRP_CID_YEARLY_FLOOR_BPS;
+
+    return kQXRP_CID_YEARLY_START_BPS - decline;
+}
+
+/** Per-epoch CID emission rate (bps of treasury) for a 1-based epoch.
+
+    The yearly-average target is spread across kQXRP_EPOCHS_PER_YEAR epochs with
+    linearly declining weights (52, 51, …, 1) so each epoch emits slightly less
+    than the previous one while the calendar-year sum equals the yearly average. */
 [[nodiscard]] inline std::uint32_t
 cidEmissionBps(std::uint32_t epochNum) noexcept
 {
     if (epochNum == 0)
-        return kQXRP_CID_START_BPS;
+        epochNum = 1;
 
-    auto const decline = kQXRP_CID_STEP_BPS * (epochNum - 1);
-    if (decline >= kQXRP_CID_START_BPS - kQXRP_CID_FLOOR_BPS)
-        return kQXRP_CID_FLOOR_BPS;
+    auto const slot = (epochNum - 1) % kQXRP_EPOCHS_PER_YEAR;
+    auto const weight = kQXRP_EPOCHS_PER_YEAR - slot;
+    auto const yearlyAvg = cidYearlyAvgBps(epochNum);
 
-    return kQXRP_CID_START_BPS - decline;
+    // Round to nearest bps so the final epoch of each year is never zeroed by truncation.
+    return (yearlyAvg * weight + kQXRP_CID_YEAR_WEIGHT_SUM / 2) /
+        kQXRP_CID_YEAR_WEIGHT_SUM;
 }
 
 /** PoPL LP allocation as a fraction of total epoch emission, in bps.

@@ -75,7 +75,7 @@ applyRewardEpoch(
         return;
     }
 
-    // ── CID linear emission decline ───────────────────────────────────────
+    // ── CID: yearly-average budget with per-epoch micro-decline ───────────
     std::uint32_t const emissionBps = cidEmissionBps(epochNum);
     std::uint32_t const lpAllocBps = poplLpAllocationBps(epochNum);
     std::uint64_t const aggregateLPShares = aggregateVaultShareSupply(view);

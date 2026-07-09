@@ -83,14 +83,24 @@ constexpr std::uint32_t kQXRP_LEDGERS_PER_EPOCH = 172'800;
 
 // ─── CID (Continuous Inflationary Decline) emission ─────────────────────────
 
-/// Epoch-1 treasury emission: 12 % (1 200 bps).
-constexpr std::uint32_t kQXRP_CID_START_BPS = 1'200;
+/// Reward epochs per calendar year (~52 × ~7 days).
+constexpr std::uint32_t kQXRP_EPOCHS_PER_YEAR = 52;
 
-/// Long-term emission floor: 1.5 % (150 bps).
-constexpr std::uint32_t kQXRP_CID_FLOOR_BPS = 150;
+/// Sum of intra-year weights 52 + 51 + … + 1 (normalizes epoch shares to yearly avg).
+constexpr std::uint32_t kQXRP_CID_YEAR_WEIGHT_SUM = 1'378;
 
-/// Linear decline per epoch (bps).  Reaches ~2.7 % around epoch 312 (~year 6).
+/// Year-1 average treasury emission: 12 % (1 200 bps of treasury per year).
+constexpr std::uint32_t kQXRP_CID_YEARLY_START_BPS = 1'200;
+
+/// Long-term yearly-average floor: 1.5 % (150 bps of treasury per year).
+constexpr std::uint32_t kQXRP_CID_YEARLY_FLOOR_BPS = 150;
+
+/// Micro-decline per epoch slot (bps of yearly average).  Yearly step = × epochs/year.
 constexpr std::uint32_t kQXRP_CID_STEP_BPS = 3;
+
+/// Yearly-average decline between consecutive calendar years.
+constexpr std::uint32_t kQXRP_CID_YEARLY_STEP_BPS =
+    kQXRP_CID_STEP_BPS * kQXRP_EPOCHS_PER_YEAR;
 
 // ─── PoPL emission split (validator / LP) ────────────────────────────────────
 
