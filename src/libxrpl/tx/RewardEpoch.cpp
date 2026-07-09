@@ -2,12 +2,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 #include <xrpl/tx/RewardEpoch.h>
+#include <xrpl/tx/PoPLEmission.h>
 
 #include <xrpl/basics/Log.h>
 #include <xrpl/basics/WideArith.h>
 #include <xrpl/ledger/OpenView.h>
 #include <xrpl/protocol/Feature.h>
 #include <xrpl/protocol/Indexes.h>
+#include <xrpl/protocol/MPTIssue.h>
 #include <xrpl/protocol/QXRPConstants.h>
 #include <xrpl/protocol/Rules.h>
 #include <xrpl/protocol/SField.h>
@@ -18,6 +20,26 @@
 #include <cstdint>
 
 namespace xrpl {
+
+namespace {
+
+std::uint64_t
+aggregateVaultShareSupply(ReadView const& view)
+{
+    std::uint64_t total = 0;
+    for (auto const& sle : view.sles)
+    {
+        if (!sle || sle->getType() != ltVAULT)
+            continue;
+
+        auto const shareMptID = sle->at(sfShareMPTID);
+        if (auto const sleIssuance = view.read(keylet::mptIssuance(shareMptID)))
+            total += sleIssuance->getFieldU64(sfOutstandingAmount);
+    }
+    return total;
+}
+
+}  // namespace
 
 void
 applyRewardEpoch(
@@ -53,19 +75,10 @@ applyRewardEpoch(
         return;
     }
 
-    // ── Emission rate (halved every kQXRP_EPOCHS_PER_HALVING epochs) ─────
-    // halvings uses (epochNum - 1) so that epoch 1 uses the initial rate.
-    std::uint32_t const halvings =
-        static_cast<std::uint32_t>((epochNum - 1) / kQXRP_EPOCHS_PER_HALVING);
-
-    // Guard against shift UB: after 31 halvings the rate is effectively 0.
-    std::uint32_t emissionBps;
-    if (halvings >= 31u)
-        emissionBps = kQXRP_MIN_EMISSION_BPS;
-    else
-        emissionBps = std::max(
-            static_cast<std::uint32_t>(kQXRP_INITIAL_EMISSION_BPS >> halvings),
-            kQXRP_MIN_EMISSION_BPS);
+    // ── CID linear emission decline ───────────────────────────────────────
+    std::uint32_t const emissionBps = cidEmissionBps(epochNum);
+    std::uint32_t const lpAllocBps = poplLpAllocationBps(epochNum);
+    std::uint64_t const aggregateLPShares = aggregateVaultShareSupply(view);
 
     // ── Epoch pool balance ────────────────────────────────────────────────
     // The pool is a *commitment* from the treasury for this epoch window.
@@ -120,6 +133,9 @@ applyRewardEpoch(
     // (sfEpochPoolBalance shrinks as validators claim; this stays fixed.)
     sleEpoch->setFieldAmount(
         sfEmissionRate, STAmount{XRPAmount{poolDrops}});
+    sleEpoch->setFieldU32(sfLPAllocationBps, lpAllocBps);
+    if (aggregateLPShares != 0)
+        sleEpoch->setFieldU64(sfAggregateLPShares, aggregateLPShares);
     sleEpoch->setFieldU32(sfCurrentBurnBps, burnBps);
     // sfFeeVolumeEMA and sfAggregateCompositeScore are SoeDefault (default=0).
     // Do NOT explicitly set them to 0 — applyTemplate will reject it.
@@ -138,8 +154,9 @@ applyRewardEpoch(
     JLOG(j.info()) << "applyRewardEpoch: epoch=" << epochNum
                    << " pool=" << poolDrops << " drops"
                    << " emissionBps=" << emissionBps
-                   << " burnBps=" << burnBps
-                   << " halvings=" << halvings;
+                   << " lpAllocBps=" << lpAllocBps
+                   << " aggregateLPShares=" << aggregateLPShares
+                   << " burnBps=" << burnBps;
 }
 
 }  // namespace xrpl

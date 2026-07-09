@@ -90,6 +90,7 @@ enum class LedgerNameSpace : std::uint16_t {
     RewardEpoch         = 0xB1,  // singleton epoch tracker
     GovernanceParams    = 0xB2,  // singleton governance param store
     GovernanceProposal  = 0xB3,  // per-proposal governance object
+    PopLpState          = 0xB4,  // per-account LP claim tracker
 
     // No longer used or supported. Left here to reserve the space to avoid accidental reuse.
     Contract [[deprecated]] = 'c',
@@ -613,6 +614,12 @@ Keylet
 governanceProposal(AccountID const& proposer, std::uint32_t seq) noexcept
 {
     return {ltGOVERNANCE_PROPOSAL, indexHash(LedgerNameSpace::GovernanceProposal, proposer, seq)};
+}
+
+Keylet
+popLpState(AccountID const& account, uint256 const& vaultID) noexcept
+{
+    return {ltPOP_LP_STATE, indexHash(LedgerNameSpace::PopLpState, account, vaultID)};
 }
 
 }  // namespace keylet

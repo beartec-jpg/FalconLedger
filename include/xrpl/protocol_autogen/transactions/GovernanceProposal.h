@@ -48,6 +48,17 @@ public:
     // Transaction-specific field getters
 
     /**
+     * @brief Get sfConsensusKey (SoeRequired)
+     * @return The field value.
+     */
+    [[nodiscard]]
+    SF_VL::type::value_type
+    getConsensusKey() const
+    {
+        return this->tx_->at(sfConsensusKey);
+    }
+
+    /**
      * @brief Get sfProposalType (SoeRequired)
      * @return The field value.
      */
@@ -83,17 +94,19 @@ public:
     /**
      * @brief Construct a new GovernanceProposalBuilder with required fields.
      * @param account The account initiating the transaction.
+     * @param consensusKey The sfConsensusKey field value.
      * @param proposalType The sfProposalType field value.
      * @param proposalValue The sfProposalValue field value.
      * @param sequence Optional sequence number for the transaction.
      * @param fee Optional fee for the transaction.
      */
     GovernanceProposalBuilder(SF_ACCOUNT::type::value_type account,
-                     std::decay_t<typename SF_UINT32::type::value_type> const& proposalType,                     std::decay_t<typename SF_UINT32::type::value_type> const& proposalValue,                    std::optional<SF_UINT32::type::value_type> sequence = std::nullopt,
+                     std::decay_t<typename SF_VL::type::value_type> const& consensusKey,                     std::decay_t<typename SF_UINT32::type::value_type> const& proposalType,                     std::decay_t<typename SF_UINT32::type::value_type> const& proposalValue,                    std::optional<SF_UINT32::type::value_type> sequence = std::nullopt,
                     std::optional<SF_AMOUNT::type::value_type> fee = std::nullopt
 )
         : TransactionBuilderBase<GovernanceProposalBuilder>(ttGOVERNANCE_PROPOSAL, account, sequence, fee)
     {
+        setConsensusKey(consensusKey);
         setProposalType(proposalType);
         setProposalValue(proposalValue);
     }
@@ -113,6 +126,17 @@ public:
     }
 
     /** @brief Transaction-specific field setters */
+
+    /**
+     * @brief Set sfConsensusKey (SoeRequired)
+     * @return Reference to this builder for method chaining.
+     */
+    GovernanceProposalBuilder&
+    setConsensusKey(std::decay_t<typename SF_VL::type::value_type> const& value)
+    {
+        object_[sfConsensusKey] = value;
+        return *this;
+    }
 
     /**
      * @brief Set sfProposalType (SoeRequired)

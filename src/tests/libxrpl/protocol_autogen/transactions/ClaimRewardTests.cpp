@@ -29,9 +29,11 @@ TEST(TransactionsClaimRewardTests, BuilderSettersRoundTrip)
     auto const feeValue = canonical_AMOUNT();
 
     // Transaction-specific field values
+    auto const consensusKeyValue = canonical_VL();
 
     ClaimRewardBuilder builder{
         accountValue,
+        consensusKeyValue,
         sequenceValue,
         feeValue
     };
@@ -53,6 +55,12 @@ TEST(TransactionsClaimRewardTests, BuilderSettersRoundTrip)
     EXPECT_EQ(tx.getFee(), feeValue);
 
     // Verify required fields
+    {
+        auto const& expected = consensusKeyValue;
+        auto const actual = tx.getConsensusKey();
+        expectEqualField(expected, actual, "sfConsensusKey");
+    }
+
     // Verify optional fields
 }
 
@@ -70,10 +78,12 @@ TEST(TransactionsClaimRewardTests, BuilderFromStTxRoundTrip)
     auto const feeValue = canonical_AMOUNT();
 
     // Transaction-specific field values
+    auto const consensusKeyValue = canonical_VL();
 
     // Build an initial transaction
     ClaimRewardBuilder initialBuilder{
         accountValue,
+        consensusKeyValue,
         sequenceValue,
         feeValue
     };
@@ -95,6 +105,12 @@ TEST(TransactionsClaimRewardTests, BuilderFromStTxRoundTrip)
     EXPECT_EQ(rebuiltTx.getFee(), feeValue);
 
     // Verify required fields
+    {
+        auto const& expected = consensusKeyValue;
+        auto const actual = rebuiltTx.getConsensusKey();
+        expectEqualField(expected, actual, "sfConsensusKey");
+    }
+
     // Verify optional fields
 }
 

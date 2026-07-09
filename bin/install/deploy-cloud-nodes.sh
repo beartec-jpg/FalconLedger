@@ -331,6 +331,8 @@ full
 
 [features]
 ProofOfParticipation
+SingleAssetVault
+LendingProtocol
 
 [server]
 port_rpc_admin_local

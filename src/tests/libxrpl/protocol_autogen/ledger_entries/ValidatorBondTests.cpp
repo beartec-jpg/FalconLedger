@@ -21,6 +21,8 @@ TEST(ValidatorBondTests, BuilderSettersRoundTrip)
     uint256 const index{1u};
 
     auto const accountValue = canonical_ACCOUNT();
+    auto const publicKeyValue = canonical_VL();
+    auto const consensusKeyValue = canonical_VL();
     auto const bondedAmountValue = canonical_AMOUNT();
     auto const bondStatusValue = canonical_UINT32();
     auto const uptimeBpsValue = canonical_UINT32();
@@ -38,6 +40,8 @@ TEST(ValidatorBondTests, BuilderSettersRoundTrip)
 
     ValidatorBondBuilder builder{
         accountValue,
+        publicKeyValue,
+        consensusKeyValue,
         bondedAmountValue,
         bondStatusValue,
         slashMultiplierValue,
@@ -68,6 +72,18 @@ TEST(ValidatorBondTests, BuilderSettersRoundTrip)
         auto const& expected = accountValue;
         auto const actual = entry.getAccount();
         expectEqualField(expected, actual, "sfAccount");
+    }
+
+    {
+        auto const& expected = publicKeyValue;
+        auto const actual = entry.getPublicKey();
+        expectEqualField(expected, actual, "sfPublicKey");
+    }
+
+    {
+        auto const& expected = consensusKeyValue;
+        auto const actual = entry.getConsensusKey();
+        expectEqualField(expected, actual, "sfConsensusKey");
     }
 
     {
@@ -184,6 +200,8 @@ TEST(ValidatorBondTests, BuilderFromSleRoundTrip)
     uint256 const index{2u};
 
     auto const accountValue = canonical_ACCOUNT();
+    auto const publicKeyValue = canonical_VL();
+    auto const consensusKeyValue = canonical_VL();
     auto const bondedAmountValue = canonical_AMOUNT();
     auto const bondStatusValue = canonical_UINT32();
     auto const uptimeBpsValue = canonical_UINT32();
@@ -202,6 +220,8 @@ TEST(ValidatorBondTests, BuilderFromSleRoundTrip)
     auto sle = std::make_shared<SLE>(ValidatorBond::entryType, index);
 
     sle->at(sfAccount) = accountValue;
+    sle->at(sfPublicKey) = publicKeyValue;
+    sle->at(sfConsensusKey) = consensusKeyValue;
     sle->at(sfBondedAmount) = bondedAmountValue;
     sle->at(sfBondStatus) = bondStatusValue;
     sle->at(sfUptimeBps) = uptimeBpsValue;
@@ -234,6 +254,26 @@ TEST(ValidatorBondTests, BuilderFromSleRoundTrip)
 
         expectEqualField(expected, fromSle, "sfAccount");
         expectEqualField(expected, fromBuilder, "sfAccount");
+    }
+
+    {
+        auto const& expected = publicKeyValue;
+
+        auto const fromSle = entryFromSle.getPublicKey();
+        auto const fromBuilder = entryFromBuilder.getPublicKey();
+
+        expectEqualField(expected, fromSle, "sfPublicKey");
+        expectEqualField(expected, fromBuilder, "sfPublicKey");
+    }
+
+    {
+        auto const& expected = consensusKeyValue;
+
+        auto const fromSle = entryFromSle.getConsensusKey();
+        auto const fromBuilder = entryFromBuilder.getConsensusKey();
+
+        expectEqualField(expected, fromSle, "sfConsensusKey");
+        expectEqualField(expected, fromBuilder, "sfConsensusKey");
     }
 
     {
@@ -446,6 +486,8 @@ TEST(ValidatorBondTests, OptionalFieldsReturnNullopt)
     uint256 const index{3u};
 
     auto const accountValue = canonical_ACCOUNT();
+    auto const publicKeyValue = canonical_VL();
+    auto const consensusKeyValue = canonical_VL();
     auto const bondedAmountValue = canonical_AMOUNT();
     auto const bondStatusValue = canonical_UINT32();
     auto const slashMultiplierValue = canonical_UINT32();
@@ -455,6 +497,8 @@ TEST(ValidatorBondTests, OptionalFieldsReturnNullopt)
 
     ValidatorBondBuilder builder{
         accountValue,
+        publicKeyValue,
+        consensusKeyValue,
         bondedAmountValue,
         bondStatusValue,
         slashMultiplierValue,

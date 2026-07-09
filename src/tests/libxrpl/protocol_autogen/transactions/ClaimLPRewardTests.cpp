@@ -1,4 +1,4 @@
-// Auto-generated unit tests for transaction GovernanceProposal
+// Auto-generated unit tests for transaction ClaimLPReward
 
 
 #include <gtest/gtest.h>
@@ -8,7 +8,7 @@
 #include <xrpl/protocol/SecretKey.h>
 #include <xrpl/protocol/Seed.h>
 #include <xrpl/protocol/STTx.h>
-#include <xrpl/protocol_autogen/transactions/GovernanceProposal.h>
+#include <xrpl/protocol_autogen/transactions/ClaimLPReward.h>
 #include <xrpl/protocol_autogen/transactions/AccountSet.h>
 
 #include <string>
@@ -17,11 +17,11 @@ namespace xrpl::transactions {
 
 // 1 & 4) Set fields via builder setters, build, then read them back via
 // wrapper getters. After build(), validate() should succeed.
-TEST(TransactionsGovernanceProposalTests, BuilderSettersRoundTrip)
+TEST(TransactionsClaimLPRewardTests, BuilderSettersRoundTrip)
 {
     // Generate a deterministic keypair for signing
     auto const [publicKey, secretKey] =
-        generateKeyPair(KeyType::Secp256k1, generateSeed("testGovernanceProposal"));
+        generateKeyPair(KeyType::Secp256k1, generateSeed("testClaimLPReward"));
 
     // Common transaction fields
     auto const accountValue = calcAccountID(publicKey);
@@ -29,15 +29,11 @@ TEST(TransactionsGovernanceProposalTests, BuilderSettersRoundTrip)
     auto const feeValue = canonical_AMOUNT();
 
     // Transaction-specific field values
-    auto const consensusKeyValue = canonical_VL();
-    auto const proposalTypeValue = canonical_UINT32();
-    auto const proposalValueValue = canonical_UINT32();
+    auto const vaultIDValue = canonical_UINT256();
 
-    GovernanceProposalBuilder builder{
+    ClaimLPRewardBuilder builder{
         accountValue,
-        consensusKeyValue,
-        proposalTypeValue,
-        proposalValueValue,
+        vaultIDValue,
         sequenceValue,
         feeValue
     };
@@ -60,21 +56,9 @@ TEST(TransactionsGovernanceProposalTests, BuilderSettersRoundTrip)
 
     // Verify required fields
     {
-        auto const& expected = consensusKeyValue;
-        auto const actual = tx.getConsensusKey();
-        expectEqualField(expected, actual, "sfConsensusKey");
-    }
-
-    {
-        auto const& expected = proposalTypeValue;
-        auto const actual = tx.getProposalType();
-        expectEqualField(expected, actual, "sfProposalType");
-    }
-
-    {
-        auto const& expected = proposalValueValue;
-        auto const actual = tx.getProposalValue();
-        expectEqualField(expected, actual, "sfProposalValue");
+        auto const& expected = vaultIDValue;
+        auto const actual = tx.getVaultID();
+        expectEqualField(expected, actual, "sfVaultID");
     }
 
     // Verify optional fields
@@ -82,11 +66,11 @@ TEST(TransactionsGovernanceProposalTests, BuilderSettersRoundTrip)
 
 // 2 & 4) Start from an STTx, construct a builder from it, build a new wrapper,
 // and verify all fields match.
-TEST(TransactionsGovernanceProposalTests, BuilderFromStTxRoundTrip)
+TEST(TransactionsClaimLPRewardTests, BuilderFromStTxRoundTrip)
 {
     // Generate a deterministic keypair for signing
     auto const [publicKey, secretKey] =
-        generateKeyPair(KeyType::Secp256k1, generateSeed("testGovernanceProposalFromTx"));
+        generateKeyPair(KeyType::Secp256k1, generateSeed("testClaimLPRewardFromTx"));
 
     // Common transaction fields
     auto const accountValue = calcAccountID(publicKey);
@@ -94,16 +78,12 @@ TEST(TransactionsGovernanceProposalTests, BuilderFromStTxRoundTrip)
     auto const feeValue = canonical_AMOUNT();
 
     // Transaction-specific field values
-    auto const consensusKeyValue = canonical_VL();
-    auto const proposalTypeValue = canonical_UINT32();
-    auto const proposalValueValue = canonical_UINT32();
+    auto const vaultIDValue = canonical_UINT256();
 
     // Build an initial transaction
-    GovernanceProposalBuilder initialBuilder{
+    ClaimLPRewardBuilder initialBuilder{
         accountValue,
-        consensusKeyValue,
-        proposalTypeValue,
-        proposalValueValue,
+        vaultIDValue,
         sequenceValue,
         feeValue
     };
@@ -112,7 +92,7 @@ TEST(TransactionsGovernanceProposalTests, BuilderFromStTxRoundTrip)
     auto initialTx = initialBuilder.build(publicKey, secretKey);
 
     // Create builder from existing STTx
-    GovernanceProposalBuilder builderFromTx{initialTx.getSTTx()};
+    ClaimLPRewardBuilder builderFromTx{initialTx.getSTTx()};
 
     auto rebuiltTx = builderFromTx.build(publicKey, secretKey);
 
@@ -126,28 +106,16 @@ TEST(TransactionsGovernanceProposalTests, BuilderFromStTxRoundTrip)
 
     // Verify required fields
     {
-        auto const& expected = consensusKeyValue;
-        auto const actual = rebuiltTx.getConsensusKey();
-        expectEqualField(expected, actual, "sfConsensusKey");
-    }
-
-    {
-        auto const& expected = proposalTypeValue;
-        auto const actual = rebuiltTx.getProposalType();
-        expectEqualField(expected, actual, "sfProposalType");
-    }
-
-    {
-        auto const& expected = proposalValueValue;
-        auto const actual = rebuiltTx.getProposalValue();
-        expectEqualField(expected, actual, "sfProposalValue");
+        auto const& expected = vaultIDValue;
+        auto const actual = rebuiltTx.getVaultID();
+        expectEqualField(expected, actual, "sfVaultID");
     }
 
     // Verify optional fields
 }
 
 // 3) Verify wrapper throws when constructed from wrong transaction type.
-TEST(TransactionsGovernanceProposalTests, WrapperThrowsOnWrongTxType)
+TEST(TransactionsClaimLPRewardTests, WrapperThrowsOnWrongTxType)
 {
     // Build a valid transaction of a different type
     auto const [pk, sk] =
@@ -157,11 +125,11 @@ TEST(TransactionsGovernanceProposalTests, WrapperThrowsOnWrongTxType)
     AccountSetBuilder wrongBuilder{account, 1, canonical_AMOUNT()};
     auto wrongTx = wrongBuilder.build(pk, sk);
 
-    EXPECT_THROW(GovernanceProposal{wrongTx.getSTTx()}, std::runtime_error);
+    EXPECT_THROW(ClaimLPReward{wrongTx.getSTTx()}, std::runtime_error);
 }
 
 // 4) Verify builder throws when constructed from wrong transaction type.
-TEST(TransactionsGovernanceProposalTests, BuilderThrowsOnWrongTxType)
+TEST(TransactionsClaimLPRewardTests, BuilderThrowsOnWrongTxType)
 {
     // Build a valid transaction of a different type
     auto const [pk, sk] =
@@ -171,7 +139,7 @@ TEST(TransactionsGovernanceProposalTests, BuilderThrowsOnWrongTxType)
     AccountSetBuilder wrongBuilder{account, 1, canonical_AMOUNT()};
     auto wrongTx = wrongBuilder.build(pk, sk);
 
-    EXPECT_THROW(GovernanceProposalBuilder{wrongTx.getSTTx()}, std::runtime_error);
+    EXPECT_THROW(ClaimLPRewardBuilder{wrongTx.getSTTx()}, std::runtime_error);
 }
 
 

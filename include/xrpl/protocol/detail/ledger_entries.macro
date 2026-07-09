@@ -643,6 +643,8 @@ LEDGER_ENTRY(ltREWARD_EPOCH, 0x0092, RewardEpoch, reward_epoch, ({
     {sfCurrentBurnBps,       SoeRequired},  // burn fraction for this epoch
     {sfFeeVolumeEMA,         SoeDefault},   // smoothed fee volume
     {sfAggregateCompositeScore, SoeDefault}, // sum of all bonded scores
+    {sfLPAllocationBps,      SoeDefault},   // PoPL: LP share of emission (bps)
+    {sfAggregateLPShares,    SoeDefault},   // sum of vault share MPT outstanding
     {sfProposals,            SoeDefault},   // keys of currently open governance proposals
     {sfPreviousTxnID,        SoeRequired},
     {sfPreviousTxnLgrSeq,    SoeRequired},
@@ -666,6 +668,15 @@ LEDGER_ENTRY(ltGOVERNANCE_PARAMS, 0x0093, GovernanceParams, governance_params, (
 
     \sa keylet::governanceProposal
  */
+/** qXRP: per-account LP reward claim tracker (account + vault). */
+LEDGER_ENTRY(ltPOP_LP_STATE, 0x0095, PopLpState, pop_lp_state, ({
+    {sfAccount,              SoeRequired},
+    {sfVaultID,              SoeRequired},
+    {sfLastClaimedEpoch,     SoeDefault},
+    {sfPreviousTxnID,        SoeRequired},
+    {sfPreviousTxnLgrSeq,    SoeRequired},
+}))
+
 LEDGER_ENTRY_DUPLICATE(ltGOVERNANCE_PROPOSAL, 0x0094, GovernanceProposal, governance_proposal, ({
     {sfAccount,              SoeRequired},  // proposer
     {sfProposalType,         SoeRequired},  // 1=burnBps

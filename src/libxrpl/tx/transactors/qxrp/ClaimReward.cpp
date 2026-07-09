@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 #include <xrpl/tx/transactors/qxrp/ClaimReward.h>
+#include <xrpl/tx/PoPLEmission.h>
 
 #include <xrpl/basics/WideArith.h>
 #include <xrpl/protocol/Feature.h>
@@ -80,33 +81,25 @@ ClaimReward::doApply()
     if (lastClaimed >= currentEpoch)
         return tecDUPLICATE;
 
-    // ── Proportional share computation ───────────────────────────────────
-    // share = emissionRate * compositeScore / aggregateCompositeScore
-    // All arithmetic is integer; no floating point.
-    //
-    // sfEmissionRate is the FIXED original pool committed at epoch start.
-    // sfEpochPoolBalance decreases as validators claim — using it for share
-    // computation would cause first-claimers to receive disproportionately
-    // large rewards (early claim unfairness bug).  Use the fixed emission
-    // rate so every validator's share is based on the same denominator,
-    // and shares across all validators sum to exactly sfEmissionRate.
-    auto const compositeScore     = sleBond->getFieldU32(sfCompositeScore);
-    auto const aggregateScore     = sleEpoch->getFieldU32(sfAggregateCompositeScore);
-    auto const poolBalance        = sleEpoch->getFieldAmount(sfEpochPoolBalance);
-    auto const emissionRate       = sleEpoch->getFieldAmount(sfEmissionRate);
+    // ── Proportional share computation (validator portion of PoPL split) ───
+    // share = emissionRate * validatorBps / 10000 * compositeScore / aggScore
+    auto const compositeScore = sleBond->getFieldU32(sfCompositeScore);
+    auto const aggregateScore = sleEpoch->getFieldU32(sfAggregateCompositeScore);
+    auto const poolBalance = sleEpoch->getFieldAmount(sfEpochPoolBalance);
+    auto const emissionRate = sleEpoch->getFieldAmount(sfEmissionRate);
 
     if (aggregateScore == 0)
-        return tecNO_PERMISSION;  // no eligible validators — shouldn't reach here
+        return tecNO_PERMISSION;
 
-    // Use muldiv64: no overflow because compositeScore <= aggregateScore
-    // (one validator's score vs. the sum of all bonded validators' scores).
-    // Both arguments fit in uint32; the result fits in int64.
-    //
-    // SECURITY NOTE (2026 audit item 2.5): For very large validator sets
-    // the aggregateScore can grow, but the design + muldiv64 keeps it safe.
-    // A deeper review for >1000 validators is still recommended.
+    auto const lpAllocBps = sleEpoch->isFieldPresent(sfLPAllocationBps)
+        ? sleEpoch->getFieldU32(sfLPAllocationBps)
+        : poplLpAllocationBps(currentEpoch);
+    auto const validatorBps = kBPS_DENOM - lpAllocBps;
+
     auto const emissionDrops = emissionRate.xrp().drops();
-    auto const shareDrops = muldiv64(emissionDrops, compositeScore, aggregateScore);
+    auto const validatorPoolDrops = muldiv64(emissionDrops, validatorBps, kBPS_DENOM);
+    auto const shareDrops =
+        muldiv64(validatorPoolDrops, compositeScore, aggregateScore);
 
     if (shareDrops <= 0)
         return tesSUCCESS;  // rounding to zero — no reward to distribute

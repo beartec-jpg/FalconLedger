@@ -149,6 +149,54 @@ public:
     }
 
     /**
+     * @brief Get sfLPAllocationBps (SoeDefault)
+     * @return The field value, or std::nullopt if not present.
+     */
+    [[nodiscard]]
+    protocol_autogen::Optional<SF_UINT32::type::value_type>
+    getLPAllocationBps() const
+    {
+        if (hasLPAllocationBps())
+            return this->sle_->at(sfLPAllocationBps);
+        return std::nullopt;
+    }
+
+    /**
+     * @brief Check if sfLPAllocationBps is present.
+     * @return True if the field is present, false otherwise.
+     */
+    [[nodiscard]]
+    bool
+    hasLPAllocationBps() const
+    {
+        return this->sle_->isFieldPresent(sfLPAllocationBps);
+    }
+
+    /**
+     * @brief Get sfAggregateLPShares (SoeDefault)
+     * @return The field value, or std::nullopt if not present.
+     */
+    [[nodiscard]]
+    protocol_autogen::Optional<SF_UINT64::type::value_type>
+    getAggregateLPShares() const
+    {
+        if (hasAggregateLPShares())
+            return this->sle_->at(sfAggregateLPShares);
+        return std::nullopt;
+    }
+
+    /**
+     * @brief Check if sfAggregateLPShares is present.
+     * @return True if the field is present, false otherwise.
+     */
+    [[nodiscard]]
+    bool
+    hasAggregateLPShares() const
+    {
+        return this->sle_->isFieldPresent(sfAggregateLPShares);
+    }
+
+    /**
      * @brief Get sfProposals (SoeDefault)
      * @return The field value, or std::nullopt if not present.
      */
@@ -317,6 +365,28 @@ public:
     setAggregateCompositeScore(std::decay_t<typename SF_UINT32::type::value_type> const& value)
     {
         object_[sfAggregateCompositeScore] = value;
+        return *this;
+    }
+
+    /**
+     * @brief Set sfLPAllocationBps (SoeDefault)
+     * @return Reference to this builder for method chaining.
+     */
+    RewardEpochBuilder&
+    setLPAllocationBps(std::decay_t<typename SF_UINT32::type::value_type> const& value)
+    {
+        object_[sfLPAllocationBps] = value;
+        return *this;
+    }
+
+    /**
+     * @brief Set sfAggregateLPShares (SoeDefault)
+     * @return Reference to this builder for method chaining.
+     */
+    RewardEpochBuilder&
+    setAggregateLPShares(std::decay_t<typename SF_UINT64::type::value_type> const& value)
+    {
+        object_[sfAggregateLPShares] = value;
         return *this;
     }
 

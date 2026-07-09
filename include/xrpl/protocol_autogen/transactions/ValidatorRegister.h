@@ -46,6 +46,28 @@ public:
     }
 
     // Transaction-specific field getters
+
+    /**
+     * @brief Get sfPublicKey (SoeRequired)
+     * @return The field value.
+     */
+    [[nodiscard]]
+    SF_VL::type::value_type
+    getPublicKey() const
+    {
+        return this->tx_->at(sfPublicKey);
+    }
+
+    /**
+     * @brief Get sfConsensusKey (SoeRequired)
+     * @return The field value.
+     */
+    [[nodiscard]]
+    SF_VL::type::value_type
+    getConsensusKey() const
+    {
+        return this->tx_->at(sfConsensusKey);
+    }
 };
 
 /**
@@ -61,15 +83,19 @@ public:
     /**
      * @brief Construct a new ValidatorRegisterBuilder with required fields.
      * @param account The account initiating the transaction.
+     * @param publicKey The sfPublicKey field value.
+     * @param consensusKey The sfConsensusKey field value.
      * @param sequence Optional sequence number for the transaction.
      * @param fee Optional fee for the transaction.
      */
     ValidatorRegisterBuilder(SF_ACCOUNT::type::value_type account,
-                    std::optional<SF_UINT32::type::value_type> sequence = std::nullopt,
+                     std::decay_t<typename SF_VL::type::value_type> const& publicKey,                     std::decay_t<typename SF_VL::type::value_type> const& consensusKey,                    std::optional<SF_UINT32::type::value_type> sequence = std::nullopt,
                     std::optional<SF_AMOUNT::type::value_type> fee = std::nullopt
 )
         : TransactionBuilderBase<ValidatorRegisterBuilder>(ttVALIDATOR_REGISTER, account, sequence, fee)
     {
+        setPublicKey(publicKey);
+        setConsensusKey(consensusKey);
     }
 
     /**
@@ -87,6 +113,28 @@ public:
     }
 
     /** @brief Transaction-specific field setters */
+
+    /**
+     * @brief Set sfPublicKey (SoeRequired)
+     * @return Reference to this builder for method chaining.
+     */
+    ValidatorRegisterBuilder&
+    setPublicKey(std::decay_t<typename SF_VL::type::value_type> const& value)
+    {
+        object_[sfPublicKey] = value;
+        return *this;
+    }
+
+    /**
+     * @brief Set sfConsensusKey (SoeRequired)
+     * @return Reference to this builder for method chaining.
+     */
+    ValidatorRegisterBuilder&
+    setConsensusKey(std::decay_t<typename SF_VL::type::value_type> const& value)
+    {
+        object_[sfConsensusKey] = value;
+        return *this;
+    }
 
     /**
      * @brief Build and return the ValidatorRegister wrapper.

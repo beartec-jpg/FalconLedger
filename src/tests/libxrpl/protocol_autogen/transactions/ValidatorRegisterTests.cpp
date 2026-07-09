@@ -29,9 +29,13 @@ TEST(TransactionsValidatorRegisterTests, BuilderSettersRoundTrip)
     auto const feeValue = canonical_AMOUNT();
 
     // Transaction-specific field values
+    auto const publicKeyValue = canonical_VL();
+    auto const consensusKeyValue = canonical_VL();
 
     ValidatorRegisterBuilder builder{
         accountValue,
+        publicKeyValue,
+        consensusKeyValue,
         sequenceValue,
         feeValue
     };
@@ -53,6 +57,18 @@ TEST(TransactionsValidatorRegisterTests, BuilderSettersRoundTrip)
     EXPECT_EQ(tx.getFee(), feeValue);
 
     // Verify required fields
+    {
+        auto const& expected = publicKeyValue;
+        auto const actual = tx.getPublicKey();
+        expectEqualField(expected, actual, "sfPublicKey");
+    }
+
+    {
+        auto const& expected = consensusKeyValue;
+        auto const actual = tx.getConsensusKey();
+        expectEqualField(expected, actual, "sfConsensusKey");
+    }
+
     // Verify optional fields
 }
 
@@ -70,10 +86,14 @@ TEST(TransactionsValidatorRegisterTests, BuilderFromStTxRoundTrip)
     auto const feeValue = canonical_AMOUNT();
 
     // Transaction-specific field values
+    auto const publicKeyValue = canonical_VL();
+    auto const consensusKeyValue = canonical_VL();
 
     // Build an initial transaction
     ValidatorRegisterBuilder initialBuilder{
         accountValue,
+        publicKeyValue,
+        consensusKeyValue,
         sequenceValue,
         feeValue
     };
@@ -95,6 +115,18 @@ TEST(TransactionsValidatorRegisterTests, BuilderFromStTxRoundTrip)
     EXPECT_EQ(rebuiltTx.getFee(), feeValue);
 
     // Verify required fields
+    {
+        auto const& expected = publicKeyValue;
+        auto const actual = rebuiltTx.getPublicKey();
+        expectEqualField(expected, actual, "sfPublicKey");
+    }
+
+    {
+        auto const& expected = consensusKeyValue;
+        auto const actual = rebuiltTx.getConsensusKey();
+        expectEqualField(expected, actual, "sfConsensusKey");
+    }
+
     // Verify optional fields
 }
 

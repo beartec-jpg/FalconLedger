@@ -391,6 +391,8 @@ ${VALIDATORS_FILE}
 # ── FEATURES ────────────────────────────────────────────────────────────────
 [features]
 ProofOfParticipation
+SingleAssetVault
+LendingProtocol
 
 # ── NETWORK PORTS ───────────────────────────────────────────────────────────
 [server]

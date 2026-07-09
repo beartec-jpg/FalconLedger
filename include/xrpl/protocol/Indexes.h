@@ -374,6 +374,16 @@ governanceProposal(uint256 const& key) noexcept
     return {ltGOVERNANCE_PROPOSAL, key};
 }
 
+/** Per-account LP reward claim state for a specific vault. */
+Keylet
+popLpState(AccountID const& account, uint256 const& vaultID) noexcept;
+
+inline Keylet
+popLpState(uint256 const& key) noexcept
+{
+    return {ltPOP_LP_STATE, key};
+}
+
 }  // namespace keylet
 
 // Everything below is deprecated and should be removed in favor of keylets:

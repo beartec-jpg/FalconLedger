@@ -29,11 +29,13 @@ TEST(TransactionsGovernanceVoteTests, BuilderSettersRoundTrip)
     auto const feeValue = canonical_AMOUNT();
 
     // Transaction-specific field values
+    auto const consensusKeyValue = canonical_VL();
     auto const proposalIDValue = canonical_UINT256();
     auto const voteWeightValue = canonical_UINT32();
 
     GovernanceVoteBuilder builder{
         accountValue,
+        consensusKeyValue,
         proposalIDValue,
         voteWeightValue,
         sequenceValue,
@@ -57,6 +59,12 @@ TEST(TransactionsGovernanceVoteTests, BuilderSettersRoundTrip)
     EXPECT_EQ(tx.getFee(), feeValue);
 
     // Verify required fields
+    {
+        auto const& expected = consensusKeyValue;
+        auto const actual = tx.getConsensusKey();
+        expectEqualField(expected, actual, "sfConsensusKey");
+    }
+
     {
         auto const& expected = proposalIDValue;
         auto const actual = tx.getProposalID();
@@ -86,12 +94,14 @@ TEST(TransactionsGovernanceVoteTests, BuilderFromStTxRoundTrip)
     auto const feeValue = canonical_AMOUNT();
 
     // Transaction-specific field values
+    auto const consensusKeyValue = canonical_VL();
     auto const proposalIDValue = canonical_UINT256();
     auto const voteWeightValue = canonical_UINT32();
 
     // Build an initial transaction
     GovernanceVoteBuilder initialBuilder{
         accountValue,
+        consensusKeyValue,
         proposalIDValue,
         voteWeightValue,
         sequenceValue,
@@ -115,6 +125,12 @@ TEST(TransactionsGovernanceVoteTests, BuilderFromStTxRoundTrip)
     EXPECT_EQ(rebuiltTx.getFee(), feeValue);
 
     // Verify required fields
+    {
+        auto const& expected = consensusKeyValue;
+        auto const actual = rebuiltTx.getConsensusKey();
+        expectEqualField(expected, actual, "sfConsensusKey");
+    }
+
     {
         auto const& expected = proposalIDValue;
         auto const actual = rebuiltTx.getProposalID();

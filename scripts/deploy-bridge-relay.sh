@@ -12,7 +12,7 @@ STABLES_MANIFEST="${STABLES_MANIFEST:-${REPO_ROOT}/config/testnet-stables.json}"
 echo "==> Installing bridge relay scripts to ${STATE_DIR}"
 install -d -m 0750 "${STATE_DIR}"
 install -m 0755 "${SCRIPT_DIR}/bridge-deposit-relay.py" "${STATE_DIR}/bridge-deposit-relay.py"
-install -m 0755 "${SCRIPT_DIR}/bridge-withdraw-relay.py" "${STATE_DIR}/bridge-withdraw-relay.py"
+install -m 0755 "${REPO_ROOT}/scripts/bridge-withdraw-relay.py" "${STATE_DIR}/bridge-withdraw-relay.py"
 install -m 0755 "${SCRIPT_DIR}/bridge-sepolia-withdraw.js" "${STATE_DIR}/bridge-sepolia-withdraw.js"
 install -m 0644 "${REPO_ROOT}/config/usdc-bridge.json" "${STATE_DIR}/usdc-bridge.json"
 

@@ -48,6 +48,17 @@ public:
     // Transaction-specific field getters
 
     /**
+     * @brief Get sfConsensusKey (SoeRequired)
+     * @return The field value.
+     */
+    [[nodiscard]]
+    SF_VL::type::value_type
+    getConsensusKey() const
+    {
+        return this->tx_->at(sfConsensusKey);
+    }
+
+    /**
      * @brief Get sfBondedAmount (SoeRequired)
      * @return The field value.
      */
@@ -72,16 +83,18 @@ public:
     /**
      * @brief Construct a new ValidatorBondBuilder with required fields.
      * @param account The account initiating the transaction.
+     * @param consensusKey The sfConsensusKey field value.
      * @param bondedAmount The sfBondedAmount field value.
      * @param sequence Optional sequence number for the transaction.
      * @param fee Optional fee for the transaction.
      */
     ValidatorBondBuilder(SF_ACCOUNT::type::value_type account,
-                     std::decay_t<typename SF_AMOUNT::type::value_type> const& bondedAmount,                    std::optional<SF_UINT32::type::value_type> sequence = std::nullopt,
+                     std::decay_t<typename SF_VL::type::value_type> const& consensusKey,                     std::decay_t<typename SF_AMOUNT::type::value_type> const& bondedAmount,                    std::optional<SF_UINT32::type::value_type> sequence = std::nullopt,
                     std::optional<SF_AMOUNT::type::value_type> fee = std::nullopt
 )
         : TransactionBuilderBase<ValidatorBondBuilder>(ttVALIDATOR_BOND, account, sequence, fee)
     {
+        setConsensusKey(consensusKey);
         setBondedAmount(bondedAmount);
     }
 
@@ -100,6 +113,17 @@ public:
     }
 
     /** @brief Transaction-specific field setters */
+
+    /**
+     * @brief Set sfConsensusKey (SoeRequired)
+     * @return Reference to this builder for method chaining.
+     */
+    ValidatorBondBuilder&
+    setConsensusKey(std::decay_t<typename SF_VL::type::value_type> const& value)
+    {
+        object_[sfConsensusKey] = value;
+        return *this;
+    }
 
     /**
      * @brief Set sfBondedAmount (SoeRequired)

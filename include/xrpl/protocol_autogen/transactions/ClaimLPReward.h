@@ -13,88 +13,88 @@
 
 namespace xrpl::transactions {
 
-class ClaimRewardBuilder;
+class ClaimLPRewardBuilder;
 
 /**
- * @brief Transaction: ClaimReward
+ * @brief Transaction: ClaimLPReward
  *
- * Type: ttCLAIM_REWARD (88)
+ * Type: ttCLAIM_LP_REWARD (93)
  * Delegable: Delegation::NotDelegable
  * Amendment: featureProofOfParticipation
  * Privileges: NoPriv
  *
  * Immutable wrapper around STTx providing type-safe field access.
- * Use ClaimRewardBuilder to construct new transactions.
+ * Use ClaimLPRewardBuilder to construct new transactions.
  */
-class ClaimReward : public TransactionBase
+class ClaimLPReward : public TransactionBase
 {
 public:
-    static constexpr xrpl::TxType txType = ttCLAIM_REWARD;
+    static constexpr xrpl::TxType txType = ttCLAIM_LP_REWARD;
 
     /**
-     * @brief Construct a ClaimReward transaction wrapper from an existing STTx object.
+     * @brief Construct a ClaimLPReward transaction wrapper from an existing STTx object.
      * @throws std::runtime_error if the transaction type doesn't match.
      */
-    explicit ClaimReward(std::shared_ptr<STTx const> tx)
+    explicit ClaimLPReward(std::shared_ptr<STTx const> tx)
         : TransactionBase(std::move(tx))
     {
         // Verify transaction type
         if (tx_->getTxnType() != txType)
         {
-            throw std::runtime_error("Invalid transaction type for ClaimReward");
+            throw std::runtime_error("Invalid transaction type for ClaimLPReward");
         }
     }
 
     // Transaction-specific field getters
 
     /**
-     * @brief Get sfConsensusKey (SoeRequired)
+     * @brief Get sfVaultID (SoeRequired)
      * @return The field value.
      */
     [[nodiscard]]
-    SF_VL::type::value_type
-    getConsensusKey() const
+    SF_UINT256::type::value_type
+    getVaultID() const
     {
-        return this->tx_->at(sfConsensusKey);
+        return this->tx_->at(sfVaultID);
     }
 };
 
 /**
- * @brief Builder for ClaimReward transactions.
+ * @brief Builder for ClaimLPReward transactions.
  *
  * Provides a fluent interface for constructing transactions with method chaining.
  * Uses STObject internally for flexible transaction construction.
  * Inherits common field setters from TransactionBuilderBase.
  */
-class ClaimRewardBuilder : public TransactionBuilderBase<ClaimRewardBuilder>
+class ClaimLPRewardBuilder : public TransactionBuilderBase<ClaimLPRewardBuilder>
 {
 public:
     /**
-     * @brief Construct a new ClaimRewardBuilder with required fields.
+     * @brief Construct a new ClaimLPRewardBuilder with required fields.
      * @param account The account initiating the transaction.
-     * @param consensusKey The sfConsensusKey field value.
+     * @param vaultID The sfVaultID field value.
      * @param sequence Optional sequence number for the transaction.
      * @param fee Optional fee for the transaction.
      */
-    ClaimRewardBuilder(SF_ACCOUNT::type::value_type account,
-                     std::decay_t<typename SF_VL::type::value_type> const& consensusKey,                    std::optional<SF_UINT32::type::value_type> sequence = std::nullopt,
+    ClaimLPRewardBuilder(SF_ACCOUNT::type::value_type account,
+                     std::decay_t<typename SF_UINT256::type::value_type> const& vaultID,                    std::optional<SF_UINT32::type::value_type> sequence = std::nullopt,
                     std::optional<SF_AMOUNT::type::value_type> fee = std::nullopt
 )
-        : TransactionBuilderBase<ClaimRewardBuilder>(ttCLAIM_REWARD, account, sequence, fee)
+        : TransactionBuilderBase<ClaimLPRewardBuilder>(ttCLAIM_LP_REWARD, account, sequence, fee)
     {
-        setConsensusKey(consensusKey);
+        setVaultID(vaultID);
     }
 
     /**
-     * @brief Construct a ClaimRewardBuilder from an existing STTx object.
+     * @brief Construct a ClaimLPRewardBuilder from an existing STTx object.
      * @param tx The existing transaction to copy from.
      * @throws std::runtime_error if the transaction type doesn't match.
      */
-    ClaimRewardBuilder(std::shared_ptr<STTx const> tx)
+    ClaimLPRewardBuilder(std::shared_ptr<STTx const> tx)
     {
-        if (tx->getTxnType() != ttCLAIM_REWARD)
+        if (tx->getTxnType() != ttCLAIM_LP_REWARD)
         {
-            throw std::runtime_error("Invalid transaction type for ClaimRewardBuilder");
+            throw std::runtime_error("Invalid transaction type for ClaimLPRewardBuilder");
         }
         object_ = *tx;
     }
@@ -102,27 +102,27 @@ public:
     /** @brief Transaction-specific field setters */
 
     /**
-     * @brief Set sfConsensusKey (SoeRequired)
+     * @brief Set sfVaultID (SoeRequired)
      * @return Reference to this builder for method chaining.
      */
-    ClaimRewardBuilder&
-    setConsensusKey(std::decay_t<typename SF_VL::type::value_type> const& value)
+    ClaimLPRewardBuilder&
+    setVaultID(std::decay_t<typename SF_UINT256::type::value_type> const& value)
     {
-        object_[sfConsensusKey] = value;
+        object_[sfVaultID] = value;
         return *this;
     }
 
     /**
-     * @brief Build and return the ClaimReward wrapper.
+     * @brief Build and return the ClaimLPReward wrapper.
      * @param publicKey The public key for signing.
      * @param secretKey The secret key for signing.
      * @return The constructed transaction wrapper.
      */
-    ClaimReward
+    ClaimLPReward
     build(PublicKey const& publicKey, SecretKey const& secretKey)
     {
         sign(publicKey, secretKey);
-        return ClaimReward{std::make_shared<STTx>(std::move(object_))};
+        return ClaimLPReward{std::make_shared<STTx>(std::move(object_))};
     }
 };
 

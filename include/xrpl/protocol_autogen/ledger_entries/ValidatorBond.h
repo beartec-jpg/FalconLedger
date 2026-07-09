@@ -57,6 +57,28 @@ public:
     }
 
     /**
+     * @brief Get sfPublicKey (SoeRequired)
+     * @return The field value.
+     */
+    [[nodiscard]]
+    SF_VL::type::value_type
+    getPublicKey() const
+    {
+        return this->sle_->at(sfPublicKey);
+    }
+
+    /**
+     * @brief Get sfConsensusKey (SoeRequired)
+     * @return The field value.
+     */
+    [[nodiscard]]
+    SF_VL::type::value_type
+    getConsensusKey() const
+    {
+        return this->sle_->at(sfConsensusKey);
+    }
+
+    /**
      * @brief Get sfBondedAmount (SoeRequired)
      * @return The field value.
      */
@@ -328,6 +350,8 @@ public:
     /**
      * @brief Construct a new ValidatorBondBuilder with required fields.
      * @param account The sfAccount field value.
+     * @param publicKey The sfPublicKey field value.
+     * @param consensusKey The sfConsensusKey field value.
      * @param bondedAmount The sfBondedAmount field value.
      * @param bondStatus The sfBondStatus field value.
      * @param slashMultiplier The sfSlashMultiplier field value.
@@ -335,10 +359,12 @@ public:
      * @param previousTxnID The sfPreviousTxnID field value.
      * @param previousTxnLgrSeq The sfPreviousTxnLgrSeq field value.
      */
-    ValidatorBondBuilder(std::decay_t<typename SF_ACCOUNT::type::value_type> const& account,std::decay_t<typename SF_AMOUNT::type::value_type> const& bondedAmount,std::decay_t<typename SF_UINT32::type::value_type> const& bondStatus,std::decay_t<typename SF_UINT32::type::value_type> const& slashMultiplier,std::decay_t<typename SF_UINT64::type::value_type> const& ownerNode,std::decay_t<typename SF_UINT256::type::value_type> const& previousTxnID,std::decay_t<typename SF_UINT32::type::value_type> const& previousTxnLgrSeq)
+    ValidatorBondBuilder(std::decay_t<typename SF_ACCOUNT::type::value_type> const& account,std::decay_t<typename SF_VL::type::value_type> const& publicKey,std::decay_t<typename SF_VL::type::value_type> const& consensusKey,std::decay_t<typename SF_AMOUNT::type::value_type> const& bondedAmount,std::decay_t<typename SF_UINT32::type::value_type> const& bondStatus,std::decay_t<typename SF_UINT32::type::value_type> const& slashMultiplier,std::decay_t<typename SF_UINT64::type::value_type> const& ownerNode,std::decay_t<typename SF_UINT256::type::value_type> const& previousTxnID,std::decay_t<typename SF_UINT32::type::value_type> const& previousTxnLgrSeq)
         : LedgerEntryBuilderBase<ValidatorBondBuilder>(ltVALIDATOR_BOND)
     {
         setAccount(account);
+        setPublicKey(publicKey);
+        setConsensusKey(consensusKey);
         setBondedAmount(bondedAmount);
         setBondStatus(bondStatus);
         setSlashMultiplier(slashMultiplier);
@@ -371,6 +397,28 @@ public:
     setAccount(std::decay_t<typename SF_ACCOUNT::type::value_type> const& value)
     {
         object_[sfAccount] = value;
+        return *this;
+    }
+
+    /**
+     * @brief Set sfPublicKey (SoeRequired)
+     * @return Reference to this builder for method chaining.
+     */
+    ValidatorBondBuilder&
+    setPublicKey(std::decay_t<typename SF_VL::type::value_type> const& value)
+    {
+        object_[sfPublicKey] = value;
+        return *this;
+    }
+
+    /**
+     * @brief Set sfConsensusKey (SoeRequired)
+     * @return Reference to this builder for method chaining.
+     */
+    ValidatorBondBuilder&
+    setConsensusKey(std::decay_t<typename SF_VL::type::value_type> const& value)
+    {
+        object_[sfConsensusKey] = value;
         return *this;
     }
 

@@ -27,6 +27,8 @@ TEST(RewardEpochTests, BuilderSettersRoundTrip)
     auto const currentBurnBpsValue = canonical_UINT32();
     auto const feeVolumeEMAValue = canonical_UINT32();
     auto const aggregateCompositeScoreValue = canonical_UINT32();
+    auto const lPAllocationBpsValue = canonical_UINT32();
+    auto const aggregateLPSharesValue = canonical_UINT64();
     auto const proposalsValue = canonical_VECTOR256();
     auto const previousTxnIDValue = canonical_UINT256();
     auto const previousTxnLgrSeqValue = canonical_UINT32();
@@ -43,6 +45,8 @@ TEST(RewardEpochTests, BuilderSettersRoundTrip)
 
     builder.setFeeVolumeEMA(feeVolumeEMAValue);
     builder.setAggregateCompositeScore(aggregateCompositeScoreValue);
+    builder.setLPAllocationBps(lPAllocationBpsValue);
+    builder.setAggregateLPShares(aggregateLPSharesValue);
     builder.setProposals(proposalsValue);
 
     builder.setLedgerIndex(index);
@@ -113,6 +117,22 @@ TEST(RewardEpochTests, BuilderSettersRoundTrip)
     }
 
     {
+        auto const& expected = lPAllocationBpsValue;
+        auto const actualOpt = entry.getLPAllocationBps();
+        ASSERT_TRUE(actualOpt.has_value());
+        expectEqualField(expected, *actualOpt, "sfLPAllocationBps");
+        EXPECT_TRUE(entry.hasLPAllocationBps());
+    }
+
+    {
+        auto const& expected = aggregateLPSharesValue;
+        auto const actualOpt = entry.getAggregateLPShares();
+        ASSERT_TRUE(actualOpt.has_value());
+        expectEqualField(expected, *actualOpt, "sfAggregateLPShares");
+        EXPECT_TRUE(entry.hasAggregateLPShares());
+    }
+
+    {
         auto const& expected = proposalsValue;
         auto const actualOpt = entry.getProposals();
         ASSERT_TRUE(actualOpt.has_value());
@@ -140,6 +160,8 @@ TEST(RewardEpochTests, BuilderFromSleRoundTrip)
     auto const currentBurnBpsValue = canonical_UINT32();
     auto const feeVolumeEMAValue = canonical_UINT32();
     auto const aggregateCompositeScoreValue = canonical_UINT32();
+    auto const lPAllocationBpsValue = canonical_UINT32();
+    auto const aggregateLPSharesValue = canonical_UINT64();
     auto const proposalsValue = canonical_VECTOR256();
     auto const previousTxnIDValue = canonical_UINT256();
     auto const previousTxnLgrSeqValue = canonical_UINT32();
@@ -153,6 +175,8 @@ TEST(RewardEpochTests, BuilderFromSleRoundTrip)
     sle->at(sfCurrentBurnBps) = currentBurnBpsValue;
     sle->at(sfFeeVolumeEMA) = feeVolumeEMAValue;
     sle->at(sfAggregateCompositeScore) = aggregateCompositeScoreValue;
+    sle->at(sfLPAllocationBps) = lPAllocationBpsValue;
+    sle->at(sfAggregateLPShares) = aggregateLPSharesValue;
     sle->at(sfProposals) = proposalsValue;
     sle->at(sfPreviousTxnID) = previousTxnIDValue;
     sle->at(sfPreviousTxnLgrSeq) = previousTxnLgrSeqValue;
@@ -263,6 +287,32 @@ TEST(RewardEpochTests, BuilderFromSleRoundTrip)
     }
 
     {
+        auto const& expected = lPAllocationBpsValue;
+
+        auto const fromSleOpt = entryFromSle.getLPAllocationBps();
+        auto const fromBuilderOpt = entryFromBuilder.getLPAllocationBps();
+
+        ASSERT_TRUE(fromSleOpt.has_value());
+        ASSERT_TRUE(fromBuilderOpt.has_value());
+
+        expectEqualField(expected, *fromSleOpt, "sfLPAllocationBps");
+        expectEqualField(expected, *fromBuilderOpt, "sfLPAllocationBps");
+    }
+
+    {
+        auto const& expected = aggregateLPSharesValue;
+
+        auto const fromSleOpt = entryFromSle.getAggregateLPShares();
+        auto const fromBuilderOpt = entryFromBuilder.getAggregateLPShares();
+
+        ASSERT_TRUE(fromSleOpt.has_value());
+        ASSERT_TRUE(fromBuilderOpt.has_value());
+
+        expectEqualField(expected, *fromSleOpt, "sfAggregateLPShares");
+        expectEqualField(expected, *fromBuilderOpt, "sfAggregateLPShares");
+    }
+
+    {
         auto const& expected = proposalsValue;
 
         auto const fromSleOpt = entryFromSle.getProposals();
@@ -345,6 +395,10 @@ TEST(RewardEpochTests, OptionalFieldsReturnNullopt)
     EXPECT_FALSE(entry.getFeeVolumeEMA().has_value());
     EXPECT_FALSE(entry.hasAggregateCompositeScore());
     EXPECT_FALSE(entry.getAggregateCompositeScore().has_value());
+    EXPECT_FALSE(entry.hasLPAllocationBps());
+    EXPECT_FALSE(entry.getLPAllocationBps().has_value());
+    EXPECT_FALSE(entry.hasAggregateLPShares());
+    EXPECT_FALSE(entry.getAggregateLPShares().has_value());
     EXPECT_FALSE(entry.hasProposals());
     EXPECT_FALSE(entry.getProposals().has_value());
 }

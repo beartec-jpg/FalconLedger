@@ -81,15 +81,32 @@ constexpr std::uint32_t kQXRP_LEDGERS_PER_EPOCH = QXRP_EPOCH_LEDGERS;
 constexpr std::uint32_t kQXRP_LEDGERS_PER_EPOCH = 172'800;
 #endif
 
-/// Number of epochs per halving period (roughly 4 years → 208 epochs).
-constexpr std::uint32_t kQXRP_EPOCHS_PER_HALVING = 208;
+// ─── CID (Continuous Inflationary Decline) emission ─────────────────────────
 
-/// Initial epoch emission as a fraction of the treasury balance, in bps.
-/// 50 bps of 196 B = 980 M qXRP emitted in epoch 0 (before any halvings).
-constexpr std::uint32_t kQXRP_INITIAL_EMISSION_BPS = 50;
+/// Epoch-1 treasury emission: 12 % (1 200 bps).
+constexpr std::uint32_t kQXRP_CID_START_BPS = 1'200;
 
-/// Minimum emission rate — never drops below this even after many halvings.
-constexpr std::uint32_t kQXRP_MIN_EMISSION_BPS = 1;
+/// Long-term emission floor: 1.5 % (150 bps).
+constexpr std::uint32_t kQXRP_CID_FLOOR_BPS = 150;
+
+/// Linear decline per epoch (bps).  Reaches ~2.7 % around epoch 312 (~year 6).
+constexpr std::uint32_t kQXRP_CID_STEP_BPS = 3;
+
+// ─── PoPL emission split (validator / LP) ────────────────────────────────────
+
+/// LP share of total emission at epoch 1 (50 %).
+constexpr std::uint32_t kQXRP_POPL_LP_START_BPS = 5'000;
+
+/// LP share after the taper completes (30 %).
+constexpr std::uint32_t kQXRP_POPL_LP_END_BPS = 3'000;
+
+/// Epoch count over which LP allocation tapers from start → end (inclusive).
+constexpr std::uint32_t kQXRP_POPL_TAPER_EPOCHS = 24;
+
+// Legacy halving constants (retained for reference / tests only).
+[[maybe_unused]] constexpr std::uint32_t kQXRP_EPOCHS_PER_HALVING = 208;
+[[maybe_unused]] constexpr std::uint32_t kQXRP_INITIAL_EMISSION_BPS = 50;
+[[maybe_unused]] constexpr std::uint32_t kQXRP_MIN_EMISSION_BPS = 1;
 
 // ─── Fee split ──────────────────────────────────────────────────────────────
 

@@ -270,6 +270,82 @@ def mint_quc(
     return True, tx_hash
 
 
+def _queue_pending(state: dict, dep: dict) -> None:
+    """Remember deposits that could not mint yet so we retry on later polls."""
+    dep_id = dep["deposit_id"].lower()
+    pending = state.setdefault("pending_deposits", {})
+    if dep_id not in pending:
+        pending[dep_id] = {
+            "deposit_id": dep_id,
+            "falcon_account": dep["falcon_account"],
+            "amount_usdc": dep["amount_usdc"],
+            "sepolia_tx": dep.get("tx_hash"),
+            "block_number": dep.get("block_number"),
+            "queued_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        }
+
+
+def _retry_pending(
+    falcon: RpcClient,
+    issuer: dict,
+    state: dict,
+    state_path: Path,
+    dry_run: bool,
+) -> int:
+    """Retry mints that were queued waiting for account or trust line."""
+    pending: dict = state.get("pending_deposits") or {}
+    if not pending:
+        return 0
+    minted_ids: set[str] = set(state.get("minted_deposits", []))
+    processed = 0
+    resolved: list[str] = []
+
+    for dep_id, dep in list(pending.items()):
+        if dep_id in minted_ids:
+            resolved.append(dep_id)
+            continue
+        dest = dep["falcon_account"]
+        amount = float(dep["amount_usdc"])
+        log(f"retry pending {dep_id[:18]}… {amount} USDC → {dest}")
+
+        if not account_exists(falcon, dest):
+            warn(f"{dest} still unfunded — keep queued")
+            continue
+        if not has_trust_line(falcon, dest, QUSDC_CURRENCY, issuer["address"]):
+            warn(f"{dest} still has no QUC trust line — keep queued")
+            continue
+
+        success, detail = mint_quc(falcon, issuer, dest, amount, dry_run)
+        if not success:
+            warn(f"pending mint failed: {detail}")
+            continue
+
+        ok(f"minted {amount} QUC → {dest} ({detail[:16]}…)")
+        minted_ids.add(dep_id)
+        state.setdefault("minted_deposits", [])
+        if dep_id not in state["minted_deposits"]:
+            state["minted_deposits"].append(dep_id)
+        state.setdefault("mints", []).append({
+            "deposit_id": dep_id,
+            "falcon_account": dest,
+            "amount_usdc": amount,
+            "sepolia_tx": dep.get("sepolia_tx"),
+            "falcon_tx": detail if not dry_run else None,
+            "minted_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "from_pending": True,
+        })
+        resolved.append(dep_id)
+        processed += 1
+        if not dry_run:
+            save_state(state_path, state)
+
+    for dep_id in resolved:
+        pending.pop(dep_id, None)
+    if resolved and not dry_run:
+        save_state(state_path, state)
+    return processed
+
+
 def process_deposits(
     sepolia: SepoliaClient,
     falcon: RpcClient,
@@ -304,11 +380,13 @@ def process_deposits(
         )
 
         if not account_exists(falcon, dest):
-            warn(f"Falcon account {dest} not found — skipping (user must fund account first)")
+            warn(f"Falcon account {dest} not found — queued (fund via faucet first)")
+            _queue_pending(state, dep)
             continue
 
         if not has_trust_line(falcon, dest, QUSDC_CURRENCY, issuer["address"]):
-            warn(f"{dest} has no QUC trust line — user must add trust line in Swap tab")
+            warn(f"{dest} has no QUC trust line — queued (open Swap tab to add trust line)")
+            _queue_pending(state, dep)
             continue
 
         success, detail = mint_quc(falcon, issuer, dest, amount, dry_run)
@@ -318,6 +396,7 @@ def process_deposits(
 
         ok(f"minted {amount} QUC → {dest} ({detail[:16]}…)")
         minted_ids.add(dep_id)
+        (state.get("pending_deposits") or {}).pop(dep_id, None)
         state.setdefault("minted_deposits", [])
         if dep_id not in state["minted_deposits"]:
             state["minted_deposits"].append(dep_id)
@@ -418,11 +497,11 @@ def main() -> int:
             log(f"first run: scanning from block {fb}")
 
         head = sepolia.block_number()
+        total = _retry_pending(falcon, issuer, state, state_path, args.dry_run)
         if fb > head:
-            return 0
+            return total
 
         chunk = 2000
-        total = 0
         cursor = fb
         while cursor <= head:
             tb = min(cursor + chunk - 1, head)

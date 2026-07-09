@@ -29,10 +29,12 @@ TEST(TransactionsValidatorBondTests, BuilderSettersRoundTrip)
     auto const feeValue = canonical_AMOUNT();
 
     // Transaction-specific field values
+    auto const consensusKeyValue = canonical_VL();
     auto const bondedAmountValue = canonical_AMOUNT();
 
     ValidatorBondBuilder builder{
         accountValue,
+        consensusKeyValue,
         bondedAmountValue,
         sequenceValue,
         feeValue
@@ -56,6 +58,12 @@ TEST(TransactionsValidatorBondTests, BuilderSettersRoundTrip)
 
     // Verify required fields
     {
+        auto const& expected = consensusKeyValue;
+        auto const actual = tx.getConsensusKey();
+        expectEqualField(expected, actual, "sfConsensusKey");
+    }
+
+    {
         auto const& expected = bondedAmountValue;
         auto const actual = tx.getBondedAmount();
         expectEqualField(expected, actual, "sfBondedAmount");
@@ -78,11 +86,13 @@ TEST(TransactionsValidatorBondTests, BuilderFromStTxRoundTrip)
     auto const feeValue = canonical_AMOUNT();
 
     // Transaction-specific field values
+    auto const consensusKeyValue = canonical_VL();
     auto const bondedAmountValue = canonical_AMOUNT();
 
     // Build an initial transaction
     ValidatorBondBuilder initialBuilder{
         accountValue,
+        consensusKeyValue,
         bondedAmountValue,
         sequenceValue,
         feeValue
@@ -105,6 +115,12 @@ TEST(TransactionsValidatorBondTests, BuilderFromStTxRoundTrip)
     EXPECT_EQ(rebuiltTx.getFee(), feeValue);
 
     // Verify required fields
+    {
+        auto const& expected = consensusKeyValue;
+        auto const actual = rebuiltTx.getConsensusKey();
+        expectEqualField(expected, actual, "sfConsensusKey");
+    }
+
     {
         auto const& expected = bondedAmountValue;
         auto const actual = rebuiltTx.getBondedAmount();

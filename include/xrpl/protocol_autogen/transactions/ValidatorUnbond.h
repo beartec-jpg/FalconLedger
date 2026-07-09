@@ -46,6 +46,17 @@ public:
     }
 
     // Transaction-specific field getters
+
+    /**
+     * @brief Get sfConsensusKey (SoeRequired)
+     * @return The field value.
+     */
+    [[nodiscard]]
+    SF_VL::type::value_type
+    getConsensusKey() const
+    {
+        return this->tx_->at(sfConsensusKey);
+    }
 };
 
 /**
@@ -61,15 +72,17 @@ public:
     /**
      * @brief Construct a new ValidatorUnbondBuilder with required fields.
      * @param account The account initiating the transaction.
+     * @param consensusKey The sfConsensusKey field value.
      * @param sequence Optional sequence number for the transaction.
      * @param fee Optional fee for the transaction.
      */
     ValidatorUnbondBuilder(SF_ACCOUNT::type::value_type account,
-                    std::optional<SF_UINT32::type::value_type> sequence = std::nullopt,
+                     std::decay_t<typename SF_VL::type::value_type> const& consensusKey,                    std::optional<SF_UINT32::type::value_type> sequence = std::nullopt,
                     std::optional<SF_AMOUNT::type::value_type> fee = std::nullopt
 )
         : TransactionBuilderBase<ValidatorUnbondBuilder>(ttVALIDATOR_UNBOND, account, sequence, fee)
     {
+        setConsensusKey(consensusKey);
     }
 
     /**
@@ -87,6 +100,17 @@ public:
     }
 
     /** @brief Transaction-specific field setters */
+
+    /**
+     * @brief Set sfConsensusKey (SoeRequired)
+     * @return Reference to this builder for method chaining.
+     */
+    ValidatorUnbondBuilder&
+    setConsensusKey(std::decay_t<typename SF_VL::type::value_type> const& value)
+    {
+        object_[sfConsensusKey] = value;
+        return *this;
+    }
 
     /**
      * @brief Build and return the ValidatorUnbond wrapper.

@@ -1200,6 +1200,19 @@ TRANSACTION(ttGOVERNANCE_VOTE, 92, GovernanceVote,
     {sfVoteWeight,   SoeRequired},   // 1=yes 0=no (reuse sfVoteWeight)
 }))
 
+/** qXRP: Claim accumulated LP reward drops from the treasury for the current
+    epoch, proportional to vault share MPT balance.  Requires ProofOfParticipation. */
+#if TRANSACTION_INCLUDE
+#   include <xrpl/tx/transactors/qxrp/ClaimLPReward.h>
+#endif
+TRANSACTION(ttCLAIM_LP_REWARD, 93, ClaimLPReward,
+    Delegation::NotDelegable,
+    featureProofOfParticipation,
+    NoPriv,
+    ({
+    {sfVaultID, SoeRequired},  // vault whose share MPT determines eligibility
+}))
+
 /** This system-generated transaction type is used to update the status of the various amendments.
 
     For details, see: https://xrpl.org/amendments.html
