@@ -439,9 +439,15 @@ def write_manifest(
     liquidity: dict[str, str],
     network_id: int,
     rpc_url: str,
+    *,
+    usdc_only: bool = False,
 ) -> None:
+    token_defs = [("qUSDC", QUSDC_CURRENCY)]
+    if not usdc_only:
+        token_defs.append(("qUSDT", QUSDT_CURRENCY))
+
     tokens = []
-    for symbol, currency in (("qUSDC", QUSDC_CURRENCY), ("qUSDT", QUSDT_CURRENCY)):
+    for symbol, currency in token_defs:
         issuer = state.get(f"{symbol}_issuer", {}).get("address", "")
         tokens.append({
             "symbol": symbol,
@@ -452,6 +458,16 @@ def write_manifest(
 
     lp = state.get("liquidity_provider", {})
 
+    env = {
+        "NEXT_PUBLIC_TESTNET_QUSDC_CURRENCY": QUSDC_CURRENCY,
+        "NEXT_PUBLIC_TESTNET_QUSDC_ISSUER": tokens[0]["issuer"],
+        "NEXT_PUBLIC_TESTNET_USDC_CURRENCY": QUSDC_CURRENCY,
+        "NEXT_PUBLIC_TESTNET_USDC_ISSUER": tokens[0]["issuer"],
+    }
+    if not usdc_only and len(tokens) > 1:
+        env["NEXT_PUBLIC_TESTNET_QUSDT_CURRENCY"] = QUSDT_CURRENCY
+        env["NEXT_PUBLIC_TESTNET_QUSDT_ISSUER"] = tokens[1]["issuer"]
+
     manifest = {
         "network_id": network_id,
         "rpc_url": rpc_url,
@@ -460,12 +476,7 @@ def write_manifest(
         "bridge_only": all(v == "bridge" for v in liquidity.values()),
         "liquidity_provider": lp.get("address", ""),
         "tokens": tokens,
-        "env": {
-            "NEXT_PUBLIC_TESTNET_QUSDC_CURRENCY": QUSDC_CURRENCY,
-            "NEXT_PUBLIC_TESTNET_QUSDC_ISSUER": tokens[0]["issuer"],
-            "NEXT_PUBLIC_TESTNET_QUSDT_CURRENCY": QUSDT_CURRENCY,
-            "NEXT_PUBLIC_TESTNET_QUSDT_ISSUER": tokens[1]["issuer"],
-        },
+        "env": env,
     }
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
@@ -479,6 +490,11 @@ def main() -> int:
         "--bridge-only",
         action="store_true",
         help="Create issuer accounts only — no bootstrap mint/AMM/DEX (F-USDC from Sepolia bridge)",
+    )
+    parser.add_argument(
+        "--usdc-only",
+        action="store_true",
+        help="Issue qUSDC (QUC) only — skip qUSDT",
     )
     parser.add_argument("--reset", action="store_true")
     parser.add_argument("--admin-rpc", default=os.environ.get("ADMIN_RPC_URL", "http://127.0.0.1:5005"))
@@ -514,7 +530,10 @@ def main() -> int:
     print(f"  Admin RPC:  {args.admin_rpc}" + (f" (via {container})" if container else ""))
     print(f"  Public RPC: {args.public_rpc}")
     print(f"  qUSDC:      {QUSDC_CURRENCY}  supply={QUSDC_SUPPLY}")
-    print(f"  qUSDT:      {QUSDT_CURRENCY}  supply={QUSDT_SUPPLY}")
+    if not args.usdc_only:
+        print(f"  qUSDT:      {QUSDT_CURRENCY}  supply={QUSDT_SUPPLY}")
+    else:
+        print("  qUSDT:      (skipped — --usdc-only)")
     if args.dry_run:
         print("  *** DRY RUN — no transactions submitted ***")
     print()
@@ -525,10 +544,9 @@ def main() -> int:
     except Exception:
         network_id = 1001
 
-    tokens = [
-        ("qUSDC", QUSDC_CURRENCY, QUSDC_SUPPLY),
-        ("qUSDT", QUSDT_CURRENCY, QUSDT_SUPPLY),
-    ]
+    tokens = [("qUSDC", QUSDC_CURRENCY, QUSDC_SUPPLY)]
+    if not args.usdc_only:
+        tokens.append(("qUSDT", QUSDT_CURRENCY, QUSDT_SUPPLY))
 
     lp: dict | None = None
     if not args.bridge_only:
@@ -554,7 +572,9 @@ def main() -> int:
     if not args.dry_run:
         save_state(state_path, state)
 
-    write_manifest(manifest_path, state, liquidity, network_id, args.public_rpc)
+    write_manifest(
+        manifest_path, state, liquidity, network_id, args.public_rpc, usdc_only=args.usdc_only
+    )
 
     print("═" * 60)
     print("  Summary")
