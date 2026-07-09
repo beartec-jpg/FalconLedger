@@ -822,6 +822,29 @@ parseXChainOwnedCreateAccountClaimID(
 }
 
 static Expected<uint256, json::Value>
+parsePopLpState(
+    json::Value const& params,
+    json::StaticString const fieldName,
+    [[maybe_unused]] unsigned const apiVersion)
+{
+    if (!params.isObject())
+    {
+        return parseObjectID(params, fieldName, "hex string");
+    }
+
+    auto const id = LedgerEntryHelpers::requiredAccountID(params, jss::account, "malformedAddress");
+    if (!id)
+        return Unexpected(id.error());
+
+    auto const vaultId =
+        LedgerEntryHelpers::requiredUInt256(params, jss::vault_id, "malformedVaultID");
+    if (!vaultId)
+        return Unexpected(vaultId.error());
+
+    return keylet::popLpState(*id, *vaultId).key;
+}
+
+static Expected<uint256, json::Value>
 parseValidatorBond(
     json::Value const& params,
     json::StaticString const fieldName,
