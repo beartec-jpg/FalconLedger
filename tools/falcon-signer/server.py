@@ -133,6 +133,10 @@ class Handler(BaseHTTPRequestHandler):
         else:
             sign_params = {"tx_json": tx_json, "falcon_secret": secret}
 
+        sig_target = payload.get("signature_target")
+        if isinstance(sig_target, str) and sig_target:
+            sign_params["signature_target"] = sig_target
+
         result = admin_rpc("sign", sign_params)
         self._json_response(200, {
             "tx_blob": result.get("tx_blob"),
