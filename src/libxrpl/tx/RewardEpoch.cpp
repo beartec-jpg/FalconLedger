@@ -10,6 +10,7 @@
 #include <xrpl/protocol/Feature.h>
 #include <xrpl/protocol/Indexes.h>
 #include <xrpl/protocol/MPTIssue.h>
+#include <xrpl/protocol/UintTypes.h>
 #include <xrpl/protocol/QXRPConstants.h>
 #include <xrpl/protocol/Rules.h>
 #include <xrpl/protocol/SField.h>
@@ -43,7 +44,7 @@ aggregateVaultShareSupply(ReadView const& view)
 std::uint32_t
 countActiveLpProviders(ReadView const& view)
 {
-    std::unordered_set<uint256> shareMptIDs;
+    std::unordered_set<MPTID> shareMptIDs;
     for (auto const& sle : view.sles)
     {
         if (!sle || sle->getType() != ltVAULT)
