@@ -29,7 +29,7 @@ DEBT_MAXIMUM = "100000"
 COVER_RATE_MINIMUM = 1000
 COVER_RATE_LIQUIDATION = 2500
 MANAGEMENT_FEE_RATE = 100
-COVER_FALCON_DROPS = str(500_000 * DROPS_PER_QXRP)
+COVER_ASSET_VALUE = "500000"
 INTEREST_RATE = 500
 
 
@@ -157,6 +157,19 @@ def submit_tx(rpc: RpcClient, secret: str, tx_json: dict, dry_run: bool, label: 
         return True
     err(f"{label}: {result}")
     return False
+
+
+def iou_value(v: object) -> float | None:
+    if v is None:
+        return None
+    if isinstance(v, (str, int, float)):
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+    if isinstance(v, dict) and "value" in v:
+        return iou_value(v["value"])
+    return None
 
 
 def find_vault_for_owner(rpc: RpcClient, owner: str) -> dict | None:
@@ -334,18 +347,27 @@ def main() -> int:
                 "Amount": {"currency": currency, "issuer": issuer_addr, "value": VAULT_SEED_DEPOSIT},
             }, args.dry_run, "VaultDeposit (seed)")
 
-        broker_obj = find_broker_for_owner(rpc, lp_addr) or {}
-        cover = broker_obj.get("CoverAvailable", "0")
+        broker_node = {}
         try:
-            cover_f = int(cover) / DROPS_PER_QXRP if str(cover).isdigit() else 0
-        except (TypeError, ValueError):
-            cover_f = 0
+            br = rpc.public("ledger_entry", {
+                "loan_broker": broker_id,
+                "ledger_index": "validated",
+            })
+            broker_node = br.get("node") or {}
+        except Exception:
+            pass
+        cover_raw = broker_node.get("CoverAvailable", "0")
+        cover_f = iou_value(cover_raw) or 0
         if cover_f < 1000:
             submit_tx(rpc, lp_secret, {
                 "TransactionType": "LoanBrokerCoverDeposit",
                 "Account": lp_addr,
                 "LoanBrokerID": broker_id,
-                "Amount": COVER_FALCON_DROPS,
+                "Amount": {
+                    "currency": currency,
+                    "issuer": issuer_addr,
+                    "value": COVER_ASSET_VALUE,
+                },
             }, args.dry_run, "LoanBrokerCoverDeposit")
 
     lending_state = {
