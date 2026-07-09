@@ -86,21 +86,23 @@ constexpr std::uint32_t kQXRP_LEDGERS_PER_EPOCH = 172'800;
 /// Reward epochs per calendar year (~52 × ~7 days).
 constexpr std::uint32_t kQXRP_EPOCHS_PER_YEAR = 52;
 
-/// Sum of intra-year weights 52 + 51 + … + 1 (normalizes epoch shares to yearly avg).
-constexpr std::uint32_t kQXRP_CID_YEAR_WEIGHT_SUM = 1'378;
-
 /// Year-1 average treasury emission: 12 % (1 200 bps of treasury per year).
-constexpr std::uint32_t kQXRP_CID_YEARLY_START_BPS = 1'200;
+constexpr std::uint32_t kQXRP_CID_YEAR1_AVG_BPS = 1'200;
+
+/// Year-5 average treasury emission: 4.5 % (450 bps of treasury per year).
+constexpr std::uint32_t kQXRP_CID_YEAR5_AVG_BPS = 450;
 
 /// Long-term yearly-average floor: 1.5 % (150 bps of treasury per year).
 constexpr std::uint32_t kQXRP_CID_YEARLY_FLOOR_BPS = 150;
 
-/// Micro-decline per epoch slot (bps of yearly average).  Yearly step = × epochs/year.
-constexpr std::uint32_t kQXRP_CID_STEP_BPS = 3;
+/// Per-epoch floor once the linear curve reaches the yearly floor (ceil(150 / 52)).
+constexpr std::uint32_t kQXRP_CID_EPOCH_FLOOR_BPS = 3;
 
-/// Yearly-average decline between consecutive calendar years.
-constexpr std::uint32_t kQXRP_CID_YEARLY_STEP_BPS =
-    kQXRP_CID_STEP_BPS * kQXRP_EPOCHS_PER_YEAR;
+/// Linear per-epoch decline: numerator / denominator (bps per epoch).
+/// Calibrated so year-1 sums to 1 200 bps and year-5 sums to 450 bps with no
+/// intra-year reset — each epoch is ~0.069 bps lower than the previous one.
+constexpr std::uint32_t kQXRP_CID_DECLINE_NUM = 750;
+constexpr std::uint32_t kQXRP_CID_DECLINE_DEN = 10'816;
 
 // ─── PoPL emission split (validator / LP) ────────────────────────────────────
 

@@ -10,39 +10,59 @@
 
 namespace xrpl {
 
-/** Yearly-average CID emission target (bps of treasury per year) for a 1-based epoch. */
+namespace detail {
+
+[[nodiscard]] inline std::uint32_t
+cidEpochBpsNumerator(std::uint32_t epochNum) noexcept
+{
+    return kQXRP_CID_YEAR1_AVG_BPS * kQXRP_CID_DECLINE_DEN +
+        1'326 * kQXRP_CID_DECLINE_NUM -
+        kQXRP_CID_DECLINE_NUM * (epochNum - 1) * kQXRP_EPOCHS_PER_YEAR;
+}
+
+[[nodiscard]] constexpr std::uint32_t
+cidEpochBpsDenominator() noexcept
+{
+    return kQXRP_EPOCHS_PER_YEAR * kQXRP_CID_DECLINE_DEN;
+}
+
+}  // namespace detail
+
+/** Yearly-average CID emission (bps of treasury per calendar year) for a 1-based epoch. */
 [[nodiscard]] inline std::uint32_t
 cidYearlyAvgBps(std::uint32_t epochNum) noexcept
 {
     if (epochNum == 0)
-        return kQXRP_CID_YEARLY_START_BPS;
+        return kQXRP_CID_YEAR1_AVG_BPS;
 
-    auto const year = (epochNum - 1) / kQXRP_EPOCHS_PER_YEAR;
-    auto const decline = kQXRP_CID_YEARLY_STEP_BPS * year;
-    if (decline >= kQXRP_CID_YEARLY_START_BPS - kQXRP_CID_YEARLY_FLOOR_BPS)
-        return kQXRP_CID_YEARLY_FLOOR_BPS;
+    auto const year0 = (epochNum - 1) / kQXRP_EPOCHS_PER_YEAR;
+    auto const denom = detail::cidEpochBpsDenominator();
+    auto const numer =
+        kQXRP_EPOCHS_PER_YEAR *
+            (kQXRP_CID_YEAR1_AVG_BPS * kQXRP_CID_DECLINE_DEN +
+             1'326 * kQXRP_CID_DECLINE_NUM) -
+        kQXRP_EPOCHS_PER_YEAR * kQXRP_CID_DECLINE_NUM *
+            (kQXRP_EPOCHS_PER_YEAR * kQXRP_EPOCHS_PER_YEAR * year0 + 1'326);
 
-    return kQXRP_CID_YEARLY_START_BPS - decline;
+    auto const yearlyBps = (numer + denom / 2) / denom;
+    return std::max(kQXRP_CID_YEARLY_FLOOR_BPS, yearlyBps);
 }
 
 /** Per-epoch CID emission rate (bps of treasury) for a 1-based epoch.
 
-    The yearly-average target is spread across kQXRP_EPOCHS_PER_YEAR epochs with
-    linearly declining weights (52, 51, …, 1) so each epoch emits slightly less
-    than the previous one while the calendar-year sum equals the yearly average. */
+    Declines linearly every epoch (no year-end reset) from ~25 bps at epoch 1
+    toward the 1.5 % yearly floor reached around year 7. */
 [[nodiscard]] inline std::uint32_t
 cidEmissionBps(std::uint32_t epochNum) noexcept
 {
     if (epochNum == 0)
         epochNum = 1;
 
-    auto const slot = (epochNum - 1) % kQXRP_EPOCHS_PER_YEAR;
-    auto const weight = kQXRP_EPOCHS_PER_YEAR - slot;
-    auto const yearlyAvg = cidYearlyAvgBps(epochNum);
+    auto const denom = detail::cidEpochBpsDenominator();
+    auto const numer = detail::cidEpochBpsNumerator(epochNum);
+    auto const rounded = (numer + denom / 2) / denom;
 
-    // Round to nearest bps so the final epoch of each year is never zeroed by truncation.
-    return (yearlyAvg * weight + kQXRP_CID_YEAR_WEIGHT_SUM / 2) /
-        kQXRP_CID_YEAR_WEIGHT_SUM;
+    return std::max(kQXRP_CID_EPOCH_FLOOR_BPS, rounded);
 }
 
 /** PoPL LP allocation as a fraction of total epoch emission, in bps.
