@@ -38,8 +38,11 @@ import subprocess
 import sys
 import time
 import urllib.request
+import sys
 from pathlib import Path
 from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 DROPS_PER_QXRP = 1_000_000
 GENESIS_ACCOUNT = "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh"
@@ -62,6 +65,8 @@ ISSUER_RESERVE_QXRP = 15
 LIQUIDITY_FUND_QXRP = 2_100_000
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+from launch_guards import bridge_only_required, is_testnet_network  # noqa: E402
 
 
 class RpcClient:
@@ -543,6 +548,20 @@ def main() -> int:
         network_id = int(net.get("info", {}).get("network_id", 1001))
     except Exception:
         network_id = 1001
+
+    if bridge_only_required(network_id) and not args.bridge_only:
+        err(
+            f"network_id={network_id}: mainnet/production launch requires --bridge-only "
+            "(F-USDC only from Sepolia bridge locks — no issuer bootstrap mint)",
+        )
+        return 1
+    if args.bridge_only:
+        ok("Bridge-only mode — F-USDC enters the network only via Sepolia bridge")
+    elif is_testnet_network(network_id):
+        warn(
+            "Testnet dev bootstrap mint is ON (10M QUC to LP). "
+            "Use --bridge-only for production-like testnet or set FALCON_BRIDGE_ONLY_REQUIRED=1",
+        )
 
     tokens = [("qUSDC", QUSDC_CURRENCY, QUSDC_SUPPLY)]
     if not args.usdc_only:

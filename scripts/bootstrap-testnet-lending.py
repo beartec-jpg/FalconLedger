@@ -17,19 +17,26 @@ import os
 import subprocess
 import time
 import urllib.request
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 DROPS_PER_QXRP = 1_000_000
 NETWORK_ID = 1001
 PUBLIC_RPC = "http://46.224.0.140:6005"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-VAULT_SEED_DEPOSIT = "500000"
+from launch_guards import bridge_only_required, is_testnet_network  # noqa: E402
+
+# Vault starts empty — LPs supply F-USDC via the portal. No operator seed deposit.
+VAULT_SEED_DEPOSIT = "0"
 DEBT_MAXIMUM = "100000"
 COVER_RATE_MINIMUM = 1000
 COVER_RATE_LIQUIDATION = 2500
 MANAGEMENT_FEE_RATE = 100
-COVER_ASSET_VALUE = "500000"
+# Broker posts cover when F-USDC exists and borrow is enabled — not at genesis.
+COVER_ASSET_VALUE = "0"
 INTEREST_RATE = 500
 
 
@@ -277,6 +284,25 @@ def main() -> int:
 
     rpc = RpcClient(args.admin_rpc, args.public_rpc, args.container.strip())
 
+    try:
+        net = rpc.public("server_info")
+        network_id = int(net.get("info", {}).get("network_id", NETWORK_ID))
+    except Exception:
+        network_id = NETWORK_ID
+
+    if not is_testnet_network(network_id):
+        err(
+            f"network_id={network_id}: bootstrap-testnet-lending.py is testnet-only. "
+            "On mainnet create vault/broker with zero seed after --bridge-only stables.",
+        )
+        return 1
+
+    if bridge_only_required(network_id):
+        if float(VAULT_SEED_DEPOSIT or 0) > 0 or float(COVER_ASSET_VALUE or 0) > 0:
+            err("FALCON_BRIDGE_ONLY_REQUIRED: vault/cover seed constants must stay 0")
+            return 1
+        ok("Bridge-only launch guard: no operator F-USDC seed deposits")
+
     if lending_state.get("vault_id") and lending_state.get("loan_broker_id"):
         if args.dry_run or ledger_entry_vault(rpc, lending_state["vault_id"]):
             log(f"Vault already exists: {lending_state['vault_id']}")
@@ -339,13 +365,16 @@ def main() -> int:
         vault_node = ledger_entry_vault(rpc, vault_id) or {}
         avail_raw = vault_node.get("AssetsAvailable", 0)
         avail = float(avail_raw.get("value", 0) if isinstance(avail_raw, dict) else avail_raw or 0)
-        if avail < 1000:
+        seed = float(VAULT_SEED_DEPOSIT or 0)
+        if seed > 0 and avail < 1000:
             submit_tx(rpc, lp_secret, {
                 "TransactionType": "VaultDeposit",
                 "Account": lp_addr,
                 "VaultID": vault_id,
                 "Amount": {"currency": currency, "issuer": issuer_addr, "value": VAULT_SEED_DEPOSIT},
             }, args.dry_run, "VaultDeposit (seed)")
+        elif seed <= 0 and avail < 1:
+            log("vault empty — LPs supply F-USDC via portal (no operator seed)")
 
         broker_node = {}
         try:
@@ -358,7 +387,8 @@ def main() -> int:
             pass
         cover_raw = broker_node.get("CoverAvailable", "0")
         cover_f = iou_value(cover_raw) or 0
-        if cover_f < 1000:
+        cover_seed = float(COVER_ASSET_VALUE or 0)
+        if cover_seed > 0 and cover_f < 1000:
             submit_tx(rpc, lp_secret, {
                 "TransactionType": "LoanBrokerCoverDeposit",
                 "Account": lp_addr,
@@ -369,6 +399,8 @@ def main() -> int:
                     "value": COVER_ASSET_VALUE,
                 },
             }, args.dry_run, "LoanBrokerCoverDeposit")
+        elif cover_seed <= 0 and cover_f < 1:
+            log("broker cover empty — deposit F-USDC when borrow goes live")
 
     lending_state = {
         "broker_owner": lp_addr,

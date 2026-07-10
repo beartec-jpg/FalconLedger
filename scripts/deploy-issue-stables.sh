@@ -21,14 +21,25 @@ STATE_FILE="${STABLES_STATE_FILE:-${STATE_DIR}/stables_state.json}"
 MANIFEST="${STABLES_MANIFEST:-${REPO_ROOT}/config/testnet-stables.json}"
 
 DRY_RUN=""
-if [[ "${1:-}" == "--dry-run" ]]; then
-  DRY_RUN="--dry-run"
+BRIDGE_ONLY=""
+for arg in "$@"; do
+  case "${arg}" in
+    --dry-run) DRY_RUN="--dry-run" ;;
+    --bridge-only) BRIDGE_ONLY="--bridge-only" ;;
+  esac
+done
+
+# Mainnet / production launch: always bridge-only (F-USDC only from Sepolia locks).
+if [[ "${FALCON_BRIDGE_ONLY_REQUIRED:-}" =~ ^(1|true|yes)$ && -z "${BRIDGE_ONLY}" ]]; then
+  echo "ERROR: FALCON_BRIDGE_ONLY_REQUIRED is set — re-run with --bridge-only" >&2
+  exit 1
 fi
 
 mkdir -p "${STATE_DIR}"
 
-echo "==> Deploying issue-testnet-stables.py to ${STATE_DIR}"
+echo "==> Deploying stables scripts to ${STATE_DIR}"
 install -m 0755 "${REPO_ROOT}/scripts/issue-testnet-stables.py" "${STATE_DIR}/issue-testnet-stables.py"
+install -m 0644 "${REPO_ROOT}/scripts/launch-guards.py" "${STATE_DIR}/launch-guards.py"
 
 echo "==> Running stablecoin bootstrap"
 python3 "${STATE_DIR}/issue-testnet-stables.py" \
@@ -37,6 +48,7 @@ python3 "${STATE_DIR}/issue-testnet-stables.py" \
   --container "${CONTAINER}" \
   --state-file "${STATE_FILE}" \
   --manifest "${MANIFEST}" \
+  ${BRIDGE_ONLY} \
   ${DRY_RUN}
 
 if [[ -z "${DRY_RUN}" && -f "${MANIFEST}" ]]; then
