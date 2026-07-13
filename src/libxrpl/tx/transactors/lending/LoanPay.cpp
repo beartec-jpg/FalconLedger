@@ -595,7 +595,7 @@ LoanPay::doApply()
     if (view.rules().enabled(featureLendingCollateral) && loanSle->at(sfPaymentRemaining) == 0 &&
         loanSle->isFieldPresent(sfCollateral))
     {
-        auto const collateral = loanSle->at(sfCollateral);
+        STAmount const collateral{loanSle->at(sfCollateral)};
         if (collateral > beast::kZERO)
         {
             auto const borrower = loanSle->at(sfBorrower);
