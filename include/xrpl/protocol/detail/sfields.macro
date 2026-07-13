@@ -300,6 +300,7 @@ TYPED_SFIELD(sfBondedAmount,             AMOUNT,    33) // drops locked as valid
 TYPED_SFIELD(sfEpochPoolBalance,         AMOUNT,    34) // drops in reward pool for this epoch
 TYPED_SFIELD(sfEmissionRate,             AMOUNT,    35) // drops emitted per epoch
 TYPED_SFIELD(sfLastEpochDrop,            AMOUNT,    36) // total drops emitted in previous epoch
+TYPED_SFIELD(sfCollateral,               AMOUNT,    37) // native FALCON locked for a loan
 
 // variable length (common)
 TYPED_SFIELD(sfPublicKey,                VL,         1)

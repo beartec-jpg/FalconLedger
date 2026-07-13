@@ -134,6 +134,23 @@ LoanSet::preflight(PreflightContext const& ctx)
     if (auto const brokerID = ctx.tx[~sfLoanBrokerID]; brokerID && *brokerID == beast::kZERO)
         return temINVALID;
 
+    if (ctx.rules.enabled(featureLendingCollateral))
+    {
+        if (!tx.isFieldPresent(sfCollateral))
+        {
+            JLOG(ctx.j.warn()) << "LoanSet requires Collateral when LendingCollateral is enabled.";
+            return temINVALID;
+        }
+        auto const collateral = tx[sfCollateral];
+        if (!collateral.native() || collateral <= beast::kZERO)
+            return temBAD_AMOUNT;
+    }
+    else if (tx.isFieldPresent(sfCollateral))
+    {
+        JLOG(ctx.j.warn()) << "LoanSet Collateral field requires LendingCollateral amendment.";
+        return temDISABLED;
+    }
+
     return tesSUCCESS;
 }
 
@@ -287,12 +304,24 @@ LoanSet::preclaim(PreclaimContext const& ctx)
     auto const brokerPseudo = brokerSle->at(sfAccount);
 
     auto const borrower = counterparty == brokerOwner ? account : counterparty;
-    if (auto const borrowerSle = ctx.view.read(keylet::account(borrower)); !borrowerSle)
+    auto const borrowerSle = ctx.view.read(keylet::account(borrower));
+    if (!borrowerSle)
     {
         // It may not be possible to hit this case, because it'll fail the
         // signature check with terNO_ACCOUNT.
         JLOG(ctx.j.warn()) << "Borrower does not exist.";
         return terNO_ACCOUNT;
+    }
+
+    if (ctx.view.rules().enabled(featureLendingCollateral))
+    {
+        auto const collateral = tx[sfCollateral];
+        auto const balance = borrowerSle->at(sfBalance).value().xrp();
+        if (balance < collateral.xrp())
+        {
+            JLOG(ctx.j.warn()) << "Insufficient FALCON for loan collateral.";
+            return tecINSUFFICIENT_FUNDS;
+        }
     }
 
     auto const vault = ctx.view.read(keylet::vault(brokerSle->at(sfVaultID)));
@@ -568,6 +597,14 @@ LoanSet::doApply()
             WaiveTransferFee::Yes))
         return ter;
 
+    STAmount collateralLocked = beast::kZERO;
+    if (view.rules().enabled(featureLendingCollateral))
+    {
+        collateralLocked = tx[sfCollateral];
+        if (auto const ter = transferXRP(view, borrower, brokerPseudo, collateralLocked, j_))
+            return ter;
+    }
+
     // Get shortcuts to the loan property values
     auto const startDate = getStartDate(view);
     auto loanSequenceProxy = brokerSle->at(sfLoanSequence);
@@ -610,6 +647,8 @@ LoanSet::doApply()
     loan->at(sfPreviousPaymentDueDate) = 0;
     loan->at(sfNextPaymentDueDate) = startDate + paymentInterval;
     loan->at(sfPaymentRemaining) = paymentTotal;
+    if (collateralLocked > beast::kZERO)
+        loan->at(sfCollateral) = collateralLocked;
     view.insert(loan);
 
     // Update the balances in the vault

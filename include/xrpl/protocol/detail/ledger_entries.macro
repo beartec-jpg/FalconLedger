@@ -604,6 +604,7 @@ LEDGER_ENTRY(ltLOAN, 0x0089, Loan, loan, ({
     // number of digits after the decimal point (excluding
     // trailing zeros).
     {sfLoanScale,                SoeDefault},
+    {sfCollateral,               SoeDefault},
 }))
 
 /** qXRP: per-validator bond object.  Created by ValidatorRegister, upgraded

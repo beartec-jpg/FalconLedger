@@ -592,6 +592,20 @@ LoanPay::doApply()
             WaiveTransferFee::Yes))
         return ter;
 
+    if (view.rules().enabled(featureLendingCollateral) && loanSle->at(sfPaymentRemaining) == 0 &&
+        loanSle->isFieldPresent(sfCollateral))
+    {
+        auto const collateral = loanSle->at(sfCollateral);
+        if (collateral > beast::kZERO)
+        {
+            auto const borrower = loanSle->at(sfBorrower);
+            if (auto const ter = transferXRP(view, brokerPseudoAccount, borrower, collateral, j_))
+                return ter;
+            loanSle->at(sfCollateral) = beast::kZERO;
+            view.update(loanSle);
+        }
+    }
+
 #if !NDEBUG
     Number const assetsAvailableAfter = *assetsAvailableProxy;
     Number const pseudoAccountBalanceAfter = accountHolds(
