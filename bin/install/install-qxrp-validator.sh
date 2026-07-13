@@ -284,10 +284,33 @@ CFG
   FALCON_SECRET=$(echo "$FALCON_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['falcon_secret'])")
   FALCON_PK=$(echo "$FALCON_JSON" | python3 -c "import sys,json; r=json.load(sys.stdin)['result']; print((r.get('public_key_hex') or r.get('public_key','')).upper())")
 
-  NODE_JSON=$(docker exec qxrp_keygen_boot curl -sf -X POST http://127.0.0.1:5999 \
-    -H 'Content-Type: application/json' \
-    -d '{"method":"wallet_propose","params":[{"key_type":"secp256k1"}]}')
-  NODE_SEED=$(echo "$NODE_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['master_seed'])")
+  NODE_SEED=$(python3 - <<'PY'
+import os, hashlib
+ALPHABET = 'rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz'
+
+def b58encode_xrpl(msg: bytes) -> str:
+    zeroes = len(msg) - len(msg.lstrip(b'\0'))
+    pbegin = msg.lstrip(b'\0')
+    if not pbegin:
+        return ALPHABET[0] * zeroes
+    b58 = [0] * (len(msg) * 3)
+    for ch in pbegin:
+        carry = ch
+        for i in range(len(b58) - 1, -1, -1):
+            carry += 256 * b58[i]
+            b58[i] = carry % 58
+            carry //= 58
+    start = 0
+    while start < len(b58) and b58[start] == 0:
+        start += 1
+    return ALPHABET[0] * zeroes + ''.join(ALPHABET[d] for d in b58[start:])
+
+raw = os.urandom(16)
+payload = bytes([33]) + raw
+chk = hashlib.sha256(hashlib.sha256(payload).digest()).digest()[:4]
+print(b58encode_xrpl(payload + chk))
+PY
+)
 
   docker stop qxrp_keygen_boot >/dev/null 2>&1 || true
   rm -rf "$BOOT_DIR"
