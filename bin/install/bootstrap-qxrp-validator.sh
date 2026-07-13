@@ -26,7 +26,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 SECRET_INPUT="${SECRET_INPUT:-qxrp-val-fresh-$(date +%s)}"
-DOCKER_IMAGE="${QXRP_XRPLD_IMAGE:-qxrp/xrpld:latest}"
+# Pin fleet image — floating :latest may lack Falcon hex UNL support (see docs/fleet-image-pinning.md).
+DOCKER_IMAGE="${QXRP_XRPLD_IMAGE:-qxrp/xrpld:cid-popl}"
 PUBLIC_RPC="${QXRP_PUBLIC_RPC:-http://46.224.0.140:6005}"
 FLEET_UNL_URL="${QXRP_FLEET_UNL_URL:-https://raw.githubusercontent.com/beartec-jpg/qXRP/develop/bin/install/testnet-falcon-unl.txt}"
 
@@ -286,13 +287,20 @@ echo "Starting validator container..."
 (cd /var/lib/qxrp-validator && dc up -d)
 
 echo "Waiting for RPC to be ready (up to 90s)..."
+RPC_READY=0
 for i in $(seq 1 30); do
   if docker exec qxrp-validator curl -sf --max-time 3 -X POST -d '{"method":"server_info"}' http://127.0.0.1:5005 > /dev/null 2>&1; then
     echo "RPC ready!"
+    RPC_READY=1
     break
   fi
   sleep 3
 done
+if [[ "$RPC_READY" -ne 1 ]]; then
+  echo "ERROR: qxrp-validator RPC not ready. Check: docker logs qxrp-validator" >&2
+  echo "  Common cause: wrong image tag (use qxrp/xrpld:cid-popl, not stale :latest)." >&2
+  exit 1
+fi
 
 echo "Generating Falcon-512 validator keys (account + consensus + on-chain identity)..."
 
