@@ -33,9 +33,11 @@ fetch_hash() {
     | python3 -c "
 import sys, json
 r = json.load(sys.stdin).get('result', {})
-for v in r.values():
-    if isinstance(v, dict) and v.get('name') == '${FEATURE}':
-        print(v.get('id', ''))
+for k, v in r.items():
+    if k == 'status' or not isinstance(v, dict):
+        continue
+    if v.get('name') == '${FEATURE}':
+        print(v.get('id') or k)
         raise SystemExit(0)
 raise SystemExit(1)
 "
