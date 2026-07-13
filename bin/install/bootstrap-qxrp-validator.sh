@@ -171,13 +171,10 @@ cat > config/xrpld.cfg << 'EOC'
 1001
 
 [node_size]
-tiny
+medium
 
 [ledger_history]
 256
-
-[validation_quorum]
-3
 
 [server]
 port_rpc_admin_local
@@ -247,18 +244,8 @@ maximum_txn_per_account = 100
 
 [features]
 ProofOfParticipation
-MultiSign
-MultiSignReserve
-Flow
-FlowCross
-FeeEscalation
-TickSize
-Escrow
-DeletableAccounts
-DepositAuth
-DepositPreauth
-AMM
-XChainBridge
+SingleAssetVault
+LendingProtocol
 EOC
 
 # Falcon hex UNL — bonded testnet fleet (not legacy n9 classical keys).
@@ -376,7 +363,8 @@ cat >> "$CFG" << EOC
 ${NODE_SEED}
 EOC
 
-write_validators_txt "$FALCON_PK" "$FLEET_UNL_FILE"
+# Fleet-only UNL while catching up (own key added when validation is enabled).
+write_validators_txt "" "$FLEET_UNL_FILE"
 echo "$ACCOUNT" > /var/lib/qxrp-validator/validator-r-address
 
 printf 'VALIDATOR_ACCOUNT=%s\n' "$ACCOUNT" > /var/lib/qxrp-validator/dashboard/.env
@@ -394,11 +382,16 @@ for i in $(seq 1 120); do
   SEQ=$(echo "$INFO" | python3 -c "import sys,json; print(json.load(sys.stdin).get('result',{}).get('info',{}).get('validated_ledger',{}).get('seq',0))" 2>/dev/null || echo "0")
   LEDGERS=$(echo "$INFO" | python3 -c "import sys,json; print(json.load(sys.stdin).get('result',{}).get('info',{}).get('complete_ledgers',''))" 2>/dev/null || echo "")
   if [[ $((i % 6)) -eq 1 ]]; then
-    echo "  … state=${STATE:-?} seq=${SEQ} ledgers=${LEDGERS:-?}"
+    if [[ -z "${LEDGERS}" || "${LEDGERS}" == "empty" ]]; then
+      STATUS="catching up (peers connected, downloading ledgers)"
+    else
+      STATUS="ledgers ${LEDGERS}"
+    fi
+    echo "  … validated seq=${SEQ} ${STATUS}"
   fi
-  if [[ "${STATE}" == "full" || "${STATE}" == "proposing" ]] && [[ "${SEQ}" -gt "${MIN_SYNC_SEQ}" ]]; then
+  if [[ -n "${LEDGERS}" && "${LEDGERS}" != "empty" ]] && [[ "${SEQ}" -gt "${MIN_SYNC_SEQ}" ]]; then
     SYNCED=1
-    echo "Ledger sync OK (seq ${SEQ})."
+    echo "Ledger sync OK (seq ${SEQ}, ${LEDGERS})."
     break
   fi
   sleep 5
@@ -406,6 +399,8 @@ done
 if [[ "$SYNCED" -eq 0 ]]; then
   echo "WARNING: sync not confirmed — bonding may fail until the node catches up."
 fi
+
+write_validators_txt "$FALCON_PK" "$FLEET_UNL_FILE"
 
 cat >> "$CFG" << EOC
 
@@ -469,15 +464,25 @@ def local_validated_seq():
         return 0
 
 
+def local_complete_ledgers():
+    try:
+        info = rpc_local("server_info", {})
+        return info.get("result", {}).get("info", {}).get("complete_ledgers", "")
+    except Exception:
+        return ""
+
+
 def wait_for_local_sync():
     print("Waiting for local validated ledger (needed for signing)...")
     for i in range(120):
         seq = local_validated_seq()
-        if seq > MIN_SYNC_SEQ:
-            print(f"  Local ledger ready (seq {seq}).")
+        ledgers = local_complete_ledgers()
+        if ledgers and ledgers != "empty" and seq > MIN_SYNC_SEQ:
+            print(f"  Local ledger ready (seq {seq}, {ledgers}).")
             return
         if i % 6 == 0:
-            print(f"  … local seq {seq} (need > {MIN_SYNC_SEQ})")
+            detail = "catching up" if not ledgers or ledgers == "empty" else ledgers
+            print(f"  … local seq {seq}, ledgers {detail} (need seq > {MIN_SYNC_SEQ})")
         time.sleep(5)
     print("ERROR: local node has no validated ledger — check: docker logs qxrp-validator")
     sys.exit(1)
