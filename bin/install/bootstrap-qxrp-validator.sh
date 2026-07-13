@@ -283,6 +283,9 @@ if [ -n "$NODE_NAME" ]; then
   echo "Saved node name."
 fi
 
+echo "Pulling ${DOCKER_IMAGE}..."
+docker pull "$DOCKER_IMAGE"
+
 echo "Starting validator container..."
 (cd /var/lib/qxrp-validator && dc up -d)
 
