@@ -28,6 +28,23 @@ done
 SECRET_INPUT="${SECRET_INPUT:-qxrp-val-fresh-$(date +%s)}"
 DOCKER_IMAGE="${QXRP_XRPLD_IMAGE:-qxrp/xrpld:latest}"
 PUBLIC_RPC="${QXRP_PUBLIC_RPC:-http://46.224.0.140:6005}"
+FLEET_UNL_URL="${QXRP_FLEET_UNL_URL:-https://raw.githubusercontent.com/beartec-jpg/qXRP/develop/bin/install/testnet-falcon-unl.txt}"
+
+write_validators_txt() {
+  local own_key="${1:-}"
+  local unl_file="$2"
+  {
+    echo "[validators]"
+    if [[ -n "$own_key" ]]; then
+      echo "$own_key"
+    fi
+    while IFS= read -r k || [[ -n "$k" ]]; do
+      k="${k//[[:space:]]/}"
+      [[ -z "$k" || "$k" == "$own_key" ]] && continue
+      echo "$k"
+    done < "$unl_file"
+  } > /var/lib/qxrp-validator/config/validators.txt
+}
 
 echo "=== qXRP Validator Bootstrap (fresh server) ==="
 echo "Using secret (wallet input): $SECRET_INPUT"
@@ -92,7 +109,6 @@ cd /var/lib/qxrp-validator
 
 # Write docker-compose.yml (public hub ships :latest; override with QXRP_XRPLD_IMAGE)
 cat > docker-compose.yml << EOC
-version: "3.8"
 services:
   xrpld:
     image: ${DOCKER_IMAGE}
@@ -244,17 +260,15 @@ AMM
 XChainBridge
 EOC
 
-# Live testnet UNL — must match the bonded fleet (see install-qxrp-validator.sh)
-TRUSTED_KEYS="n9KvHaT7SJmratfNFhzktVasbFUjhMDnLPx6tgnuv3pR93BjMcRd,n94NpYCkXPLdmUDw76LHvXRkJ8EYpc3tduM7MnYdMgGLwKVnzMSw,n9MX4NgUkvgGLpr6qYyPNtyWpq8Vp7bcYBkhVCAqWAYR2a8Z4Xtn,n94wZUjfykCnpoejwvA97iDVdY9bhNCoyxBa4qahSbQH5hMEeBAa"
+# Falcon hex UNL — bonded testnet fleet (not legacy n9 classical keys).
 MIN_FUND_DROPS=1100000000
 MIN_BOND_DROPS=1000000000
 MIN_SYNC_SEQ=1000
 
-{
-  echo "[validators]"
-  IFS=',' read -ra KEYS <<< "$TRUSTED_KEYS"
-  for k in "${KEYS[@]}"; do echo "$k"; done
-} > config/validators.txt
+FLEET_UNL_FILE=/var/lib/qxrp-validator/config/fleet-unl.txt
+echo "Fetching bonded fleet UNL..."
+curl -fsSL "$FLEET_UNL_URL" -o "$FLEET_UNL_FILE"
+write_validators_txt "" "$FLEET_UNL_FILE"
 
 chown -R 1001:1001 /var/lib/qxrp-validator
 
@@ -325,7 +339,7 @@ cat >> "$CFG" << EOC
 ${NODE_SEED}
 EOC
 
-grep -q "$FALCON_PK" /var/lib/qxrp-validator/config/validators.txt 2>/dev/null || echo "$FALCON_PK" >> /var/lib/qxrp-validator/config/validators.txt
+write_validators_txt "$FALCON_PK" "$FLEET_UNL_FILE"
 echo "$ACCOUNT" > /var/lib/qxrp-validator/validator-r-address
 
 printf 'VALIDATOR_ACCOUNT=%s\n' "$ACCOUNT" > /var/lib/qxrp-validator/dashboard/.env
