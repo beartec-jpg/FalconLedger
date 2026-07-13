@@ -51,20 +51,31 @@ CFG="${data_dir}/config/xrpld.cfg"
 [[ -f "\$CFG" ]] || { echo "  missing \$CFG"; exit 1; }
 SUDO=""
 [[ "\$(id -u)" -ne 0 ]] && command -v sudo >/dev/null && SUDO="sudo"
-LINE="${hash} ${FEATURE}"
-if grep -q "${hash}" "\$CFG" 2>/dev/null; then
-  echo "  already patched"
-else
+CHANGED=0
+if ! grep -q "^${FEATURE}\$" "\$CFG" 2>/dev/null; then
   \$SUDO cp "\$CFG" "\$CFG.bak-lending-collateral"
+  awk '/^\[features\]/{print; print "${FEATURE}"; next} {print}' "\$CFG" > "\$CFG.tmp"
+  \$SUDO mv "\$CFG.tmp" "\$CFG"
+  CHANGED=1
+  echo -n "  added ${FEATURE} to [features]"
+fi
+LINE="${hash} ${FEATURE}"
+if ! grep -q "${hash}" "\$CFG" 2>/dev/null; then
+  [[ \$CHANGED -eq 0 ]] && \$SUDO cp "\$CFG" "\$CFG.bak-lending-collateral"
   if grep -q '^\[amendments\]' "\$CFG"; then
     echo "\$LINE" | \$SUDO tee -a "\$CFG" >/dev/null
   else
     printf '\n[amendment_majority_time]\n15 minutes\n\n[amendments]\n%s\n' "\$LINE" | \$SUDO tee -a "\$CFG" >/dev/null
   fi
-  echo "  appended \$LINE"
+  CHANGED=1
+  echo -n "; appended [amendments]"
 fi
-cd "${data_dir}" && (\$SUDO docker compose restart "${container}" 2>/dev/null \
-  || \$SUDO docker restart "${container}")
+if [[ \$CHANGED -eq 1 ]]; then
+  cd "${data_dir}" && (\$SUDO docker compose restart "${container}" 2>/dev/null \
+    || \$SUDO docker restart "${container}")
+else
+  echo "  already patched"
+fi
 PATCH
 }
 
