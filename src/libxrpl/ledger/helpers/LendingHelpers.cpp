@@ -80,7 +80,8 @@ ammNativePerVaultUnit(ReadView const& view, Asset const& vaultAsset, beast::Jour
     if (!holds)
         return std::nullopt;
 
-    auto const [nativeBal, vaultBal] = *holds;
+    auto const [nativeBal, vaultBal, ignoredLpt] = *holds;
+    (void)ignoredLpt;
     if (nativeBal <= beast::kZERO || vaultBal <= beast::kZERO)
         return std::nullopt;
 
