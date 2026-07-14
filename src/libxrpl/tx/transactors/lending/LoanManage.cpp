@@ -208,7 +208,7 @@ defaultPermissionlessLoan(
     auto brokerDebtTotalProxy = brokerSle->at(sfDebtTotal);
     Number const totalDefaultAmount = owedToVault(loanSle);
 
-    Number defaultCovered = beast::kZERO;
+    Number defaultCovered = Number(0);
     if (loanSle->isFieldPresent(sfCollateral))
     {
         STAmount const collateral{loanSle->at(sfCollateral)};
