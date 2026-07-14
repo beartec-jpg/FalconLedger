@@ -167,13 +167,13 @@ def main() -> int:
         log(f"{name}: submit={er} validated={final} hash={h}")
         return final == "tesSUCCESS"
 
-    # Fund FALCON from faucet
+    # Fund FALCON from faucet (AMM dumps depress price → higher collateral requirement)
     for dest, label in ((lender, "lender"), (borrower, "borrower")):
         tx = {
             **base_tx(rpc, faucet_acct, account_seq(rpc, faucet_acct)),
             "TransactionType": "Payment",
             "Destination": dest,
-            "Amount": str(2000 * DROPS),
+            "Amount": str(5000 * DROPS),
         }
         if not run_step(f"fund_{label}", faucet_sec, tx):
             return 1
