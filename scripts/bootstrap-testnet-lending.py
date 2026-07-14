@@ -233,7 +233,10 @@ def write_manifest(manifest_path: Path, lending: dict, usdc_issuer: str, currenc
         "vault_id": lending["vault_id"],
         "loan_broker_id": lending["loan_broker_id"],
         "interest_rate_tenth_bps": INTEREST_RATE,
-        "payment_interval": 86400,
+        "payment_interval": 604800,
+        "epoch_duration_seconds": 604800,
+        "epochs_per_year": 52,
+        "default_loan_epochs": 1,
         "payment_total": 1,
         "grace_period": 3600,
     }

@@ -12,6 +12,8 @@ import sys
 import time
 from pathlib import Path
 
+from lend_epoch_constants import DEFAULT_LOAN_EPOCHS, payment_interval_for_epochs
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DROPS = 1_000_000
 CURRENCY = "QUC"
@@ -198,18 +200,26 @@ def main() -> int:
         if not run_step(f"mint_{label}", issuer_sec, tx):
             return 1
 
-    # Supply
-    tx = {
-        **base_tx(rpc, lender, account_seq(rpc, lender)),
-        "TransactionType": "VaultDeposit",
-        "VaultID": vault_id,
-        "Amount": {"currency": CURRENCY, "issuer": issuer, "value": "20"},
-    }
-    if not run_step("supply", lender_sec, tx):
-        return 1
+    principal = 5.0
+
+    # Supply (skip when vault already has enough liquidity for the borrow)
+    vault_entry = rpc.public_rpc("ledger_entry", {"index": vault_id, "ledger_index": "validated"})
+    assets_available = float(vault_entry.get("node", {}).get("AssetsAvailable", 0))
+    supply_needed = principal + 5.0
+    if assets_available >= supply_needed:
+        log(f"supply_skip: vault has {assets_available:.4f} F-USDC available (need {supply_needed})")
+    else:
+        deposit_amt = str(max(20, math.ceil(supply_needed - assets_available)))
+        tx = {
+            **base_tx(rpc, lender, account_seq(rpc, lender)),
+            "TransactionType": "VaultDeposit",
+            "VaultID": vault_id,
+            "Amount": {"currency": CURRENCY, "issuer": issuer, "value": deposit_amt},
+        }
+        if not run_step("supply", lender_sec, tx):
+            return 1
 
     price = amm_falcon_per_fusdc(rpc, issuer)
-    principal = 5.0
     falcon_collateral = math.ceil((principal * 1.5 / price) * 1.05)
     coll_drops = str(int(falcon_collateral * DROPS))
     log(f"AMM {price:.6f} F-USDC/FALCON — posting {falcon_collateral} FALCON collateral for {principal} F-USDC borrow")
@@ -222,7 +232,7 @@ def main() -> int:
         "PrincipalRequested": "5",
         "Collateral": coll_drops,
         "InterestRate": 500,
-        "PaymentInterval": 86400,
+        "PaymentInterval": payment_interval_for_epochs(DEFAULT_LOAN_EPOCHS),
         "PaymentTotal": 1,
         "GracePeriod": 3600,
         "Flags": 0x00010000,  # tfLoanOverpayment
