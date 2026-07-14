@@ -147,17 +147,18 @@ def main() -> int:
     borrower, borrower_sec = propose_wallet(rpc)
     log(f"borrower {borrower}")
 
-    fund_tx = {
-        **base_tx(rpc, faucet_acct, account_seq(rpc, faucet_acct)),
-        "TransactionType": "Payment",
-        "Destination": borrower,
-        "Amount": str(3000 * DROPS),
-    }
-    er, h = sign_submit(rpc, faucet_sec, fund_tx)
-    if wait_tx(rpc, h) != "tesSUCCESS":
-        log("fund borrower failed")
-        return 1
-    time.sleep(2)
+    for amount, label in ((3000, "xrp"), (2500, "falcon")):
+        fund_tx = {
+            **base_tx(rpc, faucet_acct, account_seq(rpc, faucet_acct)),
+            "TransactionType": "Payment",
+            "Destination": borrower,
+            "Amount": str(amount * DROPS),
+        }
+        er, h = sign_submit(rpc, faucet_sec, fund_tx)
+        if wait_tx(rpc, h) != "tesSUCCESS":
+            log(f"fund borrower {label} failed ({er})")
+            return 1
+        time.sleep(1)
 
     price = amm_falcon_per_fusdc(rpc, issuer)
     falcon_collateral = math.ceil((principal * 1.5 / price) * 1.05)
