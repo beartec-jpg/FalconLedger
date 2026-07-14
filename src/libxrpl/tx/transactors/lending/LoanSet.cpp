@@ -74,8 +74,11 @@ LoanSet::preflight(PreflightContext const& ctx)
     }();
     if (!tx.isFlag(tfInnerBatchTxn) && !counterPartySig)
     {
-        JLOG(ctx.j.warn()) << "LoanSet transaction must have a CounterpartySignature.";
-        return temBAD_SIGNER;
+        if (!Lending::loanSetIsPermissionless(ctx.rules, tx))
+        {
+            JLOG(ctx.j.warn()) << "LoanSet transaction must have a CounterpartySignature.";
+            return temBAD_SIGNER;
+        }
     }
 
     if (counterPartySig)
@@ -383,6 +386,19 @@ LoanSet::preclaim(PreclaimContext const& ctx)
         JLOG(ctx.j.warn()) << "Borrower account is frozen.";
         return ret;
     }
+
+    if (Lending::loanSetIsPermissionless(ctx.view.rules(), tx))
+    {
+        if (account == brokerOwner)
+        {
+            JLOG(ctx.j.warn()) << "Permissionless LoanSet: broker owner must not be Account.";
+            return tecNO_PERMISSION;
+        }
+        if (auto const ter = Lending::checkPermissionlessCollateral(
+                ctx.view, asset, tx[sfPrincipalRequested], tx[sfCollateral], ctx.j))
+            return ter;
+    }
+
     // brokerOwner is going to receive funds if there's an origination fee, so
     // it can't be deep frozen
     if (auto const ret = checkDeepFrozen(ctx.view, brokerOwner, asset))
@@ -520,16 +536,19 @@ LoanSet::doApply()
         JLOG(j_.warn()) << "Loan would exceed the maximum debt limit of the LoanBroker.";
         return tecLIMIT_EXCEEDED;
     }
-    TenthBips32 const coverRateMinimum{brokerSle->at(sfCoverRateMinimum)};
+    if (!Lending::loanSetIsPermissionless(view.rules(), tx))
     {
-        // Round the minimum required cover up to be conservative. This ensures
-        // CoverAvailable never drops below the theoretical minimum, protecting
-        // the broker's solvency.
-        NumberRoundModeGuard const mg(Number::RoundingMode::Upward);
-        if (brokerSle->at(sfCoverAvailable) < tenthBipsOfValue(newDebtTotal, coverRateMinimum))
+        TenthBips32 const coverRateMinimum{brokerSle->at(sfCoverRateMinimum)};
         {
-            JLOG(j_.warn()) << "Insufficient first-loss capital to cover the loan.";
-            return tecINSUFFICIENT_FUNDS;
+            // Round the minimum required cover up to be conservative. This ensures
+            // CoverAvailable never drops below the theoretical minimum, protecting
+            // the broker's solvency.
+            NumberRoundModeGuard const mg(Number::RoundingMode::Upward);
+            if (brokerSle->at(sfCoverAvailable) < tenthBipsOfValue(newDebtTotal, coverRateMinimum))
+            {
+                JLOG(j_.warn()) << "Insufficient first-loss capital to cover the loan.";
+                return tecINSUFFICIENT_FUNDS;
+            }
         }
     }
 
@@ -629,6 +648,8 @@ LoanSet::doApply()
     // Set all other transaction fields directly from the transaction
     if (tx.isFlag(tfLoanOverpayment))
         loan->setFlag(lsfLoanOverpayment);
+    if (Lending::loanSetIsPermissionless(view.rules(), tx))
+        loan->setFlag(lsfLoanPermissionless);
     setLoanField(~sfLoanOriginationFee);
     setLoanField(~sfLoanServiceFee);
     setLoanField(~sfLatePaymentFee);

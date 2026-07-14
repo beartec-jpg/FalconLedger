@@ -1,5 +1,6 @@
 #include <xrpl/ledger/helpers/LendingHelpers.h>
 
+#include <xrpl/ledger/helpers/AMMHelpers.h>
 #include <xrpl/basics/Expected.h>
 #include <xrpl/basics/Log.h>
 #include <xrpl/basics/Number.h>
@@ -11,6 +12,8 @@
 #include <xrpl/ledger/View.h>
 #include <xrpl/protocol/Asset.h>
 #include <xrpl/protocol/Feature.h>
+#include <xrpl/protocol/Issue.h>
+#include <xrpl/protocol/Indexes.h>
 #include <xrpl/protocol/LedgerFormats.h>
 #include <xrpl/protocol/Protocol.h>
 #include <xrpl/protocol/Rules.h>
@@ -42,6 +45,141 @@ checkLendingProtocolDependencies(Rules const& rules, STTx const& tx)
 
     return true;
 }
+
+namespace Lending {
+
+bool
+loanSetIsPermissionless(Rules const& rules, STTx const& tx)
+{
+    return rules.enabled(featureLendingPermissionless) && rules.enabled(featureLendingCollateral) &&
+        !tx.isFieldPresent(sfCounterpartySignature) && tx.isFieldPresent(sfCollateral);
+}
+
+static std::optional<std::pair<Number, Number>>
+ammNativePerVaultUnit(ReadView const& view, Asset const& vaultAsset, beast::Journal j)
+{
+    if (vaultAsset.native())
+        return std::nullopt;
+
+    if (!view.rules().enabled(featureAMM))
+        return std::nullopt;
+
+    Asset const nativeAsset{xrpIssue()};
+    auto const ammSle = view.read(keylet::amm(nativeAsset, vaultAsset));
+    if (!ammSle)
+        return std::nullopt;
+
+    auto const holds = ammHolds(
+        view,
+        *ammSle,
+        nativeAsset,
+        vaultAsset,
+        FreezeHandling::IgnoreFreeze,
+        AuthHandling::IgnoreAuth,
+        j);
+    if (!holds)
+        return std::nullopt;
+
+    auto const [nativeBal, vaultBal] = *holds;
+    if (nativeBal <= beast::kZERO || vaultBal <= beast::kZERO)
+        return std::nullopt;
+
+    // F-USDC per 1 FALCON (display units).
+    Number const nativeUnits = nativeBal.value();
+    Number const vaultUnits = vaultBal.value();
+    if (nativeUnits <= beast::kZERO)
+        return std::nullopt;
+    return std::make_pair(vaultUnits / nativeUnits, vaultUnits);
+}
+
+std::optional<Number>
+loanHealthFactorBps(
+    ReadView const& view,
+    Asset const& vaultAsset,
+    Number const& debtOutstanding,
+    STAmount const& collateral,
+    beast::Journal j)
+{
+    if (debtOutstanding <= beast::kZERO || collateral <= beast::kZERO || !collateral.native())
+        return std::nullopt;
+
+    auto const price = ammNativePerVaultUnit(view, vaultAsset, j);
+    if (!price)
+        return std::nullopt;
+
+    Number const collateralValue = collateral.value() * price->first;
+    if (collateralValue <= beast::kZERO)
+        return std::nullopt;
+
+    return (collateralValue / debtOutstanding) * Number(10000);
+}
+
+TER
+checkPermissionlessCollateral(
+    ReadView const& view,
+    Asset const& vaultAsset,
+    Number const& principalRequested,
+    STAmount const& collateral,
+    beast::Journal j)
+{
+    if (principalRequested <= beast::kZERO)
+        return temINVALID;
+    if (collateral <= beast::kZERO || !collateral.native())
+        return temBAD_AMOUNT;
+
+    auto const hfBps = loanHealthFactorBps(view, vaultAsset, principalRequested, collateral, j);
+    if (!hfBps)
+    {
+        JLOG(j.warn()) << "Permissionless LoanSet: AMM price unavailable for collateral check.";
+        return tecNO_LINE;
+    }
+    if (*hfBps < Number(kPermissionlessMinCollateralBps))
+    {
+        JLOG(j.warn()) << "Permissionless LoanSet: collateral below minimum ratio (need "
+                       << kPermissionlessMinCollateralBps << " bps HF, got " << *hfBps << ").";
+        return tecINSUFFICIENT_FUNDS;
+    }
+    return tesSUCCESS;
+}
+
+std::optional<Number>
+collateralVaultValue(
+    ReadView const& view,
+    Asset const& vaultAsset,
+    STAmount const& collateral,
+    beast::Journal j)
+{
+    if (collateral <= beast::kZERO || !collateral.native())
+        return std::nullopt;
+    auto const price = ammNativePerVaultUnit(view, vaultAsset, j);
+    if (!price)
+        return std::nullopt;
+    return collateral.value() * price->first;
+}
+
+bool
+loanPermissionlessLiquidatable(
+    ReadView const& view,
+    Asset const& vaultAsset,
+    SLE const& loanSle,
+    beast::Journal j)
+{
+    if (!loanSle.isFieldPresent(sfCollateral))
+        return false;
+
+    STAmount const collateral{loanSle.at(sfCollateral)};
+    if (collateral <= beast::kZERO)
+        return false;
+
+    Number const debt = loanSle.at(sfTotalValueOutstanding);
+    if (debt <= beast::kZERO)
+        return false;
+
+    auto const hfBps = loanHealthFactorBps(view, vaultAsset, debt, collateral, j);
+    return hfBps && *hfBps < Number(kPermissionlessLiquidationHfBps);
+}
+
+}  // namespace Lending
 
 LoanPaymentParts&
 LoanPaymentParts::operator+=(LoanPaymentParts const& other)

@@ -16,6 +16,7 @@
 // Keep it sorted in reverse chronological order.
 
 // qXRP-specific amendments (added on top)
+XRPL_FEATURE(LendingPermissionless,      Supported::Yes, VoteBehavior::DefaultNo)
 XRPL_FEATURE(LendingCollateral,          Supported::Yes, VoteBehavior::DefaultNo)
 XRPL_FEATURE(ProofOfParticipation,       Supported::No, VoteBehavior::DefaultNo)
 

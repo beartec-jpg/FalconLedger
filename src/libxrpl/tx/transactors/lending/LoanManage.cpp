@@ -105,13 +105,6 @@ LoanManage::preclaim(PreclaimContext const& ctx)
                               "after it is fully paid.";
         return tecNO_PERMISSION;
     }
-    if (tx.isFlag(tfLoanDefault) &&
-        !hasExpired(ctx.view, loanSle->at(sfNextPaymentDueDate) + loanSle->at(sfGracePeriod)))
-    {
-        JLOG(ctx.j.warn()) << "A loan can not be defaulted before the next payment due date.";
-        return tecTOO_SOON;
-    }
-
     auto const loanBrokerID = loanSle->at(sfLoanBrokerID);
     auto const loanBrokerSle = ctx.view.read(keylet::loanbroker(loanBrokerID));
     if (!loanBrokerSle)
@@ -119,6 +112,61 @@ LoanManage::preclaim(PreclaimContext const& ctx)
         // should be impossible
         return tecINTERNAL;  // LCOV_EXCL_LINE
     }
+
+    auto const vaultSle = ctx.view.read(keylet::vault(loanBrokerSle->at(sfVaultID)));
+    if (!vaultSle)
+        return tecINTERNAL;  // LCOV_EXCL_LINE
+    auto const vaultAsset = vaultSle->at(sfAsset);
+
+    bool const permissionlessLoan = loanSle->isFlag(lsfLoanPermissionless) &&
+        ctx.view.rules().enabled(featureLendingPermissionless);
+
+    if (permissionlessLoan)
+    {
+        bool const paymentLate = tx.isFlag(tfLoanDefault) &&
+            hasExpired(
+                ctx.view, loanSle->at(sfNextPaymentDueDate) + loanSle->at(sfGracePeriod));
+        bool const hfBreach = Lending::loanPermissionlessLiquidatable(
+            ctx.view, vaultAsset, *loanSle, ctx.j);
+
+        if (tx.isFlag(tfLoanDefault))
+        {
+            if (!paymentLate && !hfBreach)
+            {
+                JLOG(ctx.j.warn())
+                    << "Permissionless loan: default requires late payment or HF breach.";
+                return tecTOO_SOON;
+            }
+            return tesSUCCESS;
+        }
+        if (tx.isFlag(tfLoanImpair))
+        {
+            if (!hfBreach)
+            {
+                JLOG(ctx.j.warn()) << "Permissionless loan: impair requires HF breach.";
+                return tecNO_PERMISSION;
+            }
+            return tesSUCCESS;
+        }
+        if (tx.isFlag(tfLoanUnimpair))
+        {
+            if (hfBreach)
+            {
+                JLOG(ctx.j.warn()) << "Permissionless loan: can not unimpair while HF breached.";
+                return tecNO_PERMISSION;
+            }
+            return tesSUCCESS;
+        }
+        return tesSUCCESS;
+    }
+
+    if (tx.isFlag(tfLoanDefault) &&
+        !hasExpired(ctx.view, loanSle->at(sfNextPaymentDueDate) + loanSle->at(sfGracePeriod)))
+    {
+        JLOG(ctx.j.warn()) << "A loan can not be defaulted before the next payment due date.";
+        return tecTOO_SOON;
+    }
+
     if (loanBrokerSle->at(sfOwner) != account)
     {
         JLOG(ctx.j.warn()) << "LoanBroker for Loan does not belong to the account. LoanManage "
@@ -144,6 +192,78 @@ owedToVault(SLE::ref loanSle)
     //
     // Add that to the original formula, and you get this:
     return loanSle->at(sfTotalValueOutstanding) - loanSle->at(sfManagementFeeOutstanding);
+}
+
+static TER
+defaultPermissionlessLoan(
+    ApplyView& view,
+    SLE::ref loanSle,
+    SLE::ref brokerSle,
+    SLE::ref vaultSle,
+    Asset const& vaultAsset,
+    AccountID const& liquidator,
+    beast::Journal j)
+{
+    std::int32_t const loanScale = loanSle->at(sfLoanScale);
+    auto brokerDebtTotalProxy = brokerSle->at(sfDebtTotal);
+    Number const totalDefaultAmount = owedToVault(loanSle);
+
+    Number defaultCovered = beast::kZERO;
+    if (loanSle->isFieldPresent(sfCollateral))
+    {
+        STAmount const collateral{loanSle->at(sfCollateral)};
+        if (collateral > beast::kZERO)
+        {
+            if (auto const collateralValue =
+                    Lending::collateralVaultValue(view, vaultAsset, collateral, j))
+            {
+                defaultCovered = std::min(*collateralValue, totalDefaultAmount);
+            }
+            if (auto const ter =
+                    transferXRP(view, brokerSle->at(sfAccount), liquidator, collateral, j))
+                return ter;
+            loanSle->at(sfCollateral) = beast::kZERO;
+        }
+    }
+
+    Number const vaultDefaultAmount = totalDefaultAmount - defaultCovered;
+    auto const vaultScale = getAssetsTotalScale(vaultSle);
+
+    {
+        auto vaultTotalProxy = vaultSle->at(sfAssetsTotal);
+        auto vaultAvailableProxy = vaultSle->at(sfAssetsAvailable);
+
+        if (vaultTotalProxy < vaultDefaultAmount)
+            return tefBAD_LEDGER;
+
+        auto const vaultDefaultRounded = roundToAsset(
+            vaultAsset, vaultDefaultAmount, vaultScale, Number::RoundingMode::Downward);
+        vaultTotalProxy -= vaultDefaultRounded;
+        vaultAvailableProxy += defaultCovered;
+
+        if (loanSle->isFlag(lsfLoanImpaired))
+        {
+            auto vaultLossUnrealizedProxy = vaultSle->at(sfLossUnrealized);
+            if (vaultLossUnrealizedProxy < totalDefaultAmount)
+                return tefBAD_LEDGER;
+            adjustImpreciseNumber(
+                vaultLossUnrealizedProxy, -totalDefaultAmount, vaultAsset, vaultScale);
+        }
+        view.update(vaultSle);
+    }
+
+    adjustImpreciseNumber(brokerDebtTotalProxy, -totalDefaultAmount, vaultAsset, loanScale);
+    view.update(brokerSle);
+
+    loanSle->setFlag(lsfLoanDefault);
+    loanSle->at(sfTotalValueOutstanding) = 0;
+    loanSle->at(sfPaymentRemaining) = 0;
+    loanSle->at(sfPrincipalOutstanding) = 0;
+    loanSle->at(sfManagementFeeOutstanding) = 0;
+    loanSle->at(sfNextPaymentDueDate) = 0;
+    view.update(loanSle);
+
+    return tesSUCCESS;
 }
 
 TER
@@ -413,7 +533,13 @@ LoanManage::doApply()
         // Valid flag combinations are checked in preflight. No flags is valid -
         // just a noop.
         if (tx.isFlag(tfLoanDefault))
+        {
+            if (loanSle->isFlag(lsfLoanPermissionless) &&
+                view.rules().enabled(featureLendingPermissionless))
+                return defaultPermissionlessLoan(
+                    view, loanSle, brokerSle, vaultSle, vaultAsset, account_, j_);
             return defaultLoan(view, loanSle, brokerSle, vaultSle, vaultAsset, j_);
+        }
         if (tx.isFlag(tfLoanImpair))
             return impairLoan(view, loanSle, vaultSle, vaultAsset, j_);
         if (tx.isFlag(tfLoanUnimpair))

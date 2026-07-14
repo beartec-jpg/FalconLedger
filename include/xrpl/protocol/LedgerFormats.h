@@ -203,7 +203,8 @@ enum LedgerEntryType : std::uint16_t {
     LEDGER_OBJECT(Loan,                                                                                                            \
         LSF_FLAG(lsfLoanDefault, 0x00010000)                                                                                       \
         LSF_FLAG(lsfLoanImpaired, 0x00020000)                                                                                      \
-        LSF_FLAG(lsfLoanOverpayment, 0x00040000))               /* True, loan allows overpayments */
+        LSF_FLAG(lsfLoanOverpayment, 0x00040000)                                                                                   \
+        LSF_FLAG(lsfLoanPermissionless, 0x00080000))            /* Opened without broker co-sign; collateral is first-loss */
 
 // clang-format on
 

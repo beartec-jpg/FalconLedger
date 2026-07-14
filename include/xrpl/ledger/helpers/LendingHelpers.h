@@ -10,6 +10,53 @@ namespace xrpl {
 bool
 checkLendingProtocolDependencies(Rules const& rules, STTx const& tx);
 
+namespace Lending {
+
+/** Minimum collateral ratio at LoanSet (150% = 15000 tenth-bips of debt value). */
+constexpr std::uint32_t kPermissionlessMinCollateralBps = 15000;
+
+/** Health factor liquidation threshold (1.1 → 11000 bps). */
+constexpr std::uint32_t kPermissionlessLiquidationHfBps = 11000;
+
+/** True when borrower opens a collateralized loan without broker CounterpartySignature. */
+bool
+loanSetIsPermissionless(Rules const& rules, STTx const& tx);
+
+/** Validate collateral vs principal using the FALCON/F-USDC AMM mid-price. */
+TER
+checkPermissionlessCollateral(
+    ReadView const& view,
+    Asset const& vaultAsset,
+    Number const& principalRequested,
+    STAmount const& collateral,
+    beast::Journal j);
+
+/** Health factor in basis points (10000 = 1.0). nullopt if price unavailable. */
+std::optional<Number>
+loanHealthFactorBps(
+    ReadView const& view,
+    Asset const& vaultAsset,
+    Number const& debtOutstanding,
+    STAmount const& collateral,
+    beast::Journal j);
+
+bool
+loanPermissionlessLiquidatable(
+    ReadView const& view,
+    Asset const& vaultAsset,
+    SLE const& loanSle,
+    beast::Journal j);
+
+/** AMM mid-price value of native collateral in vault asset units. */
+std::optional<Number>
+collateralVaultValue(
+    ReadView const& view,
+    Asset const& vaultAsset,
+    STAmount const& collateral,
+    beast::Journal j);
+
+}  // namespace Lending
+
 static constexpr std::uint32_t kSECONDS_IN_YEAR = 365 * 24 * 60 * 60;
 
 Number
