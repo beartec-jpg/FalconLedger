@@ -456,6 +456,32 @@ public:
     {
         return this->tx_->isFieldPresent(sfGracePeriod);
     }
+
+    /**
+     * @brief Get sfCollateral (SoeOptional)
+     * @return The field value, or std::nullopt if not present.
+     */
+    [[nodiscard]]
+    protocol_autogen::Optional<SF_AMOUNT::type::value_type>
+    getCollateral() const
+    {
+        if (hasCollateral())
+        {
+            return this->tx_->at(sfCollateral);
+        }
+        return std::nullopt;
+    }
+
+    /**
+     * @brief Check if sfCollateral is present.
+     * @return True if the field is present, false otherwise.
+     */
+    [[nodiscard]]
+    bool
+    hasCollateral() const
+    {
+        return this->tx_->isFieldPresent(sfCollateral);
+    }
 };
 
 /**
@@ -686,6 +712,17 @@ public:
     setGracePeriod(std::decay_t<typename SF_UINT32::type::value_type> const& value)
     {
         object_[sfGracePeriod] = value;
+        return *this;
+    }
+
+    /**
+     * @brief Set sfCollateral (SoeOptional)
+     * @return Reference to this builder for method chaining.
+     */
+    LoanSetBuilder&
+    setCollateral(std::decay_t<typename SF_AMOUNT::type::value_type> const& value)
+    {
+        object_[sfCollateral] = value;
         return *this;
     }
 

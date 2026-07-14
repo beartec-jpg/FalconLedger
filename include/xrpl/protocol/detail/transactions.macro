@@ -1065,6 +1065,18 @@ TRANSACTION(ttLOAN_MANAGE, 82, LoanManage,
     {sfLoanID, SoeRequired},
 }))
 
+/** Borrower adds FALCON collateral to an existing loan (LendingCollateral). */
+#if TRANSACTION_INCLUDE
+#   include <xrpl/tx/transactors/lending/LoanCollateralDeposit.h>
+#endif
+TRANSACTION(ttLOAN_COLLATERAL_DEPOSIT, 83, LoanCollateralDeposit,
+    Delegation::NotDelegable,
+    featureLendingCollateral,
+    NoPriv, ({
+    {sfLoanID, SoeRequired},
+    {sfCollateral, SoeRequired},
+}))
+
 /** The Borrower uses this transaction to make a Payment on the Loan. */
 #if TRANSACTION_INCLUDE
 #   include <xrpl/tx/transactors/lending/LoanPay.h>
