@@ -154,6 +154,15 @@ def main() -> int:
     faucet_acct = faucet["account"]
     faucet_sec = faucet["falcon_secret"]
     broker_id = manifest["loan_broker_id"]
+    vault_id = manifest["vault_id"]
+
+    vault_node = rpc.public_rpc(
+        "ledger_entry", {"index": vault_id, "ledger_index": "validated"}
+    ).get("node", {})
+    vault_pseudo = vault_node.get("Account")
+    if not vault_pseudo:
+        log("vault pseudo-account missing from ledger_entry")
+        return 1
 
     borrower, borrower_sec = propose_wallet(rpc)
     liquidator, liquidator_sec = propose_wallet(rpc)
@@ -272,6 +281,7 @@ def main() -> int:
         return 1
 
     liq_falcon_before = falcon_balance(rpc, liquidator)
+    vault_falcon_before = falcon_balance(rpc, vault_pseudo)
     tx = {
         **base_tx(rpc, liquidator, account_seq(rpc, liquidator)),
         "TransactionType": "LoanManage",
@@ -288,10 +298,19 @@ def main() -> int:
         return 1
 
     liq_falcon_after = falcon_balance(rpc, liquidator)
-    gained = liq_falcon_after - liq_falcon_before
-    log(f"liquidator FALCON: {liq_falcon_before:.4f} → {liq_falcon_after:.4f} (+{gained:.4f})")
-    if gained < falcon_collateral * 0.99:
-        log("liquidator did not receive expected collateral")
+    liq_gained = liq_falcon_after - liq_falcon_before
+    if liq_gained > 0.01:
+        log(f"liquidator must not receive collateral (gained {liq_gained:.4f} FALCON)")
+        return 1
+
+    vault_falcon_after = falcon_balance(rpc, vault_pseudo)
+    vault_gained = vault_falcon_after - vault_falcon_before
+    log(
+        f"vault pseudo FALCON: {vault_falcon_before:.4f} → {vault_falcon_after:.4f} "
+        f"(+{vault_gained:.4f})"
+    )
+    if vault_gained < falcon_collateral * 0.99:
+        log("vault did not receive seized collateral")
         return 1
 
     log("── summary ──")

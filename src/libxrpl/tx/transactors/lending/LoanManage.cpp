@@ -201,7 +201,6 @@ defaultPermissionlessLoan(
     SLE::ref brokerSle,
     SLE::ref vaultSle,
     Asset const& vaultAsset,
-    AccountID const& liquidator,
     beast::Journal j)
 {
     std::int32_t const loanScale = loanSle->at(sfLoanScale);
@@ -219,8 +218,12 @@ defaultPermissionlessLoan(
             {
                 defaultCovered = std::min(*collateralValue, totalDefaultAmount);
             }
-            if (auto const ter =
-                    transferXRP(view, brokerSle->at(sfAccount), liquidator, collateral, j))
+            // Return seized FALCON to the vault pseudo-account for LP protection.
+            // Collateral was locked on the broker pseudo-account at LoanSet /
+            // LoanCollateralDeposit; it must not be paid out to the default
+            // submitter.
+            if (auto const ter = transferXRP(
+                    view, brokerSle->at(sfAccount), vaultSle->at(sfAccount), collateral, j))
                 return ter;
             loanSle->at(sfCollateral) = beast::kZERO;
         }
@@ -537,7 +540,7 @@ LoanManage::doApply()
             if (loanSle->isFlag(lsfLoanPermissionless) &&
                 view.rules().enabled(featureLendingPermissionless))
                 return defaultPermissionlessLoan(
-                    view, loanSle, brokerSle, vaultSle, vaultAsset, account_, j_);
+                    view, loanSle, brokerSle, vaultSle, vaultAsset, j_);
             return defaultLoan(view, loanSle, brokerSle, vaultSle, vaultAsset, j_);
         }
         if (tx.isFlag(tfLoanImpair))
