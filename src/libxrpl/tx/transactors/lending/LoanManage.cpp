@@ -208,6 +208,7 @@ defaultPermissionlessLoan(
     Number const totalDefaultAmount = owedToVault(loanSle);
 
     Number defaultCovered = Number(0);
+    Number collateralSurplus = Number(0);
     if (loanSle->isFieldPresent(sfCollateral))
     {
         STAmount const collateral{loanSle->at(sfCollateral)};
@@ -217,6 +218,8 @@ defaultPermissionlessLoan(
                     Lending::collateralVaultValue(view, vaultAsset, collateral, j))
             {
                 defaultCovered = std::min(*collateralValue, totalDefaultAmount);
+                if (*collateralValue > totalDefaultAmount)
+                    collateralSurplus = *collateralValue - totalDefaultAmount;
             }
             // Forfeit collateral to the FALCON collateral pool (broker pseudo-account).
             // Physical FALCON already sits there from LoanSet / LoanCollateralDeposit;
@@ -239,6 +242,18 @@ defaultPermissionlessLoan(
             vaultAsset, vaultDefaultAmount, vaultScale, Number::RoundingMode::Downward);
         vaultTotalProxy -= vaultDefaultRounded;
         vaultAvailableProxy += defaultCovered;
+
+        // CollateralSurplus: forfeited FALCON valued above debt credits F-USDC LPs.
+        if (collateralSurplus > beast::kZERO)
+        {
+            auto const surplusRounded = roundToAsset(
+                vaultAsset,
+                collateralSurplus,
+                vaultScale,
+                Number::RoundingMode::Downward);
+            vaultTotalProxy += surplusRounded;
+            vaultAvailableProxy += surplusRounded;
+        }
 
         if (loanSle->isFlag(lsfLoanImpaired))
         {
