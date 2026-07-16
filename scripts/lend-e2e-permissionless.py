@@ -173,7 +173,7 @@ def main() -> int:
             **base_tx(rpc, faucet_acct, account_seq(rpc, faucet_acct)),
             "TransactionType": "Payment",
             "Destination": dest,
-            "Amount": str(5000 * DROPS),
+            "Amount": str(10000 * DROPS),
         }
         if not run_step(f"fund_{label}", faucet_sec, tx):
             return 1

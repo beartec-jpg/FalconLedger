@@ -170,7 +170,7 @@ def main() -> int:
     log(f"borrower={borrower}")
 
     for dest in (borrower, liquidator):
-        for amount in (3000, 5000):
+        for amount in (3000, 10000):
             tx = {
                 **base_tx(rpc, faucet_acct, account_seq(rpc, faucet_acct)),
                 "TransactionType": "Payment",
@@ -228,41 +228,52 @@ def main() -> int:
     pre_hf = hf_bps(falcon_collateral, debt, price) / 10000
     log(f"loan {loan_id[:16]}… debt={debt:.6f} HF={pre_hf:.3f}")
 
-    # Small dump to breach 1.1 HF while keeping collateral value > debt.
-    dump = max(50, int(falcon_collateral * 0.12))
     tx = {
         **base_tx(rpc, faucet_acct, account_seq(rpc, faucet_acct)),
         "TransactionType": "TrustSet",
         "LimitAmount": {"currency": CURRENCY, "issuer": issuer, "value": "1000000"},
     }
-    sign_submit(rpc, faucet_sec, tx)
-    time.sleep(1)
-    max_usdc = f"{dump * price * 0.9:.6f}"
-    min_usdc = f"{dump * price * 0.4:.6f}"
-    tx = {
-        **base_tx(rpc, faucet_acct, account_seq(rpc, faucet_acct), "24"),
-        "TransactionType": "Payment",
-        "Account": faucet_acct,
-        "Destination": faucet_acct,
-        "Amount": {"currency": CURRENCY, "issuer": issuer, "value": max_usdc},
-        "SendMax": str(int(dump * DROPS)),
-        "DeliverMin": {"currency": CURRENCY, "issuer": issuer, "value": min_usdc},
-        "Flags": TF_PARTIAL_PAYMENT,
-    }
     er, h = sign_submit(rpc, faucet_sec, tx)
     if wait_tx(rpc, h) != "tesSUCCESS":
-        log(f"amm dump failed {er}")
+        log(f"faucet trust failed {er}")
         return 1
 
-    price = amm_falcon_per_fusdc(rpc, issuer)
-    cur_hf = hf_bps(falcon_collateral, debt, price) / 10000
+    crashed = False
+    for swap_falcon in (2000, 4000, 8000, 12000):
+        price = amm_falcon_per_fusdc(rpc, issuer)
+        cur_hf = hf_bps(falcon_collateral, debt, price) / 10000
+        if cur_hf < 1.1:
+            crashed = True
+            break
+        max_usdc = f"{swap_falcon * price * 0.9:.6f}"
+        min_usdc = f"{swap_falcon * price * 0.4:.6f}"
+        tx = {
+            **base_tx(rpc, faucet_acct, account_seq(rpc, faucet_acct), "24"),
+            "TransactionType": "Payment",
+            "Destination": faucet_acct,
+            "Amount": {"currency": CURRENCY, "issuer": issuer, "value": max_usdc},
+            "SendMax": str(int(swap_falcon * DROPS)),
+            "DeliverMin": {"currency": CURRENCY, "issuer": issuer, "value": min_usdc},
+            "Flags": TF_PARTIAL_PAYMENT,
+        }
+        er, h = sign_submit(rpc, faucet_sec, tx)
+        if wait_tx(rpc, h) != "tesSUCCESS":
+            log(f"amm dump {swap_falcon} failed {er}")
+            continue
+        price = amm_falcon_per_fusdc(rpc, issuer)
+        cur_hf = hf_bps(falcon_collateral, debt, price) / 10000
+        log(f"after {swap_falcon} FALCON dump: price={price:.6f} HF={cur_hf:.3f}")
+        if cur_hf < 1.1:
+            crashed = True
+            break
+
+    if not crashed:
+        log("could not breach HF < 1.1 via AMM dump")
+        return 1
+
     coll_value = falcon_collateral * price
     expected_surplus = max(0.0, coll_value - debt)
-    log(f"after dump HF={cur_hf:.3f} collateral_value={coll_value:.6f} expected_surplus≈{expected_surplus:.6f}")
-
-    if cur_hf >= 1.1:
-        log("HF still >= 1.1 after dump; increase dump size in script")
-        return 1
+    log(f"collateral_value={coll_value:.6f} expected_surplus≈{expected_surplus:.6f}")
     if expected_surplus <= 0.001:
         log("no collateral surplus expected; adjust dump")
         return 1

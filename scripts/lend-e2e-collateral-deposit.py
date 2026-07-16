@@ -147,7 +147,7 @@ def main() -> int:
     borrower, borrower_sec = propose_wallet(rpc)
     log(f"borrower {borrower}")
 
-    for amount, label in ((3000, "xrp"), (2500, "falcon")):
+    for amount, label in ((3000, "xrp"), (8000, "falcon")):
         fund_tx = {
             **base_tx(rpc, faucet_acct, account_seq(rpc, faucet_acct)),
             "TransactionType": "Payment",
