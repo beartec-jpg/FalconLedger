@@ -218,13 +218,9 @@ defaultPermissionlessLoan(
             {
                 defaultCovered = std::min(*collateralValue, totalDefaultAmount);
             }
-            // Return seized FALCON to the vault pseudo-account for LP protection.
-            // Collateral was locked on the broker pseudo-account at LoanSet /
-            // LoanCollateralDeposit; it must not be paid out to the default
-            // submitter.
-            if (auto const ter = transferXRP(
-                    view, brokerSle->at(sfAccount), vaultSle->at(sfAccount), collateral, j))
-                return ter;
+            // Forfeit collateral to the FALCON collateral pool (broker pseudo-account).
+            // Physical FALCON already sits there from LoanSet / LoanCollateralDeposit;
+            // clear the borrower's claim on this loan without paying a third party.
             loanSle->at(sfCollateral) = beast::kZERO;
         }
     }

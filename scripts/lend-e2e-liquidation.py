@@ -154,14 +154,12 @@ def main() -> int:
     faucet_acct = faucet["account"]
     faucet_sec = faucet["falcon_secret"]
     broker_id = manifest["loan_broker_id"]
-    vault_id = manifest["vault_id"]
-
-    vault_node = rpc.public_rpc(
-        "ledger_entry", {"index": vault_id, "ledger_index": "validated"}
+    broker_node = rpc.public_rpc(
+        "ledger_entry", {"index": broker_id, "ledger_index": "validated"}
     ).get("node", {})
-    vault_pseudo = vault_node.get("Account")
-    if not vault_pseudo:
-        log("vault pseudo-account missing from ledger_entry")
+    collateral_pool = broker_node.get("Account")
+    if not collateral_pool:
+        log("broker pseudo-account (collateral pool) missing")
         return 1
 
     borrower, borrower_sec = propose_wallet(rpc)
@@ -281,7 +279,7 @@ def main() -> int:
         return 1
 
     liq_falcon_before = falcon_balance(rpc, liquidator)
-    vault_falcon_before = falcon_balance(rpc, vault_pseudo)
+    pool_falcon_before = falcon_balance(rpc, collateral_pool)
     tx = {
         **base_tx(rpc, liquidator, account_seq(rpc, liquidator)),
         "TransactionType": "LoanManage",
@@ -303,14 +301,22 @@ def main() -> int:
         log(f"liquidator must not receive collateral (gained {liq_gained:.4f} FALCON)")
         return 1
 
-    vault_falcon_after = falcon_balance(rpc, vault_pseudo)
-    vault_gained = vault_falcon_after - vault_falcon_before
+    pool_falcon_after = falcon_balance(rpc, collateral_pool)
     log(
-        f"vault pseudo FALCON: {vault_falcon_before:.4f} → {vault_falcon_after:.4f} "
-        f"(+{vault_gained:.4f})"
+        f"collateral pool FALCON: {pool_falcon_before:.4f} → {pool_falcon_after:.4f} "
+        f"(forfeited, must not leave pool)"
     )
-    if vault_gained < falcon_collateral * 0.99:
-        log("vault did not receive seized collateral")
+    if pool_falcon_after + 0.01 < pool_falcon_before:
+        log("collateral pool lost FALCON on default")
+        return 1
+    coll_raw = entry.get("Collateral")
+    coll_amt = 0.0
+    if isinstance(coll_raw, str):
+        coll_amt = int(coll_raw) / DROPS
+    elif isinstance(coll_raw, dict):
+        coll_amt = float(coll_raw.get("value", 0))
+    if coll_amt > 0.01:
+        log(f"loan collateral claim must be cleared after default, got {coll_amt}")
         return 1
 
     log("── summary ──")
