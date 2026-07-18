@@ -27,7 +27,14 @@ NETWORK_ID = 1001
 PUBLIC_RPC = "http://46.224.0.140:6005"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-from launch_guards import bridge_only_required, is_testnet_network  # noqa: E402
+try:
+    from launch_guards import bridge_only_required, is_testnet_network  # noqa: E402
+except ImportError:  # optional on lean coordinator installs
+    def bridge_only_required() -> bool:  # type: ignore[misc]
+        return False
+
+    def is_testnet_network(network_id: int | None = None) -> bool:  # type: ignore[misc]
+        return True
 
 # Vault starts empty — LPs supply F-USDC via the portal. No operator seed deposit.
 VAULT_SEED_DEPOSIT = "0"

@@ -36,11 +36,8 @@ import time
 import urllib.request
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(os.environ.get("QXRP_REPO_ROOT", Path(__file__).resolve().parent.parent))
 
-# RpcClient + submit helpers loaded from bootstrap-testnet-lending.py in main()
-RpcClient = None  # type: ignore
-iou_value = log = ok = warn = err = sign_and_submit = submit_tx = None  # type: ignore
 DROPS = 1_000_000
 RIPPLE_EPOCH = 946684800
 LSF_LOAN_DEFAULT = 0x00010000
@@ -50,6 +47,108 @@ TF_LOAN_IMPAIR = 0x00020000
 TF_LOAN_UNIMPAIR = 0x00040000
 HF_IMPAIR_THRESHOLD = 1.1
 HF_LIQUIDATABLE = 1.0
+
+
+# ── Minimal RPC helpers (no import of bootstrap / launch_guards) ─────────────
+
+
+class RpcClient:
+    def __init__(self, admin_url: str, public_url: str, container: str = ""):
+        self.admin_url = admin_url
+        self.public_url = public_url
+        self.container = container
+
+    def _post(self, url: str, method: str, params: dict | None = None) -> dict:
+        payload = json.dumps({"method": method, "params": [params or {}]}).encode()
+        if self.container:
+            cmd = [
+                "docker",
+                "exec",
+                self.container,
+                "curl",
+                "-sf",
+                "-X",
+                "POST",
+                url,
+                "-H",
+                "Content-Type: application/json",
+                "-d",
+                payload.decode(),
+            ]
+            body = json.loads(subprocess.check_output(cmd, text=True))
+        else:
+            req = urllib.request.Request(
+                url, data=payload, headers={"Content-Type": "application/json"}
+            )
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                body = json.loads(resp.read())
+        if body.get("error"):
+            raise RuntimeError(str(body["error"]))
+        return body.get("result", body)
+
+    def admin(self, method: str, params: dict | None = None) -> dict:
+        return self._post(self.admin_url, method, params)
+
+    def public(self, method: str, params: dict | None = None) -> dict:
+        return self._post(self.public_url, method, params)
+
+
+def log(msg: str) -> None:
+    print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
+
+
+def ok(msg: str) -> None:
+    print(f"[{time.strftime('%H:%M:%S')}] OK {msg}", flush=True)
+
+
+def warn(msg: str) -> None:
+    print(f"[{time.strftime('%H:%M:%S')}] WARN {msg}", flush=True)
+
+
+def err(msg: str) -> None:
+    print(f"[{time.strftime('%H:%M:%S')}] ERR {msg}", flush=True)
+
+
+def iou_value(raw: object) -> float:
+    if raw is None:
+        return 0.0
+    if isinstance(raw, (int, float)):
+        return float(raw)
+    if isinstance(raw, str):
+        try:
+            return float(raw)
+        except ValueError:
+            return 0.0
+    if isinstance(raw, dict) and "value" in raw:
+        return float(raw["value"])
+    return 0.0
+
+
+def sign_and_submit(rpc: RpcClient, secret: str, tx_json: dict) -> tuple[str, str]:
+    params = (
+        {"falcon_secret": secret, "tx_json": tx_json}
+        if not (secret.startswith(("s", "S")) and len(secret) < 128)
+        else {"secret": secret, "tx_json": tx_json}
+    )
+    signed = rpc.admin("sign", params)
+    if signed.get("status") != "success":
+        return f"SIGN_ERR: {signed.get('error_message', signed)}", ""
+    blob = signed["tx_blob"]
+    tx_hash = signed.get("tx_json", {}).get("hash", "")
+    sub = rpc.public("submit", {"tx_blob": blob})
+    return sub.get("engine_result", "?"), tx_hash
+
+
+def submit_tx(rpc: RpcClient, secret: str, tx_json: dict, dry_run: bool, label: str) -> bool:
+    if dry_run:
+        log(f"[DRY RUN] {label}")
+        return True
+    result, tx_hash = sign_and_submit(rpc, secret, tx_json)
+    if result in ("tesSUCCESS", "terQUEUED"):
+        ok(f"{label}: {result} {tx_hash}")
+        return True
+    warn(f"{label}: {result} {tx_hash}")
+    return False
 
 
 def ripple_now() -> int:
@@ -136,16 +235,18 @@ def recommend_action(
     defaulted: bool,
     pay_default: bool,
 ) -> str:
+    """Prefer full default on liquidatable HF (permissionless) so books clear."""
     if defaulted:
         return "none"
+    # Payment past grace → default (protocol allows anyone on permissionless loans).
     if pay_default:
         return "default"
     if hf is None:
         return "monitor"
-    if hf < HF_LIQUIDATABLE:
-        return "impair" if not impaired else "monitor"
+    # HF below liquidation threshold (1.1): default immediately — do not leave
+    # loans stuck in "impaired but still open" where repay returns tecEXPIRED.
     if hf < HF_IMPAIR_THRESHOLD:
-        return "impair" if not impaired else "monitor"
+        return "default"
     if impaired and hf >= HF_IMPAIR_THRESHOLD:
         return "unimpair"
     return "none"
@@ -299,23 +400,6 @@ def run_cycle(
 
 
 def main() -> int:
-    # Inline RpcClient import from bootstrap script
-    global RpcClient, iou_value, log, ok, warn, err, sign_and_submit, submit_tx
-    bootstrap = REPO_ROOT / "scripts" / "bootstrap-testnet-lending.py"
-    spec_name = "bootstrap_lending"
-    import importlib.util
-    spec = importlib.util.spec_from_file_location(spec_name, bootstrap)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    RpcClient = mod.RpcClient
-    iou_value = mod.iou_value
-    log = mod.log
-    ok = mod.ok
-    warn = mod.warn
-    err = mod.err
-    sign_and_submit = mod.sign_and_submit
-    submit_tx = mod.submit_tx
-
     parser = argparse.ArgumentParser(description="Lending HF + payment default enforcement daemon")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--once", action="store_true")
