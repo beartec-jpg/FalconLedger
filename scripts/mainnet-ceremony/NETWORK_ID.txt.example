@@ -1,0 +1,5 @@
+# Choose and lock before T0. Must match portal NEXT_PUBLIC_MAINNET_NETWORK_ID
+# and node config.
+#
+# Example placeholder — replace with final mainnet id:
+# 1025
