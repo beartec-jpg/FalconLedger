@@ -16,15 +16,17 @@
 | CollateralSurplus bookkeeping | earlier | ✅ | Partially superseded by claim pool | Docs aligned |
 | E2E funding / surplus script fixes | `3920bbc19` | ✅ | scripts on coord if pulled | ✅ |
 | **Mainnet launch spec** | `13fb4c124` | ✅ | n/a | Spec only |
-| **First emission epoch = 8** | `1a482f6b8` | ✅ | ❌ **NOT in fleet** (still at `3b81ab7b2`) | ⚠️ **Must rebuild image** |
+| **First emission epoch = 8** | `1a482f6b8` | ✅ | ⚠️ rebuild `lending-v5` | ⚠️ **Must roll image** |
+| **Vault + AMM LP emission split + `ClaimAmmLpReward`** | `8f80f1305` | ✅ | ⚠️ rebuild `lending-v5` | ⚠️ **Must roll image** |
 | Genesis split script 4B→2B/1B/1B | `a123b961f` | ✅ | n/a | ✅ script; needs ceremony keys |
 | Airdrop batch pay script | `a123b961f` | ✅ | n/a | ✅ after freeze |
+| Ops runbook (Neon, cron, fleet) | `docs/ops/MAINNET_OPS_RUNBOOK.md` | ✅ | n/a | ✅ |
 
-**Fleet reality (coordinator):** `qxrp/xrpld:lending-v4` @ **`3b81ab7b2`**  
-→ Has LP claim collateral path.  
-→ Does **not** yet have epoch-8 emission quiet period.
+**Fleet reality (coordinator):** rolling to `qxrp/xrpld:lending-v5` @ **`8f80f1305`**  
+→ Epoch-8 quiet period + vault/AMM LP split + `ClaimAmmLpReward`.  
+→ Prior: `lending-v4` @ `3b81ab7b2` (LP collateral claim only).
 
-**Docker Hub:** `qxrp/xrpld:lending-v4` public (digest `3705e3d691d3…`).
+**Docker Hub:** push `lending-v5` after build; keep `lending-v4` for rollback.
 
 ---
 
@@ -68,7 +70,7 @@ Epoch emission (epoch ≥ 8)
 - Payment: **direct to wallets via claim**, not pool top-ups.
 - Collateral pool stays for **liquidation FALCON claims only**.
 
-**Status:** Spec gap → **protocol work not started** (blocker for “emissions fair to liquidity”).
+**Status:** Protocol landed in `8f80f1305` (`ClaimAmmLpReward`, dual LP baskets). **Fleet image roll + portal deploy remain.**
 
 ---
 
@@ -78,15 +80,15 @@ Epoch emission (epoch ≥ 8)
 
 | # | Work | Owner | Status |
 |---|------|--------|--------|
-| 1 | **Rebuild + roll fleet** image including `1a482f6b8` (epoch 8 quiet) | Ops | ❌ |
-| 2 | **Emission redesign:** vault LP + AMM LP + validators; claim txs | Protocol | ❌ |
-| 3 | Portal claim UI for all three reward types | Portal | Partial (vault only) |
+| 1 | **Rebuild + roll fleet** image `lending-v5` (`8f80f1305`) | Ops | 🔄 building / roll |
+| 2 | **Emission redesign:** vault LP + AMM LP + validators; claim txs | Protocol | ✅ in git |
+| 3 | Portal claim UI for all three reward types | Portal | ✅ `/rewards` unified |
 | 4 | Mainnet **network id**, genesis keys, UNL ceremony | Ops | ❌ |
-| 5 | Genesis **split ceremony** (script exists) + multi-sig DEV | Ops | Script ✅ |
+| 5 | Genesis **split ceremony** (script exists) + multi-sig DEV | Ops | Script ✅ + runbook |
 | 6 | Bridge-only stables + no bootstrap mint guards | Ops/scripts | Partial |
-| 7 | Neon: run `docs/sql/airdrop-schema.sql` | Ops | ❌ |
+| 7 | Neon: run `docs/sql/airdrop-schema.sql` | Ops | Runbook ready; apply ❌ |
 | 8 | Faucet mainnet fund from 1B bucket; env limits | Ops | Partial (code ✅) |
-| 9 | Pin public image (`latest`/`falcon` retag?) + install one-liner uses launch tag | Portal/docs | ❌ defaults still `cid-popl` |
+| 9 | Pin public image + install one-liner uses launch tag | Portal/docs | ❌ defaults still `cid-popl` |
 | 10 | Security freeze + audit of new lending/claim code | Security | ❌ |
 
 ### P1 — Airdrop (runs **during** 60 days post-genesis)
