@@ -1,0 +1,195 @@
+# Mainnet dress rehearsal — readiness + run plan
+
+**Goal:** Prove genesis → split (2B/1B/1B) → faucet fund → faucet drip → (optional) lend 5%, on a **private throwaway** network. Then **wipe**. Real T0 uses **new keys**.
+
+**Not the goal:** Public one-liner, real airdrop clock, or keeping this chain.
+
+---
+
+## A. Prerequisites (must be true before you start rehearsal)
+
+### 1. Image
+
+| Item | Target | Status cue |
+|------|--------|------------|
+| Binary includes launch features | epoch-8, emissions split, ClaimAmmLpReward, pool InterestRate | `89fb7196a` or later |
+| Image available on rehearsal hosts | `qxrp/xrpld:lending-v6` (or digest) | `docker run … xrpld --version` shows commit |
+| Same image on every rehearsal node | no mixed tags | all operators pull same tag/digest |
+
+**Today (build host):** `lending-v6` @ `89fb7196a` exists locally — load or push so all rehearsal machines can use it.
+
+### 2. Machines
+
+| Item | Minimum for rehearsal |
+|------|------------------------|
+| Validator count | **2–3** nodes (or 1 standalone if you only need split+faucet, not multi-val consensus) |
+| Isolated | Not public DNS; not advertised as mainnet |
+| Wipe path known | `wipe-fleet-for-genesis` or `docker compose down -v` + delete data dirs |
+
+### 3. Throwaway keys (label everything `rehearsal-`)
+
+Generate **fresh** keys — never reuse for real mainnet:
+
+| Wallet | Role |
+|--------|------|
+| GENESIS | 4B circulating holder after genesis |
+| AIRDROP | receives 2B after split |
+| FAUCET cold | receives 1B after split |
+| FAUCET hot | optional smaller funded account portal signs with |
+| DEV | receives 1B after split |
+| Validator keys | 2–3 falcon secrets + consensus keys |
+
+Record **addresses only** in a local `rehearsal-addresses.txt`. Secrets offline.
+
+### 4. Scripts & config (from repo)
+
+| Piece | Path / env |
+|-------|------------|
+| Genesis split | `scripts/mainnet-genesis-split.py` |
+| Split env example | `scripts/mainnet-genesis-split.env.example` |
+| Wipe | `bin/install/wipe-fleet-for-genesis.sh` (or manual volume wipe) |
+| Pool rate (optional) | `scripts/set-broker-pool-rate.py` |
+| Ceremony templates | `scripts/mainnet-ceremony/` |
+
+### 5. Portal / faucet (staging only)
+
+Pick one:
+
+**Option A — API-only smoke (simpler)**  
+- Hit faucet route against rehearsal RPC with env pointing at throwaway faucet  
+- No need for public Vercel mainnet live  
+
+**Option B — staging portal**  
+- Separate Vercel project or preview env  
+- `MAINNET_RPC_URL` = rehearsal RPC (or temporary “mainnet” slot)  
+- `MAINNET_FAUCET_*` = throwaway hot faucet  
+- `MAINNET_DRIP_AMOUNT_QXRP=100`  
+- `DATABASE_URL` = Neon (or skip durable log for pure balance test)  
+- `NEXT_PUBLIC_MAINNET_LIVE=true` **only on staging**, not production domain  
+
+### 6. Network parameters for rehearsal
+
+| Param | Suggestion |
+|-------|------------|
+| Network id | Use a **rehearsal-only** id (not final public mainnet id if already chosen) **or** same id but never public |
+| Peers | Private IPs only |
+| Name | `Falcon Rehearsal` in configs so nobody confuses with real mainnet |
+
+---
+
+## B. Rehearsal day — ordered steps
+
+### Phase 1 — Bring up private chain
+
+1. Wipe any old data on rehearsal hosts  
+2. Install/start 2–3 validators with **rehearsal** keys + **pinned image**  
+3. Confirm:
+   - `server_info` healthy  
+   - ledgers advancing  
+   - genesis circulating balance ≈ **4B** on GENESIS account  
+   - treasury ≈ **196B** (not spendable by ops key)
+
+### Phase 2 — Genesis split
+
+```bash
+export PUBLIC_RPC='http://<rehearsal-rpc>:6005'
+export ADMIN_RPC='http://127.0.0.1:5005'   # or docker exec path
+export GENESIS_SECRET='…'                  # throwaway
+export GENESIS_ADDRESS='…'
+export AIRDROP_ADDRESS='…'
+export FAUCET_ADDRESS='…'
+export DEV_ADDRESS='…'
+
+python3 scripts/mainnet-genesis-split.py --dry-run
+python3 scripts/mainnet-genesis-split.py --execute
+```
+
+**Pass criteria:**
+
+| Account | Expected |
+|---------|----------|
+| AIRDROP | ~2,000,000,000 FALCON |
+| FAUCET | ~1,000,000,000 FALCON |
+| DEV | ~1,000,000,000 FALCON |
+| GENESIS | ~0 (or residual fees) |
+
+### Phase 3 — Faucet
+
+1. Fund hot faucet from FAUCET (e.g. 50k–500k for smoke, not full 1B)  
+2. Configure portal/API with drip **100**  
+3. Claim once → wallet receives **100**  
+4. Claim again immediately → **1h cooldown** error  
+5. (Optional) Confirm DB row `network=…` if Neon wired  
+
+### Phase 4 — Optional lend smoke
+
+1. Bootstrap vault + broker on rehearsal  
+2. `set-broker-pool-rate.py --rate 5000`  
+3. One borrow/repay or fail-closed on wrong InterestRate  
+
+### Phase 5 — Tear down
+
+1. Stop all containers  
+2. **Delete data volumes** (critical)  
+3. Archive rehearsal notes (what worked / broken)  
+4. **Destroy or quarantine throwaway secrets**  
+5. Real mainnet keys remain unused in ceremony pack  
+
+---
+
+## C. Pass / fail gate (rehearsal “ready for real T0”)
+
+| Gate | Required |
+|------|----------|
+| Split script worked end-to-end | Yes |
+| DEV + FAUCET + AIRDROP balances correct | Yes |
+| Faucet drip 100 + cooldown | Yes |
+| Same image digest used | Yes |
+| Chain wiped after | Yes |
+| Real ceremony secrets never used on rehearsal | Yes |
+| Multi-node consensus stable | Recommended |
+| Full airdrop freeze + batch pay | Optional for first rehearsal |
+| Public install one-liner | Not part of rehearsal |
+
+---
+
+## D. Minimal vs full rehearsal
+
+| Level | What you run | When enough |
+|-------|--------------|-------------|
+| **Minimal** | 1 node standalone + split + faucet pay | Prove scripts + balances only |
+| **Standard** | 2–3 vals + split + faucet + wipe | **Recommended before real T0** |
+| **Full** | + portal staging + lend + HF monitor + snapshot API | If you want zero surprises |
+
+---
+
+## E. Checklist — “ready to start dress rehearsal”
+
+Copy and tick:
+
+### Ready when
+
+- [ ] Image `lending-v6` (or newer) on all rehearsal hosts; commit hash checked  
+- [ ] 2–3 hosts (or 1 for minimal) free and wipeable  
+- [ ] Throwaway GENESIS / AIRDROP / FAUCET / DEV keys generated  
+- [ ] Throwaway validator keys generated  
+- [ ] Split script env file filled for rehearsal  
+- [ ] Faucet smoke path chosen (API or staging portal) with drip=100  
+- [ ] Written wipe procedure tested once on a dummy compose  
+- [ ] Someone free for 1–2 hours to run phases 1–5 without interruption  
+
+### Explicitly not required for first rehearsal
+
+- [ ] Public DNS / Hub push (can `docker save | load` image)  
+- [ ] Real mainnet network id  
+- [ ] Production Vercel mainnet live  
+- [ ] Eth mainnet contract (can mock or skip)  
+- [ ] Airdrop 60-day scoring  
+
+---
+
+## F. After rehearsal
+
+1. Fix any script/docs bugs found  
+2. Optionally second short rehearsal  
+3. Real T0 = ceremony pack **real** keys + published connect details (see `MAINNET_GO_LIVE_CHECKLIST.md`)
