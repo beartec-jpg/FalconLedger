@@ -134,7 +134,7 @@ if (epochNum < kQXRP_FIRST_EMISSION_EPOCH)  // = 8
 
 | Knob | Testnet | Mainnet |
 |------|---------|---------|
-| Faucet drip amount | often **2,000 FALCON** | fund from **1B faucet wallet**; drip size TBD |
+| Faucet drip amount | **Testnet 2,000** / **Mainnet 100** FALCON | fund mainnet from **1B faucet wallet**; see §5.3 |
 | Faucet max claims / window | env `RATE_LIMIT_REQUESTS` default **5** / `RATE_LIMIT_WINDOW_SECONDS` default **3600** (sliding) | **Mainnet target: 5 / calendar day + 1h min spacing** (see §5.3) |
 | RPC endpoints | coordinator public RPC | multi-endpoint + status page |
 | Stablecoin model | testnet QUC / bridge-only mode for mainnet path | **bridge-only** stables recommended |
@@ -197,10 +197,20 @@ if (epochNum < kQXRP_FIRST_EMISSION_EPOCH)  // = 8
 
 ### 5.1 Goals
 
-- Reward **real testnet contribution**, not pure farming  
+- Reward **real mainnet contribution**, not pure farming  
 - Transparent **points → FALCON** mapping  
 - **Anti-sybil** enough to stop bulk wallets  
 - Simple **claim UX** + public **tracker page**
+
+### 5.1a Network scope (critical)
+
+| Network | Faucet | Airdrop scoring |
+|---------|--------|-----------------|
+| **Testnet** | Live (larger drips for tryout) | **Does not count** toward mainnet airdrop |
+| **Mainnet** | Live after genesis (small drips) | **Only** source of airdrop scores |
+
+**Do not** pay mainnet FALCON for testnet validators / testnet LP / testnet faucet farming.  
+Testnet is for practice and bug-finding only. All snapshot jobs, faucet logs for airdrop, and score freezes use `network = mainnet` (mainnet RPC + mainnet faucet claim rows).
 
 ### 5.1b Contribution window (mainnet bootstrap)
 
@@ -209,7 +219,7 @@ if (epochNum < kQXRP_FIRST_EMISSION_EPOCH)  // = 8
 | **Start** | **Mainnet genesis** (ledger 1 / genesis close time) |
 | **Duration** | **60 calendar days** |
 | **End** | genesis_time + 60d (snapshot cutoff) |
-| **What counts** | Activity **during this window only** — not pre-mainnet testnet history |
+| **What counts** | Activity **on mainnet during this window only** — not testnet, not pre-genesis |
 | **After day 60** | Freeze scores → publish allocations → claim/release |
 
 This matches a **bootstrap mainnet**: network goes live, community earns airdrop by participating for two months, emissions stay off until epoch 8 (~aligned with that window if epochs are ~7 days).
@@ -240,14 +250,19 @@ Total airdrop = **2B FALCON**.
 
 **Problem with “max 5 claims score”:** the faucet already allows **5 successful drips per rate-limit window** (today often 5 / hour via env). Almost everyone hits 5 quickly; that does **not** distinguish daily returners.
 
-**Mainnet faucet policy (product):**
+**Faucet policy (locked product — same cadence both nets; amount differs):**
 
-| Rule | Value | Purpose |
-|------|--------|---------|
-| **Max successful claims / UTC day** | **5** | Daily ceiling |
-| **Min spacing between claims** | **1 hour** | Forces real return visits for max daily score |
-| **Max theoretical claims / day** | 5 (with ≥1h gaps) | ~spread over ≥4 hours |
-| **Max theoretical claims / 60-day window** | **5 × 60 = 300** | Engagement ceiling |
+| Rule | Testnet | Mainnet | Purpose |
+|------|---------|---------|---------|
+| **Amount per successful claim** | **2,000** FALCON | **100** FALCON | Mainnet is onboarding dust, not free wealth |
+| **Max successful claims / UTC day** | **5** | **5** | Daily ceiling |
+| **Min spacing between claims** | **1 hour** | **1 hour** | Forces real return visits for max daily score |
+| **Max claims / UTC day** | 5 (≥1h gaps) | 5 (≥1h gaps) | ~spread over ≥4 hours |
+| **Max claims / 60-day airdrop window** | n/a (not scored) | **5 × 60 = 300** | Engagement ceiling |
+| **Max FALCON from faucet in 60d** | — | **300 × 100 = 30,000** | Hard ceiling from drip alone |
+| **Per ~7-day epoch (if claiming max)** | — | **5 × 7 × 100 = 3,500** | Rough weekly faucet max |
+
+**Airdrop bonus (faucet intensity):** full faucet category score when the wallet achieves **≥ 90% of claimable faucet engagement** in the window (i.e. near-max active days + daily intensity — not a one-day farm). Exact formula remains §5.3 `score_faucet`; treat **score_faucet ≥ 0.90** as “earned full faucet bucket eligibility / bonus tier.”
 
 **Logging (required for airdrop):** each successful faucet drip stores:
 
