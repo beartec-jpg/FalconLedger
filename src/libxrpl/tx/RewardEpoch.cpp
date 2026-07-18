@@ -111,7 +111,10 @@ applyRewardEpoch(
     }
 
     // ── CID: yearly-average budget with per-epoch micro-decline ───────────
-    std::uint32_t const emissionBps = cidEmissionBps(epochNum);
+    // Bootstrap quiet period: no claimable pool until kQXRP_FIRST_EMISSION_EPOCH.
+    std::uint32_t const emissionBps = (epochNum < kQXRP_FIRST_EMISSION_EPOCH)
+        ? 0
+        : cidEmissionBps(epochNum);
     std::uint32_t const lpProviderCount = countActiveLpProviders(view);
     std::uint32_t const lpAllocBps = poplLpParticipationBps(lpProviderCount);
     std::uint64_t const aggregateLPShares = aggregateVaultShareSupply(view);
@@ -122,7 +125,9 @@ applyRewardEpoch(
     // account directly and checks total claimed vs. sfEpochPoolBalance.
     //
     // muldiv64(a, b, d): no overflow because emissionBps <= kBPS_DENOM.
-    auto const poolDrops = muldiv64(treasuryDrops, emissionBps, kBPS_DENOM);
+    auto const poolDrops = emissionBps == 0
+        ? std::uint64_t{0}
+        : muldiv64(treasuryDrops, emissionBps, kBPS_DENOM);
 
     // ── Dynamic burn BPS from treasury fill pressure ──────────────────────
     // fillBps: fraction of the initial allocation still in the treasury.

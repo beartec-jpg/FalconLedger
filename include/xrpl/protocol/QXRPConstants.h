@@ -81,6 +81,16 @@ constexpr std::uint32_t kQXRP_LEDGERS_PER_EPOCH = QXRP_EPOCH_LEDGERS;
 constexpr std::uint32_t kQXRP_LEDGERS_PER_EPOCH = 172'800;
 #endif
 
+/// First epoch that creates a non-zero claimable emission pool.
+/// Epochs 1 .. (kQXRP_FIRST_EMISSION_EPOCH - 1) still close RewardEpoch state
+/// (burn bps, LP stats) but schedule 0 treasury emission for bootstrap quiet period.
+/// Mainnet launch spec: quiet through epoch 7; first unlock at epoch 8.
+#ifdef QXRP_FIRST_EMISSION_EPOCH
+constexpr std::uint32_t kQXRP_FIRST_EMISSION_EPOCH = QXRP_FIRST_EMISSION_EPOCH;
+#else
+constexpr std::uint32_t kQXRP_FIRST_EMISSION_EPOCH = 8;
+#endif
+
 // ─── CID (Continuous Inflationary Decline) emission ─────────────────────────
 
 /// Reward epochs per calendar year (~52 × ~7 days).
