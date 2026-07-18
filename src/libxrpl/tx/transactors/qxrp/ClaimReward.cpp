@@ -94,7 +94,11 @@ ClaimReward::doApply()
     auto const lpAllocBps = sleEpoch->isFieldPresent(sfLPAllocationBps)
         ? sleEpoch->getFieldU32(sfLPAllocationBps)
         : 0;
-    auto const validatorBps = kBPS_DENOM - lpAllocBps;
+    auto const ammAllocBps = sleEpoch->isFieldPresent(sfAmmLPAllocationBps)
+        ? sleEpoch->getFieldU32(sfAmmLPAllocationBps)
+        : 0;
+    auto const usedBps = std::min(kBPS_DENOM, lpAllocBps + ammAllocBps);
+    auto const validatorBps = kBPS_DENOM - usedBps;
 
     auto const emissionDrops = emissionRate.xrp().drops();
     auto const validatorPoolDrops = muldiv64(emissionDrops, validatorBps, kBPS_DENOM);

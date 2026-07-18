@@ -45,4 +45,23 @@ muldiv64(std::int64_t a, std::uint32_t b, std::uint32_t d) noexcept
            r * static_cast<std::int64_t>(b) / static_cast<std::int64_t>(d);
 }
 
+/// Overflow-safe floor(a * b / d) for full 64-bit factors (share MPT / AMM LP).
+[[nodiscard]] inline std::uint64_t
+muldivU64(std::uint64_t a, std::uint64_t b, std::uint64_t d) noexcept
+{
+    if (d == 0 || a == 0 || b == 0)
+        return 0;
+#if defined(__SIZEOF_INT128__)
+    return static_cast<std::uint64_t>(
+        (static_cast<unsigned __int128>(a) * static_cast<unsigned __int128>(b)) /
+        static_cast<unsigned __int128>(d));
+#else
+    // Portable path: a = q*d + r  →  (a*b)/d = q*b + (r*b)/d
+    auto const q = a / d;
+    auto const r = a % d;
+    // Cap intermediate products when no 128-bit type is available.
+    return q * b + (r * b) / d;
+#endif
+}
+
 }  // namespace xrpl

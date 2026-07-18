@@ -137,7 +137,8 @@ TYPED_SFIELD(sfProposalExpiry,           UINT32,    88) // ledger seq at which p
 TYPED_SFIELD(sfProposalState,            UINT32,    89) // 0=open 1=passed 2=rejected
 TYPED_SFIELD(sfVotedFor,                 UINT32,    90) // cumulative compositeScore voting yes
 TYPED_SFIELD(sfVotedAgainst,             UINT32,    91) // cumulative compositeScore voting no
-TYPED_SFIELD(sfLPAllocationBps,          UINT32,    92) // PoPL: LP fraction of epoch emission
+TYPED_SFIELD(sfLPAllocationBps,          UINT32,    92) // PoPL: vault-LP fraction of epoch emission
+TYPED_SFIELD(sfAmmLPAllocationBps,       UINT32,    93) // PoPL: AMM-LP fraction of epoch emission
 
 // 64-bit integers (common)
 TYPED_SFIELD(sfIndexNext,                UINT64,     1)
@@ -172,6 +173,7 @@ TYPED_SFIELD(sfLockedAmount,             UINT64,    29, SField::kSMD_BASE_TEN|SF
 TYPED_SFIELD(sfVaultNode,                UINT64,    30)
 TYPED_SFIELD(sfLoanBrokerNode,           UINT64,    31)
 TYPED_SFIELD(sfAggregateLPShares,        UINT64,    32) // sum of vault share MPT outstanding
+TYPED_SFIELD(sfAggregateAmmTvlDrops,     UINT64,    33) // sum of XRP legs of native AMMs (TVL weight)
 
 // 128-bit
 TYPED_SFIELD(sfEmailHash,                UINT128,    1)

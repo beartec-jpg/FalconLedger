@@ -65,10 +65,10 @@ cidEmissionBps(std::uint32_t epochNum) noexcept
     return std::max(kQXRP_CID_EPOCH_FLOOR_BPS, rounded);
 }
 
-/** PoPL LP basket as bps of total epoch emission from active provider count.
+/** Lend-vault LP basket as bps of total epoch emission.
 
-    Each distinct vault depositor (non-zero share MPT) adds 1 % (100 bps) to the
-    LP basket, capped at 50 providers → 50 %. Validators receive the remainder. */
+    Each distinct vault depositor (non-zero share MPT) adds 1 % (100 bps),
+    capped at 25 % of emission. All vault LPs claim pro-rata by share MPT. */
 [[nodiscard]] inline std::uint32_t
 poplLpParticipationBps(std::uint32_t providerCount) noexcept
 {
@@ -80,11 +80,39 @@ poplLpParticipationBps(std::uint32_t providerCount) noexcept
     return std::min(bps, kQXRP_POPL_LP_MAX_BPS);
 }
 
-/** Validator allocation as bps of total emission (complement of LP share). */
+/** AMM/DEX LP basket as bps of total epoch emission.
+
+    Each distinct holder of AMM LP tokens (on native-FALCON pools) adds 1 %,
+    capped at 25 % of emission. All AMM LPs claim pro-rata by LP balance. */
+[[nodiscard]] inline std::uint32_t
+poplAmmLpParticipationBps(std::uint32_t ammProviderCount) noexcept
+{
+    if (ammProviderCount == 0)
+        return 0;
+
+    auto const capped = std::min(ammProviderCount, kQXRP_POPL_AMM_LP_MAX_PROVIDERS);
+    auto const bps = capped * kQXRP_POPL_AMM_LP_BPS_PER_PROVIDER;
+    return std::min(bps, kQXRP_POPL_AMM_LP_MAX_BPS);
+}
+
+/** Validator allocation as bps of total emission (remainder after vault + AMM LP). */
+[[nodiscard]] inline std::uint32_t
+poplValidatorParticipationBps(
+    std::uint32_t vaultProviderCount,
+    std::uint32_t ammProviderCount = 0) noexcept
+{
+    auto const used =
+        poplLpParticipationBps(vaultProviderCount) + poplAmmLpParticipationBps(ammProviderCount);
+    if (used >= kBPS_DENOM)
+        return 0;
+    return kBPS_DENOM - used;
+}
+
+/** @deprecated Prefer two-arg form including AMM providers. */
 [[nodiscard]] inline std::uint32_t
 poplValidatorParticipationBps(std::uint32_t providerCount) noexcept
 {
-    return kBPS_DENOM - poplLpParticipationBps(providerCount);
+    return poplValidatorParticipationBps(providerCount, 0);
 }
 
 }  // namespace xrpl

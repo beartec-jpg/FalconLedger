@@ -114,16 +114,33 @@ constexpr std::uint32_t kQXRP_CID_EPOCH_FLOOR_BPS = 3;
 constexpr std::uint32_t kQXRP_CID_DECLINE_NUM = 750;
 constexpr std::uint32_t kQXRP_CID_DECLINE_DEN = 10'816;
 
-// ─── PoPL emission split (validator / LP) ────────────────────────────────────
+// ─── PoPL emission split (validator / vault LP / AMM LP) ─────────────────────
+//
+// Epoch emission is split three ways:
+//   • Lend vault LPs  — +1% of emission per distinct vault share holder, cap 25%
+//   • AMM / DEX LPs   — +1% per distinct AMM LP-token holder (XRP pairs), cap 25%
+//   • Validators      — remainder (at least 50% when both LP baskets are full)
+//
+// Caps limit the *size of each basket*, not how many wallets may claim.
+// Within each basket, payout is pro-rata by share balance (manual claim).
 
-/// LP basket grows 1 % of total emission per active provider (100 bps each).
+/// Vault-LP basket grows 1 % of total emission per active vault provider.
 constexpr std::uint32_t kQXRP_POPL_LP_BPS_PER_PROVIDER = 100;
 
-/// Provider count at which the LP basket reaches its maximum (50 %).
-constexpr std::uint32_t kQXRP_POPL_LP_MAX_PROVIDERS = 50;
+/// Provider count at which vault-LP basket stops growing (25 providers → 25 %).
+constexpr std::uint32_t kQXRP_POPL_LP_MAX_PROVIDERS = 25;
 
-/// Maximum LP share of total emission (50 % = 5 000 bps).
-constexpr std::uint32_t kQXRP_POPL_LP_MAX_BPS = 5'000;
+/// Maximum vault-LP share of total emission (25 % = 2 500 bps).
+constexpr std::uint32_t kQXRP_POPL_LP_MAX_BPS = 2'500;
+
+/// AMM-LP basket grows 1 % of total emission per active AMM LP holder.
+constexpr std::uint32_t kQXRP_POPL_AMM_LP_BPS_PER_PROVIDER = 100;
+
+/// Provider count at which AMM-LP basket stops growing.
+constexpr std::uint32_t kQXRP_POPL_AMM_LP_MAX_PROVIDERS = 25;
+
+/// Maximum AMM-LP share of total emission (25 % = 2 500 bps).
+constexpr std::uint32_t kQXRP_POPL_AMM_LP_MAX_BPS = 2'500;
 
 // Legacy halving constants (retained for reference / tests only).
 [[maybe_unused]] constexpr std::uint32_t kQXRP_EPOCHS_PER_HALVING = 208;

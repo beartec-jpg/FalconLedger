@@ -649,8 +649,10 @@ LEDGER_ENTRY(ltREWARD_EPOCH, 0x0092, RewardEpoch, reward_epoch, ({
     {sfCurrentBurnBps,       SoeRequired},  // burn fraction for this epoch
     {sfFeeVolumeEMA,         SoeDefault},   // smoothed fee volume
     {sfAggregateCompositeScore, SoeDefault}, // sum of all bonded scores
-    {sfLPAllocationBps,      SoeDefault},   // PoPL: LP share of emission (bps)
+    {sfLPAllocationBps,      SoeDefault},   // PoPL: vault-LP share of emission (bps)
     {sfAggregateLPShares,    SoeDefault},   // sum of vault share MPT outstanding
+    {sfAmmLPAllocationBps,   SoeDefault},   // PoPL: AMM-LP share of emission (bps)
+    {sfAggregateAmmTvlDrops, SoeDefault},   // sum of native XRP legs of AMMs (weight)
     {sfProposals,            SoeDefault},   // keys of currently open governance proposals
     {sfPreviousTxnID,        SoeRequired},
     {sfPreviousTxnLgrSeq,    SoeRequired},
