@@ -4,16 +4,6 @@
 **Scope:** Every adjustable launch parameter, proposed genesis split, airdrop program, tracker product, anti-sybil  
 **Sources of truth (code today):** `include/xrpl/protocol/QXRPConstants.h`, `SystemParameters.h`, lending/bootstrap scripts, portal env
 
-### Launch posture (updated)
-
-| Decision | Spec |
-|----------|------|
-| **Path** | **Bootstrap mainnet soon** (days/weeks), not “2 months more testnet then flip” |
-| **Airdrop contribution window** | **60 days starting at mainnet genesis** (not historical testnet scrape) |
-| **Faucet airdrop scoring** | **Daily engagement**, not “5 claims total” |
-| **Faucet rate limits** | **5 successful claims / day** + **1 hour cooldown** between claims |
-| **First treasury emission** | **No emission until epoch 8** (bootstrap quiet period) |
-
 ---
 
 ## 1. Supply model (current code)
