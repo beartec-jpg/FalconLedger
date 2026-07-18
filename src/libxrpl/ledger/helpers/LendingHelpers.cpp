@@ -229,13 +229,17 @@ creditLiquidationToLPs(
     if (forfeitedFalcon <= beast::kZERO || !forfeitedFalcon.native())
         return;
 
-    auto const shareMptId = vaultSle->at(sfShareMPTID);
-    Number const sharesTotal = outstandingSharesNumber(view, *shareMptId);
+    MPTID const shareMptId = vaultSle->at(sfShareMPTID);
+    Number const sharesTotal = outstandingSharesNumber(view, shareMptId);
     Number const F = forfeitedFalcon.value();
 
-    auto pool = vaultSle->at(~sfLiquidationCollateral).value_or(STAmount{XRPAmount{0}});
-    if (!pool.native())
-        pool = STAmount{XRPAmount{0}};
+    STAmount pool{XRPAmount{0}};
+    if (vaultSle->isFieldPresent(sfLiquidationCollateral))
+    {
+        pool = vaultSle->at(sfLiquidationCollateral);
+        if (!pool.native())
+            pool = STAmount{XRPAmount{0}};
+    }
     pool += forfeitedFalcon;
     vaultSle->at(sfLiquidationCollateral) = pool;
 
@@ -261,13 +265,13 @@ liquidationPendingFalcon(
     SLE::const_ref vaultSle,
     AccountID const& account)
 {
-    auto const shareMptId = vaultSle->at(sfShareMPTID);
-    Number const shares = shareBalanceNumber(view, *shareMptId, account);
+    MPTID const shareMptId = vaultSle->at(sfShareMPTID);
+    Number const shares = shareBalanceNumber(view, shareMptId, account);
     if (shares <= beast::kZERO)
         return Number(0);
 
     Number const index = vaultLiquidationIndex(*vaultSle);
-    auto const mpt = view.read(keylet::mptoken(*shareMptId, account));
+    auto const mpt = view.read(keylet::mptoken(shareMptId, account));
     if (!mpt)
         return Number(0);
 
@@ -276,12 +280,19 @@ liquidationPendingFalcon(
     if (pending < beast::kZERO)
         pending = Number(0);
 
-    auto const pool = vaultSle->at(~sfLiquidationCollateral).value_or(STAmount{XRPAmount{0}});
-    if (pool.native() && pool > beast::kZERO)
+    if (vaultSle->isFieldPresent(sfLiquidationCollateral))
     {
-        Number const poolN = pool.value();
-        if (pending > poolN)
-            pending = poolN;
+        STAmount const pool = vaultSle->at(sfLiquidationCollateral);
+        if (pool.native() && pool > beast::kZERO)
+        {
+            Number const poolN = pool.value();
+            if (pending > poolN)
+                pending = poolN;
+        }
+        else
+        {
+            pending = Number(0);
+        }
     }
     else
     {
@@ -301,8 +312,8 @@ adjustLiquidationDebtForShareDelta(
     if (shareDelta == beast::kZERO)
         return;
 
-    auto const shareMptId = vaultSle->at(sfShareMPTID);
-    auto mpt = view.peek(keylet::mptoken(*shareMptId, account));
+    MPTID const shareMptId = vaultSle->at(sfShareMPTID);
+    auto mpt = view.peek(keylet::mptoken(shareMptId, account));
     if (!mpt)
         return;
 
@@ -348,7 +359,9 @@ claimLiquidationFalcon(
         return tecPRECISION_LOSS;
 
     STAmount const pay{XRPAmount{drops}};
-    auto pool = vaultSle->at(~sfLiquidationCollateral).value_or(STAmount{XRPAmount{0}});
+    STAmount pool{XRPAmount{0}};
+    if (vaultSle->isFieldPresent(sfLiquidationCollateral))
+        pool = vaultSle->at(sfLiquidationCollateral);
     if (!pool.native() || pool < pay)
     {
         JLOG(j.warn()) << "Liquidation pool insufficient for claim.";
@@ -361,8 +374,8 @@ claimLiquidationFalcon(
     pool -= pay;
     vaultSle->at(sfLiquidationCollateral) = pool;
 
-    auto const shareMptId = vaultSle->at(sfShareMPTID);
-    auto mpt = view.peek(keylet::mptoken(*shareMptId, account));
+    MPTID const shareMptId = vaultSle->at(sfShareMPTID);
+    auto mpt = view.peek(keylet::mptoken(shareMptId, account));
     if (!mpt)
         return tecNO_ENTRY;
 
