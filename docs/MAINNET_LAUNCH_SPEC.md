@@ -55,7 +55,8 @@ That is a **fair, clean split**: half of launch float to community via airdrop, 
 | CID yearly floor | **1.5% / year** (150 bps) | `kQXRP_CID_YEARLY_FLOOR_BPS` |
 | Per-epoch floor | **3 bps** of treasury | `kQXRP_CID_EPOCH_FLOOR_BPS` |
 | Decline curve | num **750** / den **10816** | linear per-epoch decline |
-| LP share of emission | **+1% per active LP provider**, cap **50%** | `kQXRP_POPL_LP_BPS_PER_PROVIDER`, `kQXRP_POPL_LP_MAX_BPS`, max 50 providers |
+| LP share of emission | **+1% per active vault LP**, cap **50%** of epoch | **Today: vault LPs only** — **mainnet must also include AMM LPs** (see readiness audit §B) |
+| Who is “LP” | Vault share MPT holders | **Must expand:** vault + AMM; claim-based pay to wallets, no pool top-ups |
 | Min score to claim rewards | **5%** composite (500 bps) | `kMIN_COMPOSITE_SCORE_BPS` |
 | Legacy halving constants | 50 bps initial / 208 epochs / 1 bps floor | marked unused; CID is live path |
 | **First emission epoch** | **Today: epoch 1 emits** | **Mainnet: no pool until epoch ≥ 8** (see §3b) |
