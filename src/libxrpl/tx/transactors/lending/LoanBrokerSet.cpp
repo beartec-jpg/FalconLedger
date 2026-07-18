@@ -42,6 +42,9 @@ LoanBrokerSet::preflight(PreflightContext const& ctx)
         return temINVALID;
     if (!validNumericRange(tx[~sfManagementFeeRate], kMAX_MANAGEMENT_FEE_RATE))
         return temINVALID;
+    // Pool loan APR policy (0 = open / free rate for borrowers on this broker).
+    if (!validNumericRange(tx[~sfInterestRate], kMAX_INTEREST_RATE))
+        return temINVALID;
     if (!validNumericRange(tx[~sfCoverRateMinimum], kMAX_COVER_RATE))
         return temINVALID;
     if (!validNumericRange(tx[~sfCoverRateLiquidation], kMAX_COVER_RATE))
@@ -51,8 +54,8 @@ LoanBrokerSet::preflight(PreflightContext const& ctx)
 
     if (tx.isFieldPresent(sfLoanBrokerID))
     {
-        // Fixed fields can not be specified if we're modifying an existing
-        // LoanBroker Object
+        // Cover / management fee are fixed at create. InterestRate (pool APR
+        // policy) may be updated so operators can set genesis pool terms.
         if (tx.isFieldPresent(sfManagementFeeRate) || tx.isFieldPresent(sfCoverRateMinimum) ||
             tx.isFieldPresent(sfCoverRateLiquidation))
             return temINVALID;
@@ -198,6 +201,9 @@ LoanBrokerSet::doApply()
             broker->at(sfData) = *data;
         if (auto const debtMax = tx[~sfDebtMaximum])
             broker->at(sfDebtMaximum) = *debtMax;
+        // Pool APR for *new* loans (existing loans keep their on-loan rate).
+        if (auto const rate = tx[~sfInterestRate])
+            broker->at(sfInterestRate) = *rate;
 
         view.update(broker);
 
@@ -263,6 +269,8 @@ LoanBrokerSet::doApply()
             broker->at(sfData) = *data;
         if (auto const rate = tx[~sfManagementFeeRate])
             broker->at(sfManagementFeeRate) = *rate;
+        if (auto const interest = tx[~sfInterestRate])
+            broker->at(sfInterestRate) = *interest;
         if (auto const debtMax = tx[~sfDebtMaximum])
             broker->at(sfDebtMaximum) = *debtMax;
         if (auto const coverMin = tx[~sfCoverRateMinimum])

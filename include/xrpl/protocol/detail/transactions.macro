@@ -957,6 +957,7 @@ TRANSACTION(ttLOAN_BROKER_SET, 74, LoanBrokerSet,
     {sfLoanBrokerID, SoeOptional},
     {sfData, SoeOptional},
     {sfManagementFeeRate, SoeOptional},
+    {sfInterestRate, SoeOptional},  // pool fixed loan APR (tenth-bps); updatable by owner
     {sfDebtMaximum, SoeOptional},
     {sfCoverRateMinimum, SoeOptional},
     {sfCoverRateLiquidation, SoeOptional},

@@ -362,6 +362,8 @@ def main() -> int:
             "CoverRateMinimum": COVER_RATE_MINIMUM,
             "CoverRateLiquidation": COVER_RATE_LIQUIDATION,
             "ManagementFeeRate": MANAGEMENT_FEE_RATE,
+            # Pool-fixed APR (tenth-bps). 5000 = 5%. New loans must match.
+            "InterestRate": INTEREST_RATE,
         }, args.dry_run, "LoanBrokerSet"):
             return 1
         if not args.dry_run:
@@ -371,6 +373,33 @@ def main() -> int:
             if not broker_id:
                 return 1
             ok(f"LoanBrokerID: {broker_id}")
+
+    # Ensure existing brokers (e.g. already bootstrapped) have pool APR set.
+    if broker_id and not args.dry_run:
+        broker_node = None
+        try:
+            broker_node = rpc.public(
+                "ledger_entry",
+                {"index": broker_id, "ledger_index": "validated"},
+            ).get("node")
+        except Exception:
+            pass
+        on_chain_rate = int((broker_node or {}).get("InterestRate") or 0)
+        if on_chain_rate != INTEREST_RATE:
+            log(f"LoanBroker InterestRate {on_chain_rate} → {INTEREST_RATE}")
+            submit_tx(
+                rpc,
+                lp_secret,
+                {
+                    "TransactionType": "LoanBrokerSet",
+                    "Account": lp_addr,
+                    "VaultID": vault_id,
+                    "LoanBrokerID": broker_id,
+                    "InterestRate": INTEREST_RATE,
+                },
+                args.dry_run,
+                "LoanBrokerSet (set pool InterestRate)",
+            )
 
     if not args.dry_run:
         vault_node = ledger_entry_vault(rpc, vault_id) or {}

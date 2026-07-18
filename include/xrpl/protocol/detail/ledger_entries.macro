@@ -517,6 +517,9 @@ LEDGER_ENTRY(ltLOAN_BROKER, 0x0088, LoanBroker, loan_broker, ({
     {sfLoanSequence,         SoeRequired},
     {sfData,                 SoeDefault},
     {sfManagementFeeRate,    SoeDefault},
+    // When non-zero: all new loans on this broker MUST use this InterestRate
+    // (tenth-bps). Zero = open pool (borrower/tx may choose any valid rate).
+    {sfInterestRate,         SoeDefault},
     {sfOwnerCount,           SoeDefault},
     {sfDebtTotal,            SoeDefault},
     {sfDebtMaximum,          SoeDefault},

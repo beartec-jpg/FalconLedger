@@ -304,6 +304,21 @@ LoanSet::preclaim(PreclaimContext const& ctx)
                               "of the LoanBroker.";
         return tecNO_PERMISSION;
     }
+
+    // Pool-level APR: when LoanBroker.InterestRate is non-zero, all new loans
+    // on this broker must use that rate (cannot undercut with 0% / custom).
+    // Zero on the broker = open pool (tx may pick any valid rate).
+    {
+        auto const poolRate = static_cast<std::uint32_t>(brokerSle->at(sfInterestRate));
+        auto const txRate = tx[~sfInterestRate].value_or(0);
+        if (poolRate != 0 && txRate != 0 && txRate != poolRate)
+        {
+            JLOG(ctx.j.warn()) << "InterestRate " << txRate
+                               << " does not match LoanBroker pool rate " << poolRate;
+            return tecNO_PERMISSION;
+        }
+    }
+
     auto const brokerPseudo = brokerSle->at(sfAccount);
 
     auto const borrower = counterparty == brokerOwner ? account : counterparty;
@@ -457,7 +472,13 @@ LoanSet::doApply()
         return tecINSUFFICIENT_FUNDS;
     }
 
-    TenthBips32 const interestRate{tx[~sfInterestRate].value_or(0)};
+    // Prefer pool-fixed rate; fall back to tx (or 0) for open brokers.
+    TenthBips32 const interestRate{[&]() {
+        auto const poolRate = static_cast<std::uint32_t>(brokerSle->at(sfInterestRate));
+        if (poolRate != 0)
+            return TenthBips32{poolRate};
+        return TenthBips32{tx[~sfInterestRate].value_or(0)};
+    }()};
 
     auto const paymentInterval = tx[~sfPaymentInterval].value_or(kDEFAULT_PAYMENT_INTERVAL);
     auto const paymentTotal = tx[~sfPaymentTotal].value_or(kDEFAULT_PAYMENT_TOTAL);
@@ -655,7 +676,8 @@ LoanSet::doApply()
     setLoanField(~sfLatePaymentFee);
     setLoanField(~sfClosePaymentFee);
     setLoanField(~sfOverpaymentFee);
-    setLoanField(~sfInterestRate);
+    // Store resolved rate (pool-fixed when broker.InterestRate is set).
+    loan->at(sfInterestRate) = interestRate.value();
     setLoanField(~sfLateInterestRate);
     setLoanField(~sfCloseInterestRate);
     setLoanField(~sfOverpaymentInterestRate);
