@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Rolling upgrade: new xrpld image without wiping ledger data.
 # Usage:
-#   DOCKER_IMAGE=qxrp/xrpld:cid-popl bash bin/install/rolling-upgrade-fleet.sh
+#   DOCKER_IMAGE=qxrp/xrpld:lending-v5 bash bin/install/rolling-upgrade-fleet.sh
 set -euo pipefail
 
-DOCKER_IMAGE="${DOCKER_IMAGE:-qxrp/xrpld:cid-popl}"
+DOCKER_IMAGE="${DOCKER_IMAGE:-qxrp/xrpld:lending-v5}"
 BUILD_HOST="${BUILD_HOST:-46.224.0.140}"
 SSH_OPTS=(-o StrictHostKeyChecking=no -o ConnectTimeout=15)
 

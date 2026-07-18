@@ -138,7 +138,7 @@ if (epochNum < kQXRP_FIRST_EMISSION_EPOCH)  // = 8
 | Faucet max claims / window | env `RATE_LIMIT_REQUESTS` default **5** / `RATE_LIMIT_WINDOW_SECONDS` default **3600** (sliding) | **Mainnet target: 5 / calendar day + 1h min spacing** (see §5.3) |
 | RPC endpoints | coordinator public RPC | multi-endpoint + status page |
 | Stablecoin model | testnet QUC / bridge-only mode for mainnet path | **bridge-only** stables recommended |
-| Image pin | `qxrp/xrpld:lending-v4` | pin digest at launch |
+| Image pin | `qxrp/xrpld:lending-v5` | pin digest at launch |
 
 ---
 

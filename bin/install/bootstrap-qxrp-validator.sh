@@ -27,7 +27,7 @@ done
 
 SECRET_INPUT="${SECRET_INPUT:-qxrp-val-fresh-$(date +%s)}"
 # Pin fleet image — floating :latest may lack Falcon hex UNL support (see docs/fleet-image-pinning.md).
-DOCKER_IMAGE="${QXRP_XRPLD_IMAGE:-qxrp/xrpld:cid-popl}"
+DOCKER_IMAGE="${QXRP_XRPLD_IMAGE:-qxrp/xrpld:lending-v5}"
 PUBLIC_RPC="${QXRP_PUBLIC_RPC:-http://46.224.0.140:6005}"
 FLEET_UNL_URL="${QXRP_FLEET_UNL_URL:-https://raw.githubusercontent.com/beartec-jpg/qXRP/develop/bin/install/testnet-falcon-unl.txt}"
 
@@ -288,7 +288,7 @@ for i in $(seq 1 30); do
 done
 if [[ "$RPC_READY" -ne 1 ]]; then
   echo "ERROR: qxrp-validator RPC not ready. Check: docker logs qxrp-validator" >&2
-  echo "  Common cause: wrong image tag (use qxrp/xrpld:cid-popl, not stale :latest)." >&2
+  echo "  Common cause: wrong image tag (use qxrp/xrpld:lending-v5, not stale :latest)." >&2
   exit 1
 fi
 
