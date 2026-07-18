@@ -188,12 +188,12 @@ getNodeIdentity(soci::session& session)
     // Generate Falcon-512 node identity — no classical fallback.
     if (!falconAvailable(KeyType::Falcon512))
     {
-        LogicError("Falcon-512 required for node identity but not available");
+        logicError("Falcon-512 required for node identity but not available");
     }
 
     auto kp = generateFalconKeyPair(KeyType::Falcon512);
     if (!kp)
-        LogicError("Failed to generate Falcon-512 node identity");
+        logicError("Failed to generate Falcon-512 node identity");
 
     auto& [pqPk, pqSk] = *kp;
     auto const pkHex = strHex(pqPk.slice());
