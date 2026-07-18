@@ -125,7 +125,7 @@ if (epochNum < kQXRP_FIRST_EMISSION_EPOCH)  // = 8
 |------|-----------------|--------|
 | Min HF at borrow | **1.5** (15000 bps) | permissionless |
 | Liquidation HF | **1.1** (11000 bps) | |
-| Interest rate example | **5% APR** (500 tenth-bps) | broker / LoanSet |
+| Interest rate example | **5% APR** (5000 tenth-bps; 1000 = 1%) | broker / LoanSet |
 | Loan duration unit | **7-day epoch**, 1–52 | portal + `PaymentInterval` |
 | Cover rates | bootstrap `COVER_RATE_*` | permissionless path less dependent |
 | Liquidation recovery | FALCON to LP claim pool (v4) | no auto-sell |

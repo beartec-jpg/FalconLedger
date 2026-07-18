@@ -44,7 +44,8 @@ COVER_RATE_LIQUIDATION = 2500
 MANAGEMENT_FEE_RATE = 100
 # Broker posts cover when F-USDC exists and borrow is enabled — not at genesis.
 COVER_ASSET_VALUE = "0"
-INTEREST_RATE = 500
+# Protocol units: tenth-bps (1000 = 1%). 5000 = 5% APR.
+INTEREST_RATE = 5000
 
 
 class RpcClient:
