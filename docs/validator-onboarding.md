@@ -101,7 +101,7 @@ Falcon txs to show success on one node but never validate in consensus.
 - **`tracking` but not `proposing`** — node is syncing; wait for ledger catch-up.
 - **`tecNO_PERMISSION` on bond** — already bonded, or insufficient balance.
 - **No peers** — check port 51235 is open and `ips_fixed` peers are reachable.
-- **Bad node public key** — ensure `[node_seed]` is set (installer handles this).
+- **Bad node public key** — ensure Falcon node identity (no classical `[node_seed]`; use `[validation_falcon_secret]` or auto Falcon identity).
 
 ## Files on your server
 

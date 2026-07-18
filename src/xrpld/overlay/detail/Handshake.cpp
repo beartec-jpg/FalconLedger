@@ -201,7 +201,15 @@ buildHandshake(
 
     h.insert("Network-Time", std::to_string(app.getTimeKeeper().now().time_since_epoch().count()));
 
-    h.insert("Public-Key", toBase58(TokenType::NodePublic, app.nodeIdentity().first));
+    {
+        // Falcon node keys are hex (variable length); classical base58 NodePublic
+        // is not used on Falcon Ledger.
+        auto const& pk = app.nodeIdentity().first;
+        if (pk.isPQ())
+            h.insert("Public-Key", strHex(pk.slice()));
+        else
+            h.insert("Public-Key", toBase58(TokenType::NodePublic, pk));
+    }
 
     {
         auto const& pk = app.nodeIdentity().first;
@@ -211,25 +219,19 @@ buildHandshake(
         Buffer sig;
         if (keyType && (*keyType == KeyType::Falcon512 || *keyType == KeyType::Falcon1024))
         {
-            // Falcon signs raw messages. Use signFalcon via the PQ key
-            // reconstruction path.  The PQ secret is stored in the
-            // Application's pqNodeSecretKey().
+            // Falcon signs raw messages via Application pqNodeSecretKey().
             auto const hashSlice = Slice(sharedValue.data(), sharedValue.size());
             auto const* pqSk = app.pqNodeSecretKey();
-            if (pqSk)
-            {
-                auto sigVec = signFalcon(*pqSk, hashSlice);
-                sig = Buffer(sigVec.data(), sigVec.size());
-            }
-            else
-            {
-                // Fallback: shouldn't happen if node identity is Falcon.
-                sig = signDigest(pk, sk, sharedValue);
-            }
+            if (!pqSk)
+                throw std::runtime_error("Falcon node identity has no PQ secret loaded");
+            auto sigVec = signFalcon(*pqSk, hashSlice);
+            sig = Buffer(sigVec.data(), sigVec.size());
         }
         else
         {
-            sig = signDigest(pk, sk, sharedValue);
+            // Classical node keys are not permitted on Falcon Ledger.
+            throw std::runtime_error(
+                "Classical node identity is disabled on Falcon Ledger");
         }
         h.insert("Session-Signature", base64Encode(sig.data(), sig.size()));
     }
@@ -314,28 +316,30 @@ verifyHandshake(
     PublicKey const publicKey = [&headers] {
         if (auto const iter = headers.find("Public-Key"); iter != headers.end())
         {
-            auto pk = parseBase58<PublicKey>(TokenType::NodePublic, iter->value());
+            std::string const token{iter->value()};
 
-            if (pk)
+            // Falcon: hex-encoded public key (required on Falcon Ledger).
+            if (auto const hex = strUnHex(token))
             {
-                // Accept both classical (secp256k1/ed25519) and PQ (Falcon)
-                // node keys for the peer handshake.
-                if (!signingPubKeyType(pk->slice()))
-                    throw std::runtime_error("Unsupported public key type");
+                if (isFalconSigningKey(makeSlice(*hex)))
+                    return PublicKey(makeSlice(*hex));
+            }
 
-                return *pk;
+            // Legacy base58 NodePublic (should not appear on Falcon-only fleets).
+            if (auto pk = parseBase58<PublicKey>(TokenType::NodePublic, token))
+            {
+                if (pk->isPQ())
+                    return *pk;
+                throw std::runtime_error(
+                    "Classical peer public keys are disabled on Falcon Ledger");
             }
         }
 
         throw std::runtime_error("Bad node public key");
     }();
 
-    // This check gets two birds with one stone:
-    //
-    // 1) it verifies that the node we are talking to has access to the
-    //    private key corresponding to the public node identity it claims.
-    // 2) it verifies that our SSL session is end-to-end with that node
-    //    and not through a proxy that establishes two separate sessions.
+    // Verify peer holds the private key for the claimed node identity and that
+    // the TLS session is end-to-end (not proxied).
     {
         auto const iter = headers.find("Session-Signature");
 
@@ -344,21 +348,17 @@ verifyHandshake(
 
         auto sig = base64Decode(iter->value());
 
-        // Use the unified verify(Slice, Slice, Slice) dispatcher which
-        // handles both classical (secp256k1/ed25519) and Falcon keys.
         auto const keyType = signingPubKeyType(publicKey.slice());
-        if (keyType && (*keyType == KeyType::Falcon512 || *keyType == KeyType::Falcon1024))
+        if (!keyType ||
+            (*keyType != KeyType::Falcon512 && *keyType != KeyType::Falcon1024))
         {
-            // Falcon signs raw messages, not digests.
-            auto const hashSlice = Slice(sharedValue.data(), sharedValue.size());
-            if (!verify(publicKey.slice(), hashSlice, makeSlice(sig)))
-                throw std::runtime_error("Failed to verify session");
+            throw std::runtime_error(
+                "Classical peer session signatures are disabled on Falcon Ledger");
         }
-        else
-        {
-            if (!verifyDigest(publicKey, sharedValue, makeSlice(sig), false))
-                throw std::runtime_error("Failed to verify session");
-        }
+
+        auto const hashSlice = Slice(sharedValue.data(), sharedValue.size());
+        if (!verify(publicKey.slice(), hashSlice, makeSlice(sig)))
+            throw std::runtime_error("Failed to verify session");
     }
 
     if (publicKey == app.nodeIdentity().first)

@@ -41,6 +41,8 @@ struct ConfigSection
 #define SECTION_NETWORK_ID "network_id"
 #define SECTION_NETWORK_QUORUM "network_quorum"
 #define SECTION_NODE_SEED "node_seed"
+/** Falcon-only P2P node identity (falcon_secret hex). Preferred over auto DB key. */
+#define SECTION_NODE_FALCON_SECRET "node_falcon_secret"
 #define SECTION_NODE_SIZE "node_size"
 #define SECTION_OVERLAY "overlay"
 #define SECTION_PATH_SEARCH_OLD "path_search_old"

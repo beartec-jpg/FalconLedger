@@ -692,6 +692,15 @@ Config::loadFromString(std::string const& fileContents)
             "] is disabled on Falcon Ledger; use [" SECTION_VALIDATION_FALCON_SECRET "]");
     }
 
+    if (exists(SECTION_NODE_SEED))
+    {
+        Throw<std::runtime_error>(
+            "Classical [" SECTION_NODE_SEED
+            "] is disabled on Falcon Ledger; remove it. P2P node identity is "
+            "Falcon-only (auto, [" SECTION_NODE_FALCON_SECRET "], or "
+            "[" SECTION_VALIDATION_FALCON_SECRET "])");
+    }
+
     if (exists(SECTION_VALIDATOR_TOKEN))
     {
         Throw<std::runtime_error>(

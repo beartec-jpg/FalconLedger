@@ -305,35 +305,8 @@ ACCOUNT=$(echo "$FALCON_JSON" | python3 -c "import sys,json; print(json.load(sys
 FALCON_SECRET=$(echo "$FALCON_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['falcon_secret'])")
 FALCON_PK=$(echo "$FALCON_JSON" | python3 -c "import sys,json; r=json.load(sys.stdin)['result']; print((r.get('public_key_hex') or r.get('public_key','')).upper())")
 
-# Classical wallet_propose is disabled on Falcon Ledger; generate P2P node_seed locally.
-NODE_SEED=$(python3 - <<'PY'
-import os, hashlib
-ALPHABET = 'rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz'
-
-def b58encode_xrpl(msg: bytes) -> str:
-    zeroes = len(msg) - len(msg.lstrip(b'\0'))
-    pbegin = msg.lstrip(b'\0')
-    if not pbegin:
-        return ALPHABET[0] * zeroes
-    b58 = [0] * (len(msg) * 3)
-    for ch in pbegin:
-        carry = ch
-        for i in range(len(b58) - 1, -1, -1):
-            carry += 256 * b58[i]
-            b58[i] = carry % 58
-            carry //= 58
-    start = 0
-    while start < len(b58) and b58[start] == 0:
-        start += 1
-    return ALPHABET[0] * zeroes + ''.join(ALPHABET[d] for d in b58[start:])
-
-raw = os.urandom(16)
-payload = bytes([33]) + raw
-chk = hashlib.sha256(hashlib.sha256(payload).digest()).digest()[:4]
-print(b58encode_xrpl(payload + chk))
-PY
-)
-
+# ZERO classical keys: P2P node identity uses the same Falcon key as consensus
+# (or auto Falcon node identity if [validation_falcon_secret] alone is set).
 KEYS_FILE=/var/lib/qxrp-validator/validator-keys.json
 python3 - <<PY
 import json, os
@@ -343,7 +316,6 @@ data = {
     "consensus_key_hex": "${FALCON_PK}",
     "falcon_public_key_hex": "${FALCON_PK}",
     "account_address": "${ACCOUNT}",
-    "node_seed": "${NODE_SEED}",
     "payout_address": "${PAYOUT}",
     "node_name": "${NODE_NAME}",
     "network_id": 1001,
@@ -357,11 +329,15 @@ CFG=/var/lib/qxrp-validator/config/xrpld.cfg
 sed -i '/\[validation_seed\]/,+1d' "$CFG"
 sed -i '/\[validation_falcon_secret\]/,+1d' "$CFG"
 sed -i '/\[node_seed\]/,+1d' "$CFG"
-cat >> "$CFG" << EOC
+sed -i '/\[node_falcon_secret\]/,+1d' "$CFG"
+# Ensure Falcon validation secret is present; peer identity reuses it (no node_seed).
+if ! grep -q '^\[validation_falcon_secret\]' "$CFG"; then
+  cat >> "$CFG" << EOC
 
-[node_seed]
-${NODE_SEED}
+[validation_falcon_secret]
+${FALCON_SECRET}
 EOC
+fi
 
 # Fleet-only UNL while catching up (own key added when validation is enabled).
 write_validators_txt "" "$FLEET_UNL_FILE"
@@ -369,7 +345,7 @@ echo "$ACCOUNT" > /var/lib/qxrp-validator/validator-r-address
 
 printf 'VALIDATOR_ACCOUNT=%s\n' "$ACCOUNT" > /var/lib/qxrp-validator/dashboard/.env
 
-echo "Restarting validator with node peer key (tracking mode, no validation yet)..."
+echo "Restarting validator (Falcon-only identity, tracking mode)..."
 (cd /var/lib/qxrp-validator && dc up -d --force-recreate)
 
 echo "Waiting for ledger sync before enabling validation (up to 10 min)..."

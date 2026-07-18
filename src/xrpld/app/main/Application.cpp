@@ -1306,26 +1306,53 @@ ApplicationImp::setup(boost::program_options::variables_map const& cmdline)
 
     nodeIdentity_ = getNodeIdentity(*this, cmdline);
 
-    // If the node identity uses a Falcon (PQ) public key, reconstruct
-    // the PQ secret key from the wallet DB.
+    // Load Falcon PQ secret for node identity (P2P handshake). Never classical.
     if (nodeIdentity_ && nodeIdentity_->first.isPQ())
     {
-        auto db = getWalletDB().checkoutDb();
-        boost::optional<std::string> priKO;
-        soci::statement st = ((*db).prepare << "SELECT PrivateKey FROM NodeIdentity;",
-                                soci::into(priKO));
-        st.execute();
-        if (st.fetch() && priKO)
+        std::optional<std::string> secretHex;
+        if (config().exists(SECTION_NODE_FALCON_SECRET))
         {
-            auto decoded = decodeFalconSecret(*priKO);
+            secretHex = config().section(SECTION_NODE_FALCON_SECRET).lines().front();
+        }
+        else if (config().exists(SECTION_VALIDATION_FALCON_SECRET))
+        {
+            // Single Falcon key for consensus + peer identity.
+            secretHex = config().section(SECTION_VALIDATION_FALCON_SECRET).lines().front();
+        }
+        else
+        {
+            auto db = getWalletDB().checkoutDb();
+            boost::optional<std::string> priKO;
+            soci::statement st = ((*db).prepare << "SELECT PrivateKey FROM NodeIdentity;",
+                                    soci::into(priKO));
+            st.execute();
+            if (st.fetch() && priKO)
+                secretHex = *priKO;
+        }
+
+        if (secretHex)
+        {
+            auto decoded = decodeFalconSecret(*secretHex);
             if (decoded)
             {
-                pqNodeSecretKey_ = std::make_unique<PQSecretKey>(
-                    std::move(decoded->second));
+                pqNodeSecretKey_ = std::make_unique<PQSecretKey>(std::move(decoded->second));
                 JLOG(journal_.info())
-                    << "Node identity: Falcon-512 post-quantum key loaded";
+                    << "Node identity: Falcon post-quantum key loaded (no classical node_seed)";
             }
         }
+
+        if (!pqNodeSecretKey_)
+        {
+            JLOG(journal_.fatal())
+                << "Falcon node identity public key present but PQ secret not loaded";
+            return false;
+        }
+    }
+    else if (nodeIdentity_ && !nodeIdentity_->first.isPQ())
+    {
+        JLOG(journal_.fatal())
+            << "Classical node identity is disabled on Falcon Ledger; remove [node_seed]";
+        return false;
     }
 
     if (!cluster_->load(config().section(SECTION_CLUSTER_NODES)))

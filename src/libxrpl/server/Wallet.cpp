@@ -3,6 +3,7 @@
 #include <xrpl/basics/Log.h>
 #include <xrpl/basics/UnorderedContainers.h>
 #include <xrpl/basics/base_uint.h>
+#include <xrpl/basics/contract.h>
 #include <xrpl/basics/safe_cast.h>
 #include <xrpl/basics/strHex.h>
 #include <xrpl/beast/hash/uhash.h>
@@ -141,6 +142,8 @@ clearNodeIdentity(soci::session& session)
 std::pair<PublicKey, SecretKey>
 getNodeIdentity(soci::session& session)
 {
+    // Falcon Ledger: node identity is Falcon-only. Classical secp256k1
+    // rows in NodeIdentity are deleted and replaced.
     {
         // SOCI requires boost::optional (not std::optional) as the parameter.
         boost::optional<std::string> pubKO, priKO;
@@ -151,63 +154,60 @@ getNodeIdentity(soci::session& session)
         st.execute();
         while (st.fetch())
         {
-            // Try classical key recovery first.
-            auto const sk = parseBase58<SecretKey>(TokenType::NodePrivate, priKO.value_or(""));
-            auto const pk = parseBase58<PublicKey>(TokenType::NodePublic, pubKO.value_or(""));
+            auto const pubStr = pubKO.value_or("");
+            auto const priStr = priKO.value_or("");
 
-            // Classical key pair?
-            if (sk && pk && !pk->isPQ() && (*pk == derivePublicKey(KeyType::Secp256k1, *sk)))
-                return {*pk, *sk};
-
-            // PQ (Falcon) key stored as hex in the PublicKey column?
-            // The private key column stores the falcon_secret hex bundle.
-            if (pk && pk->isPQ())
+            // Falcon public key stored as hex (preferred).
+            if (auto const hex = strUnHex(pubStr))
             {
-                // Return with a dummy SecretKey — the actual PQ secret is
-                // reconstructed by the Application from the DB.
-                // We need a valid 32-byte SecretKey placeholder.
-                auto dummySk = randomSecretKey();
-                return {*pk, dummySk};
+                if (isFalconSigningKey(makeSlice(*hex)) && decodeFalconSecret(priStr))
+                {
+                    PublicKey pubKey(makeSlice(*hex));
+                    auto dummySk = randomSecretKey();
+                    return {pubKey, dummySk};
+                }
             }
+
+            // Falcon public key as NodePublic base58 (if ever stored that way).
+            if (auto const pk = parseBase58<PublicKey>(TokenType::NodePublic, pubStr))
+            {
+                if (pk->isPQ() && decodeFalconSecret(priStr))
+                {
+                    auto dummySk = randomSecretKey();
+                    return {*pk, dummySk};
+                }
+            }
+
+            // Classical row — discard and regenerate Falcon below.
         }
     }
 
-    // Generate a new Falcon-512 node identity by default.
-    if (falconAvailable(KeyType::Falcon512))
+    // Drop any classical / unusable identity rows.
+    session << "DELETE FROM NodeIdentity;";
+
+    // Generate Falcon-512 node identity — no classical fallback.
+    if (!falconAvailable(KeyType::Falcon512))
     {
-        auto kp = generateFalconKeyPair(KeyType::Falcon512);
-        if (kp)
-        {
-            auto& [pqPk, pqSk] = *kp;
-            // Store the Falcon public key as hex and the secret as the
-            // falcon_secret hex bundle.
-            auto const pkHex = strHex(pqPk.slice());
-            auto const secretHex = encodeFalconSecret(pqPk, pqSk);
-
-            session << str(
-                boost::format(
-                    "INSERT INTO NodeIdentity (PublicKey,PrivateKey) "
-                    "VALUES ('%s','%s');") %
-                pkHex % secretHex);
-
-            // Construct a PublicKey from the PQ key slice.
-            PublicKey pubKey(pqPk.slice());
-            auto dummySk = randomSecretKey();
-            return {pubKey, dummySk};
-        }
+        LogicError("Falcon-512 required for node identity but not available");
     }
 
-    // Fallback to classical Secp256k1 if Falcon is unavailable.
-    auto [newpublicKey, newsecretKey] = randomKeyPair(KeyType::Secp256k1);
+    auto kp = generateFalconKeyPair(KeyType::Falcon512);
+    if (!kp)
+        LogicError("Failed to generate Falcon-512 node identity");
+
+    auto& [pqPk, pqSk] = *kp;
+    auto const pkHex = strHex(pqPk.slice());
+    auto const secretHex = encodeFalconSecret(pqPk, pqSk);
 
     session << str(
         boost::format(
             "INSERT INTO NodeIdentity (PublicKey,PrivateKey) "
             "VALUES ('%s','%s');") %
-        toBase58(TokenType::NodePublic, newpublicKey) %
-        toBase58(TokenType::NodePrivate, newsecretKey));
+        pkHex % secretHex);
 
-    return {newpublicKey, newsecretKey};
+    PublicKey pubKey(pqPk.slice());
+    auto dummySk = randomSecretKey();
+    return {pubKey, dummySk};
 }
 
 std::unordered_set<PeerReservation, beast::Uhash<>, KeyEqual>

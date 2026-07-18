@@ -284,34 +284,7 @@ CFG
   FALCON_SECRET=$(echo "$FALCON_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['falcon_secret'])")
   FALCON_PK=$(echo "$FALCON_JSON" | python3 -c "import sys,json; r=json.load(sys.stdin)['result']; print((r.get('public_key_hex') or r.get('public_key','')).upper())")
 
-  NODE_SEED=$(python3 - <<'PY'
-import os, hashlib
-ALPHABET = 'rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz'
-
-def b58encode_xrpl(msg: bytes) -> str:
-    zeroes = len(msg) - len(msg.lstrip(b'\0'))
-    pbegin = msg.lstrip(b'\0')
-    if not pbegin:
-        return ALPHABET[0] * zeroes
-    b58 = [0] * (len(msg) * 3)
-    for ch in pbegin:
-        carry = ch
-        for i in range(len(b58) - 1, -1, -1):
-            carry += 256 * b58[i]
-            b58[i] = carry % 58
-            carry //= 58
-    start = 0
-    while start < len(b58) and b58[start] == 0:
-        start += 1
-    return ALPHABET[0] * zeroes + ''.join(ALPHABET[d] for d in b58[start:])
-
-raw = os.urandom(16)
-payload = bytes([33]) + raw
-chk = hashlib.sha256(hashlib.sha256(payload).digest()).digest()[:4]
-print(b58encode_xrpl(payload + chk))
-PY
-)
-
+  # ZERO classical keys — no node_seed generation.
   docker stop qxrp_keygen_boot >/dev/null 2>&1 || true
   rm -rf "$BOOT_DIR"
   trap - EXIT
@@ -324,7 +297,6 @@ data = {
     "consensus_key_hex": "${FALCON_PK}",
     "falcon_public_key_hex": "${FALCON_PK}",
     "account_address": "${ACCOUNT}",
-    "node_seed": "${NODE_SEED}",
     "payout_address": "${PAYOUT_ADDRESS}",
     "node_name": "${NODE_NAME}",
     "network_id": ${NETWORK_ID},
@@ -333,12 +305,11 @@ with open("${KEYS_FILE}", "w") as f:
     json.dump(data, f, indent=2)
 os.chmod("${KEYS_FILE}", 0o600)
 PY
-  log "Keys saved to $KEYS_FILE"
+  log "Keys saved to $KEYS_FILE (Falcon-only; no classical node_seed)"
 fi
 
 FALCON_SECRET=$(python3 -c "import json; print(json.load(open('${KEYS_FILE}'))['falcon_secret'])")
 FALCON_PK=$(python3 -c "import json; print(json.load(open('${KEYS_FILE}'))['falcon_public_key_hex'])")
-NODE_SEED=$(python3 -c "import json; print(json.load(open('${KEYS_FILE}'))['node_seed'])")
 ACCOUNT=$(python3 -c "import json; print(json.load(open('${KEYS_FILE}'))['account_address'])")
 CONSENSUS_KEY=$(python3 -c "import json; print(json.load(open('${KEYS_FILE}'))['consensus_key_hex'])")
 
@@ -376,8 +347,7 @@ ${QUORUM}
 [validation_falcon_secret]
 ${FALCON_SECRET}
 
-[node_seed]
-${NODE_SEED}
+# P2P identity reuses Falcon validation key (classical [node_seed] forbidden)
 
 [validators_file]
 /cfg/validators.txt

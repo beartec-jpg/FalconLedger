@@ -70,15 +70,14 @@ addValidatorManifest(soci::session& session, std::string const& serialized);
 void
 clearNodeIdentity(soci::session& session);
 
-/** Returns a stable public and private key for this node.
+/** Returns a stable Falcon public key for this node (P2P identity).
 
-    The node's public identity is defined by a secp256k1 keypair
-    that is (normally) randomly generated. This function will
-    return such a keypair, securely generating one if needed.
+    Falcon Ledger does not use classical secp256k1 node identity.
+    Generates and persists a Falcon-512 keypair in the wallet DB if needed.
+    The SecretKey half of the pair is a placeholder; the real PQ secret is
+    loaded by Application via encodeFalconSecret / pqNodeSecretKey().
 
     @param session Session with the database.
-
-    @return Pair of public and private secp256k1 keys.
  */
 std::pair<PublicKey, SecretKey>
 getNodeIdentity(soci::session& session);

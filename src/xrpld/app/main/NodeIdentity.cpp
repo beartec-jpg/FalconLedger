@@ -16,7 +16,6 @@
 
 #include <boost/program_options/variables_map.hpp>
 
-#include <optional>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -26,31 +25,52 @@ namespace xrpl {
 std::pair<PublicKey, SecretKey>
 getNodeIdentity(Application& app, boost::program_options::variables_map const& cmdline)
 {
-    std::optional<Seed> seed;
-
+    // Falcon Ledger: classical [node_seed] / --nodeid seeds are forbidden.
+    // Node identity is Falcon-only (auto DB or [node_falcon_secret]).
     if (cmdline.contains("nodeid"))
     {
-        seed = parseGenericSeed(cmdline["nodeid"].as<std::string>(), false);
-
-        if (!seed)
-            Throw<std::runtime_error>("Invalid 'nodeid' in command line");
-    }
-    else if (app.config().exists(SECTION_NODE_SEED))
-    {
-        seed = parseBase58<Seed>(app.config().section(SECTION_NODE_SEED).lines().front());
-
-        if (!seed)
-            Throw<std::runtime_error>("Invalid [" SECTION_NODE_SEED "] in configuration file");
+        Throw<std::runtime_error>(
+            "Classical --nodeid is disabled on Falcon Ledger; omit it to use "
+            "auto Falcon node identity, or set [" SECTION_NODE_FALCON_SECRET "]");
     }
 
-    if (seed)
+    if (app.config().exists(SECTION_NODE_SEED))
     {
-        // When a seed is provided, we must use classical keys since
-        // Falcon keys cannot be derived from a seed.
-        auto secretKey = generateSecretKey(KeyType::Secp256k1, *seed);
-        auto publicKey = derivePublicKey(KeyType::Secp256k1, secretKey);
+        Throw<std::runtime_error>(
+            "Classical [" SECTION_NODE_SEED
+            "] is disabled on Falcon Ledger; remove it. Node identity is "
+            "Falcon-only (auto-generated, or [" SECTION_NODE_FALCON_SECRET
+            "] / [" SECTION_VALIDATION_FALCON_SECRET "])");
+    }
 
-        return {publicKey, secretKey};
+    // Explicit Falcon node secret (same falcon_secret hex format as validation).
+    if (app.config().exists(SECTION_NODE_FALCON_SECRET))
+    {
+        auto const line = app.config().section(SECTION_NODE_FALCON_SECRET).lines().front();
+        auto decoded = decodeFalconSecret(line);
+        if (!decoded)
+            Throw<std::runtime_error>("Invalid [" SECTION_NODE_FALCON_SECRET "]");
+
+        auto& [pqPk, pqSk] = *decoded;
+        PublicKey pubKey(pqPk.slice());
+        // Placeholder classical SecretKey slot — PQ material loaded via Application.
+        auto dummySk = randomSecretKey();
+        return {pubKey, dummySk};
+    }
+
+    // Prefer reusing the validation Falcon key for P2P identity when configured
+    // (one Falcon key for the node; no classical keypair anywhere).
+    if (app.config().exists(SECTION_VALIDATION_FALCON_SECRET))
+    {
+        auto const line = app.config().section(SECTION_VALIDATION_FALCON_SECRET).lines().front();
+        auto decoded = decodeFalconSecret(line);
+        if (!decoded)
+            Throw<std::runtime_error>("Invalid [" SECTION_VALIDATION_FALCON_SECRET "] for node identity");
+
+        auto& [pqPk, pqSk] = *decoded;
+        PublicKey pubKey(pqPk.slice());
+        auto dummySk = randomSecretKey();
+        return {pubKey, dummySk};
     }
 
     auto db = app.getWalletDB().checkoutDb();

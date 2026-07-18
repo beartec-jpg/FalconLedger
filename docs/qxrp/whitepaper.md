@@ -177,13 +177,12 @@ trusted validator list (UNL) identity. Every wallet is created with a Falcon key
 pair. Every transaction is signed with Falcon. Every validator consensus message
 is signed and verified with Falcon.
 
-**P2P overlay only:** Validators may configure a separate `node_seed` for
-peer-to-peer overlay identity and handshakes. This key does not sign consensus
-proposals, validations, or rewards — it is not part of validator authority or
-bonding.
+**P2P overlay:** Peer identity is Falcon as well (`validation_falcon_secret` by
+default, or optional separate `node_falcon_secret`). Classical `node_seed` is
+**disabled** — config will refuse to start if present.
 
-There is no hybrid mode for consensus or account authority — the protocol is
-Falcon-native for every security-critical path.
+There is no hybrid mode for consensus, accounts, or peer identity — the protocol
+is Falcon-native for every security-critical path including P2P handshakes.
 
 ### 4.4 Design Principles
 
