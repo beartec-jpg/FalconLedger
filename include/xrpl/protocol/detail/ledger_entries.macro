@@ -413,6 +413,8 @@ LEDGER_ENTRY(ltMPTOKEN, 0x007f, MPToken, mptoken, ({
     {sfOwnerNode,                SoeRequired},
     {sfPreviousTxnID,            SoeRequired},
     {sfPreviousTxnLgrSeq,        SoeRequired},
+    // Vault-share holders: MasterChef rewardDebt for liquidation FALCON claims
+    {sfLiquidationDebt,          SoeDefault},
 }))
 
 /** A ledger object which tracks Oracle
@@ -490,6 +492,9 @@ LEDGER_ENTRY(ltVAULT, 0x0084, Vault, vault, ({
     {sfShareMPTID,           SoeRequired},
     {sfWithdrawalPolicy,     SoeRequired},
     {sfScale,                SoeDefault},
+    // LP claim pool for forfeited FALCON (held on loan broker pseudo; accounted here)
+    {sfLiquidationCollateral, SoeDefault},
+    {sfLiquidationIndex,      SoeDefault},
     // no SharesTotal ever (use MPTIssuance.sfOutstandingAmount)
     // no PermissionedDomainID ever (use MPTIssuance.sfDomainID)
 }))

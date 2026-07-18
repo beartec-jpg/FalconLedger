@@ -55,6 +55,50 @@ collateralVaultValue(
     STAmount const& collateral,
     beast::Journal j);
 
+/**
+ * Credit forfeited FALCON into the vault LP claim pool.
+ * Physical FALCON stays on the loan-broker pseudo (protocol custody);
+ * Vault.LiquidationCollateral + LiquidationIndex track LP claims. No sell.
+ */
+void
+creditLiquidationToLPs(
+    ApplyView& view,
+    SLE::ref vaultSle,
+    STAmount const& forfeitedFalcon,
+    beast::Journal j);
+
+/** Pending FALCON claim for a vault share holder (drops as Number). */
+Number
+liquidationPendingFalcon(
+    ReadView const& view,
+    SLE::const_ref vaultSle,
+    AccountID const& account);
+
+/**
+ * Adjust reward debt when vault share balance changes (deposit +delta, withdraw -delta).
+ * Preserves unclaimed pending rewards (MasterChef-style).
+ */
+void
+adjustLiquidationDebtForShareDelta(
+    ApplyView& view,
+    SLE::const_ref vaultSle,
+    AccountID const& account,
+    Number const& shareDelta,
+    beast::Journal j);
+
+/**
+ * Pay out pending liquidation FALCON from broker pseudo to account.
+ * @param maxAmount if present and > 0, caps the payout; otherwise full pending.
+ */
+TER
+claimLiquidationFalcon(
+    ApplyView& view,
+    SLE::ref vaultSle,
+    AccountID const& brokerPseudo,
+    AccountID const& account,
+    std::optional<STAmount> const& maxAmount,
+    beast::Journal j);
+
 }  // namespace Lending
 
 static constexpr std::uint32_t kSECONDS_IN_YEAR = 365 * 24 * 60 * 60;

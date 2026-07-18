@@ -5,9 +5,11 @@
 #include <xrpl/beast/utility/Zero.h>
 #include <xrpl/beast/utility/instrumentation.h>
 #include <xrpl/ledger/View.h>
+#include <xrpl/ledger/helpers/LendingHelpers.h>
 #include <xrpl/ledger/helpers/TokenHelpers.h>
 #include <xrpl/ledger/helpers/VaultHelpers.h>
 #include <xrpl/protocol/AccountID.h>
+#include <xrpl/protocol/Feature.h>
 #include <xrpl/protocol/Feature.h>
 #include <xrpl/protocol/Indexes.h>
 #include <xrpl/protocol/MPTIssue.h>
@@ -255,6 +257,13 @@ VaultWithdraw::doApply()
             accountSend(view(), account_, vaultAccount, sharesRedeemed, j_, WaiveTransferFee::Yes);
         !isTesSuccess(ter))
         return ter;
+
+    if (view().rules().enabled(featureLendingPermissionless))
+    {
+        // Negative delta: share balance already reduced by accountSend.
+        Number const delta{-static_cast<std::int64_t>(sharesRedeemed.mpt().value())};
+        Lending::adjustLiquidationDebtForShareDelta(view(), vault, account_, delta, j_);
+    }
 
     // Try to remove MPToken for shares, if the account balance is zero. Vault
     // pseudo-account will never set lsfMPTAuthorized, so we ignore flags.

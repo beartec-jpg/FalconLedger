@@ -207,33 +207,26 @@ defaultPermissionlessLoan(
     auto brokerDebtTotalProxy = brokerSle->at(sfDebtTotal);
     Number const totalDefaultAmount = owedToVault(loanSle);
 
-    Number defaultCovered = Number(0);
-    Number collateralSurplus = Number(0);
+    // Forfeit FALCON: clear borrower claim; credit LP claim pool (no auto-sell).
+    // LPs hold FALCON via LiquidationCollateral/Index and claim later when they want.
+    STAmount forfeitedFalcon{beast::kZERO};
     if (loanSle->isFieldPresent(sfCollateral))
     {
         STAmount const collateral{loanSle->at(sfCollateral)};
-        if (collateral > beast::kZERO)
+        if (collateral > beast::kZERO && collateral.native())
         {
-            if (auto const collateralValue =
-                    Lending::collateralVaultValue(view, vaultAsset, collateral, j))
-            {
-                defaultCovered = std::min(*collateralValue, totalDefaultAmount);
-                if (*collateralValue > totalDefaultAmount)
-                    collateralSurplus = *collateralValue - totalDefaultAmount;
-            }
-            // Forfeit collateral to the FALCON collateral pool (broker pseudo-account).
-            // Physical FALCON already sits there from LoanSet / LoanCollateralDeposit;
-            // clear the borrower's claim on this loan without paying a third party.
+            forfeitedFalcon = collateral;
             loanSle->at(sfCollateral) = beast::kZERO;
         }
     }
 
-    Number const vaultDefaultAmount = totalDefaultAmount - defaultCovered;
+    // Honest F-USDC vault write-down: principal never returns from the borrower.
+    // Do NOT invent AssetsAvailable from FALCON mark-to-market — recovery is the FALCON bag.
+    Number const vaultDefaultAmount = totalDefaultAmount;
     auto const vaultScale = getAssetsTotalScale(vaultSle);
 
     {
         auto vaultTotalProxy = vaultSle->at(sfAssetsTotal);
-        auto vaultAvailableProxy = vaultSle->at(sfAssetsAvailable);
 
         if (vaultTotalProxy < vaultDefaultAmount)
             return tefBAD_LEDGER;
@@ -241,19 +234,6 @@ defaultPermissionlessLoan(
         auto const vaultDefaultRounded = roundToAsset(
             vaultAsset, vaultDefaultAmount, vaultScale, Number::RoundingMode::Downward);
         vaultTotalProxy -= vaultDefaultRounded;
-        vaultAvailableProxy += defaultCovered;
-
-        // CollateralSurplus: forfeited FALCON valued above debt credits F-USDC LPs.
-        if (collateralSurplus > beast::kZERO)
-        {
-            auto const surplusRounded = roundToAsset(
-                vaultAsset,
-                collateralSurplus,
-                vaultScale,
-                Number::RoundingMode::Downward);
-            vaultTotalProxy += surplusRounded;
-            vaultAvailableProxy += surplusRounded;
-        }
 
         if (loanSle->isFlag(lsfLoanImpaired))
         {
@@ -265,6 +245,9 @@ defaultPermissionlessLoan(
         }
         view.update(vaultSle);
     }
+
+    if (forfeitedFalcon > beast::kZERO)
+        Lending::creditLiquidationToLPs(view, vaultSle, forfeitedFalcon, j);
 
     adjustImpreciseNumber(brokerDebtTotalProxy, -totalDefaultAmount, vaultAsset, loanScale);
     view.update(brokerSle);

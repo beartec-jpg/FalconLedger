@@ -1,6 +1,7 @@
 #include <xrpl/ledger/helpers/LendingHelpers.h>
 
 #include <xrpl/ledger/helpers/AMMHelpers.h>
+#include <xrpl/ledger/helpers/TokenHelpers.h>
 #include <xrpl/basics/Expected.h>
 #include <xrpl/basics/Log.h>
 #include <xrpl/basics/Number.h>
@@ -22,11 +23,14 @@
 #include <xrpl/protocol/STLedgerEntry.h>
 #include <xrpl/protocol/STTx.h>
 #include <xrpl/protocol/TER.h>
+#include <xrpl/protocol/UintTypes.h>
 #include <xrpl/protocol/Units.h>
+#include <xrpl/protocol/XRPAmount.h>
 
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <utility>
 
 namespace xrpl {
@@ -178,6 +182,201 @@ loanPermissionlessLiquidatable(
 
     auto const hfBps = loanHealthFactorBps(view, vaultAsset, debt, collateral, j);
     return hfBps && *hfBps < Number(kPermissionlessLiquidationHfBps);
+}
+
+static Number
+shareBalanceNumber(ReadView const& view, MPTID const& shareMptId, AccountID const& account)
+{
+    auto const mpt = view.read(keylet::mptoken(shareMptId, account));
+    if (!mpt)
+        return Number(0);
+    return Number(static_cast<std::int64_t>(mpt->getFieldU64(sfMPTAmount)));
+}
+
+static Number
+outstandingSharesNumber(ReadView const& view, MPTID const& shareMptId)
+{
+    auto const issuance = view.read(keylet::mptIssuance(shareMptId));
+    if (!issuance)
+        return Number(0);
+    return Number(static_cast<std::int64_t>(issuance->getFieldU64(sfOutstandingAmount)));
+}
+
+static Number
+vaultLiquidationIndex(SLE const& vaultSle)
+{
+    if (!vaultSle.isFieldPresent(sfLiquidationIndex))
+        return Number(0);
+    return vaultSle.at(sfLiquidationIndex);
+}
+
+static Number
+mptLiquidationDebt(SLE const& mptSle, Number const& shares, Number const& index)
+{
+    // Missing debt: treat as fully checkpointed at current index (no retroactive claim).
+    if (!mptSle.isFieldPresent(sfLiquidationDebt))
+        return shares * index;
+    return mptSle.at(sfLiquidationDebt);
+}
+
+void
+creditLiquidationToLPs(
+    ApplyView& view,
+    SLE::ref vaultSle,
+    STAmount const& forfeitedFalcon,
+    beast::Journal j)
+{
+    if (forfeitedFalcon <= beast::kZERO || !forfeitedFalcon.native())
+        return;
+
+    auto const shareMptId = vaultSle->at(sfShareMPTID);
+    Number const sharesTotal = outstandingSharesNumber(view, *shareMptId);
+    Number const F = forfeitedFalcon.value();
+
+    auto pool = vaultSle->at(~sfLiquidationCollateral).value_or(STAmount{XRPAmount{0}});
+    if (!pool.native())
+        pool = STAmount{XRPAmount{0}};
+    pool += forfeitedFalcon;
+    vaultSle->at(sfLiquidationCollateral) = pool;
+
+    if (sharesTotal > beast::kZERO)
+    {
+        auto index = vaultLiquidationIndex(*vaultSle);
+        index += F / sharesTotal;
+        vaultSle->at(sfLiquidationIndex) = index;
+        JLOG(j.info()) << "LP liquidation pool += " << forfeitedFalcon << " FALCON; index=" << index
+                       << " shares=" << sharesTotal;
+    }
+    else
+    {
+        JLOG(j.warn()) << "LP liquidation pool += " << forfeitedFalcon
+                       << " FALCON but vault has 0 shares; index unchanged.";
+    }
+    view.update(vaultSle);
+}
+
+Number
+liquidationPendingFalcon(
+    ReadView const& view,
+    SLE::const_ref vaultSle,
+    AccountID const& account)
+{
+    auto const shareMptId = vaultSle->at(sfShareMPTID);
+    Number const shares = shareBalanceNumber(view, *shareMptId, account);
+    if (shares <= beast::kZERO)
+        return Number(0);
+
+    Number const index = vaultLiquidationIndex(*vaultSle);
+    auto const mpt = view.read(keylet::mptoken(*shareMptId, account));
+    if (!mpt)
+        return Number(0);
+
+    Number const debt = mptLiquidationDebt(*mpt, shares, index);
+    Number pending = shares * index - debt;
+    if (pending < beast::kZERO)
+        pending = Number(0);
+
+    auto const pool = vaultSle->at(~sfLiquidationCollateral).value_or(STAmount{XRPAmount{0}});
+    if (pool.native() && pool > beast::kZERO)
+    {
+        Number const poolN = pool.value();
+        if (pending > poolN)
+            pending = poolN;
+    }
+    else
+    {
+        pending = Number(0);
+    }
+    return pending;
+}
+
+void
+adjustLiquidationDebtForShareDelta(
+    ApplyView& view,
+    SLE::const_ref vaultSle,
+    AccountID const& account,
+    Number const& shareDelta,
+    beast::Journal j)
+{
+    if (shareDelta == beast::kZERO)
+        return;
+
+    auto const shareMptId = vaultSle->at(sfShareMPTID);
+    auto mpt = view.peek(keylet::mptoken(*shareMptId, account));
+    if (!mpt)
+        return;
+
+    Number const index = vaultLiquidationIndex(*vaultSle);
+    Number const sharesNow =
+        Number(static_cast<std::int64_t>(mpt->getFieldU64(sfMPTAmount)));
+    Number const sharesBefore = sharesNow - shareDelta;
+    Number debt = mptLiquidationDebt(
+        *mpt, sharesBefore > beast::kZERO ? sharesBefore : Number(0), index);
+    debt += shareDelta * index;
+    if (debt < beast::kZERO)
+        debt = Number(0);
+    mpt->at(sfLiquidationDebt) = debt;
+    view.update(mpt);
+    JLOG(j.trace()) << "adjustLiquidationDebt shareDelta=" << shareDelta << " debt=" << debt;
+}
+
+TER
+claimLiquidationFalcon(
+    ApplyView& view,
+    SLE::ref vaultSle,
+    AccountID const& brokerPseudo,
+    AccountID const& account,
+    std::optional<STAmount> const& maxAmount,
+    beast::Journal j)
+{
+    Number pending = liquidationPendingFalcon(view, vaultSle, account);
+    if (pending <= beast::kZERO)
+    {
+        JLOG(j.warn()) << "No pending liquidation FALCON to claim.";
+        return tecUNFUNDED_PAYMENT;
+    }
+
+    if (maxAmount && maxAmount->native() && *maxAmount > beast::kZERO)
+    {
+        Number const cap = maxAmount->value();
+        if (pending > cap)
+            pending = cap;
+    }
+
+    auto const drops = static_cast<std::int64_t>(pending);
+    if (drops <= 0)
+        return tecPRECISION_LOSS;
+
+    STAmount const pay{XRPAmount{drops}};
+    auto pool = vaultSle->at(~sfLiquidationCollateral).value_or(STAmount{XRPAmount{0}});
+    if (!pool.native() || pool < pay)
+    {
+        JLOG(j.warn()) << "Liquidation pool insufficient for claim.";
+        return tecINSUFFICIENT_FUNDS;
+    }
+
+    if (auto const ter = transferXRP(view, brokerPseudo, account, pay, j))
+        return ter;
+
+    pool -= pay;
+    vaultSle->at(sfLiquidationCollateral) = pool;
+
+    auto const shareMptId = vaultSle->at(sfShareMPTID);
+    auto mpt = view.peek(keylet::mptoken(*shareMptId, account));
+    if (!mpt)
+        return tecNO_ENTRY;
+
+    Number const shares =
+        Number(static_cast<std::int64_t>(mpt->getFieldU64(sfMPTAmount)));
+    Number const index = vaultLiquidationIndex(*vaultSle);
+    Number debt = mptLiquidationDebt(*mpt, shares, index);
+    debt += Number(drops);
+    mpt->at(sfLiquidationDebt) = debt;
+    view.update(mpt);
+    view.update(vaultSle);
+
+    JLOG(j.info()) << "Claimed " << pay << " liquidation FALCON to " << account;
+    return tesSUCCESS;
 }
 
 }  // namespace Lending

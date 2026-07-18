@@ -254,6 +254,10 @@ TYPED_SFIELD(sfPrincipalRequested,       NUMBER,     14)
 TYPED_SFIELD(sfTotalValueOutstanding,    NUMBER,     15, SField::kSMD_NEEDS_ASSET | SField::kSMD_DEFAULT)
 TYPED_SFIELD(sfPeriodicPayment,          NUMBER,     16)
 TYPED_SFIELD(sfManagementFeeOutstanding, NUMBER,     17, SField::kSMD_NEEDS_ASSET | SField::kSMD_DEFAULT)
+// Cumulative FALCON-per-share index for LP liquidation claims (MasterChef-style).
+TYPED_SFIELD(sfLiquidationIndex,         NUMBER,     18, SField::kSMD_DEFAULT)
+// Per-share-holder reward debt for liquidation claims (on vault-share MPToken).
+TYPED_SFIELD(sfLiquidationDebt,          NUMBER,     19, SField::kSMD_DEFAULT)
 
 // int32
 TYPED_SFIELD(sfLoanScale,                INT32,      1)
@@ -301,6 +305,8 @@ TYPED_SFIELD(sfEpochPoolBalance,         AMOUNT,    34) // drops in reward pool 
 TYPED_SFIELD(sfEmissionRate,             AMOUNT,    35) // drops emitted per epoch
 TYPED_SFIELD(sfLastEpochDrop,            AMOUNT,    36) // total drops emitted in previous epoch
 TYPED_SFIELD(sfCollateral,               AMOUNT,    37) // native FALCON locked for a loan
+// Unclaimed forfeited FALCON held for vault LPs (on LoanBroker pseudo).
+TYPED_SFIELD(sfLiquidationCollateral,    AMOUNT,    38)
 
 // variable length (common)
 TYPED_SFIELD(sfPublicKey,                VL,         1)

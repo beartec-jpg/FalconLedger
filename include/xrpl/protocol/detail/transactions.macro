@@ -1077,6 +1077,18 @@ TRANSACTION(ttLOAN_COLLATERAL_DEPOSIT, 83, LoanCollateralDeposit,
     {sfCollateral, SoeRequired},
 }))
 
+/** Vault LP claims forfeited FALCON from the collateral pool (no auto-sell). */
+#if TRANSACTION_INCLUDE
+#   include <xrpl/tx/transactors/vault/VaultClaimCollateral.h>
+#endif
+TRANSACTION(ttVAULT_CLAIM_COLLATERAL, 79, VaultClaimCollateral,
+    Delegation::NotDelegable,
+    featureLendingPermissionless,
+    NoPriv, ({
+    {sfLoanBrokerID, SoeRequired},
+    {sfAmount, SoeOptional},
+}))
+
 /** The Borrower uses this transaction to make a Payment on the Loan. */
 #if TRANSACTION_INCLUDE
 #   include <xrpl/tx/transactors/lending/LoanPay.h>

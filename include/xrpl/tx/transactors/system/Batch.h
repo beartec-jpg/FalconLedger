@@ -63,6 +63,7 @@ public:
         ttLOAN_DELETE,
         ttLOAN_MANAGE,
         ttLOAN_COLLATERAL_DEPOSIT,
+        ttVAULT_CLAIM_COLLATERAL,
         ttLOAN_PAY,
     });
 };

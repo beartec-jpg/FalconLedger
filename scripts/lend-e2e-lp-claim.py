@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 qXRP Team.
 # SPDX-License-Identifier: AGPL-3.0-only
-"""On-ledger E2E: HF-breach default with collateral surplus credited to vault LPs."""
+"""E2E: default forfeits FALCON → vault LP claim pool → VaultClaimCollateral to LP wallet."""
 
 from __future__ import annotations
 
@@ -14,7 +14,6 @@ from pathlib import Path
 
 from lend_epoch_constants import DEFAULT_LOAN_EPOCHS, payment_interval_for_epochs
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
 DROPS = 1_000_000
 CURRENCY = "QUC"
 PUBLIC_RPC = "http://46.224.0.140:6005"
@@ -22,7 +21,6 @@ ADMIN_RPC = "http://127.0.0.1:5005"
 CONTAINER = "qxrp-full"
 TF_LOAN_DEFAULT = 0x00010000
 TF_PARTIAL_PAYMENT = 0x00020000
-HF_LIQUIDATION_BPS = 11000
 
 
 class Rpc:
@@ -52,7 +50,7 @@ class Rpc:
 
 
 def log(msg: str) -> None:
-    print(f"[surplus-e2e] {msg}")
+    print(f"[lp-claim-e2e] {msg}")
 
 
 def sign_submit(rpc: Rpc, secret: str, tx: dict) -> tuple[str, str]:
@@ -111,26 +109,7 @@ def falcon_balance(rpc: Rpc, account: str) -> float:
     return int(r["account_data"]["Balance"]) / DROPS
 
 
-def iou_amount(raw) -> float:
-    if raw is None:
-        return 0.0
-    if isinstance(raw, str):
-        return float(raw)
-    if isinstance(raw, (int, float)):
-        return float(raw)
-    if isinstance(raw, dict):
-        return float(raw.get("value", 0))
-    return 0.0
-
-
-def vault_assets(rpc: Rpc, vault_id: str) -> tuple[float, float]:
-    node = rpc.public_rpc(
-        "ledger_entry", {"index": vault_id, "ledger_index": "validated"}
-    ).get("node", {})
-    return iou_amount(node.get("AssetsTotal")), iou_amount(node.get("AssetsAvailable"))
-
-
-def amm_falcon_per_fusdc(rpc: Rpc, issuer: str) -> float:
+def amm_price(rpc: Rpc, issuer: str) -> float:
     r = rpc.public_rpc("amm_info", {
         "asset": {"currency": "XRP"},
         "asset2": {"currency": CURRENCY, "issuer": issuer},
@@ -145,10 +124,18 @@ def amm_falcon_per_fusdc(rpc: Rpc, issuer: str) -> float:
     return usdc / xrp
 
 
-def hf_bps(collateral_falcon: float, debt_fusdc: float, price: float) -> float:
-    if debt_fusdc <= 0 or collateral_falcon <= 0 or price <= 0:
+def vault_liq_pool(rpc: Rpc, vault_id: str) -> float:
+    node = rpc.public_rpc(
+        "ledger_entry", {"index": vault_id, "ledger_index": "validated"}
+    ).get("node", {})
+    raw = node.get("LiquidationCollateral")
+    if raw is None:
         return 0.0
-    return (collateral_falcon * price / debt_fusdc) * 10000
+    if isinstance(raw, str):
+        return int(raw) / DROPS
+    if isinstance(raw, dict):
+        return float(raw.get("value", 0))
+    return float(raw) / DROPS if float(raw) > 1000 else float(raw)
 
 
 def main() -> int:
@@ -158,6 +145,7 @@ def main() -> int:
     faucet = json.loads(Path("/root/qxrp-bootstrap/faucet.json").read_text())
 
     issuer = st["qUSDC_issuer"]["address"]
+    issuer_sec = st["qUSDC_issuer"]["falcon_secret"]
     broker_id = manifest["loan_broker_id"]
     vault_id = manifest["vault_id"]
     faucet_acct = faucet["account"]
@@ -165,40 +153,65 @@ def main() -> int:
     principal = 5.0
     payment_interval = payment_interval_for_epochs(DEFAULT_LOAN_EPOCHS)
 
+    # Supplier LP (must hold vault shares before default to earn claim)
+    lender, lender_sec = propose_wallet(rpc)
     borrower, borrower_sec = propose_wallet(rpc)
     liquidator, liquidator_sec = propose_wallet(rpc)
-    log(f"borrower={borrower}")
+    log(f"lender={lender} borrower={borrower}")
 
-    for dest in (borrower, liquidator):
-        for amount in (3000, 10000):
-            tx = {
-                **base_tx(rpc, faucet_acct, account_seq(rpc, faucet_acct)),
-                "TransactionType": "Payment",
-                "Destination": dest,
-                "Amount": str(amount * DROPS),
-            }
-            er, h = sign_submit(rpc, faucet_sec, tx)
-            if wait_tx(rpc, h) != "tesSUCCESS":
-                log(f"fund failed {er}")
-                return 1
-            time.sleep(1)
+    for dest, amt in ((lender, 15000), (borrower, 15000), (liquidator, 3000)):
+        tx = {
+            **base_tx(rpc, faucet_acct, account_seq(rpc, faucet_acct)),
+            "TransactionType": "Payment",
+            "Destination": dest,
+            "Amount": str(amt * DROPS),
+        }
+        er, h = sign_submit(rpc, faucet_sec, tx)
+        if wait_tx(rpc, h) != "tesSUCCESS":
+            log(f"fund failed {er}")
+            return 1
+        time.sleep(1)
 
+    for acct, sec in ((lender, lender_sec), (borrower, borrower_sec)):
+        tx = {
+            **base_tx(rpc, acct, account_seq(rpc, acct)),
+            "TransactionType": "TrustSet",
+            "LimitAmount": {"currency": CURRENCY, "issuer": issuer, "value": "1000000"},
+        }
+        er, h = sign_submit(rpc, sec, tx)
+        if wait_tx(rpc, h) != "tesSUCCESS":
+            return 1
+
+    # Mint F-USDC and supply so lender holds LP shares
     tx = {
-        **base_tx(rpc, borrower, account_seq(rpc, borrower)),
-        "TransactionType": "TrustSet",
-        "LimitAmount": {"currency": CURRENCY, "issuer": issuer, "value": "1000000"},
+        **base_tx(rpc, issuer, account_seq(rpc, issuer)),
+        "TransactionType": "Payment",
+        "Destination": lender,
+        "Amount": {"currency": CURRENCY, "issuer": issuer, "value": "50"},
     }
-    er, h = sign_submit(rpc, borrower_sec, tx)
+    er, h = sign_submit(rpc, issuer_sec, tx)
     if wait_tx(rpc, h) != "tesSUCCESS":
         return 1
 
-    price = amm_falcon_per_fusdc(rpc, issuer)
-    # Post at 1.5 HF then dump ~8% of collateral to land just under 1.1 with surplus.
-    falcon_collateral = math.ceil((principal * 1.5 / price) * 1.02)
-    coll_drops = str(int(falcon_collateral * DROPS))
-    log(f"borrow {principal} F-USDC · {falcon_collateral} FALCON @ price {price:.6f}")
+    tx = {
+        **base_tx(rpc, lender, account_seq(rpc, lender)),
+        "TransactionType": "VaultDeposit",
+        "VaultID": vault_id,
+        "Amount": {"currency": CURRENCY, "issuer": issuer, "value": "25"},
+    }
+    er, h = sign_submit(rpc, lender_sec, tx)
+    if wait_tx(rpc, h) != "tesSUCCESS":
+        log(f"supply failed {er}")
+        return 1
+    log("lender supplied 25 F-USDC to vault")
 
-    vault_total_before, vault_avail_before = vault_assets(rpc, vault_id)
+    pool_before = vault_liq_pool(rpc, vault_id)
+    lender_falcon_before = falcon_balance(rpc, lender)
+
+    price = amm_price(rpc, issuer)
+    falcon_collateral = math.ceil((principal * 1.5 / price) * 1.05)
+    coll_drops = str(int(falcon_collateral * DROPS))
+    log(f"borrow {principal} · {falcon_collateral} FALCON coll @ {price:.6f}")
 
     tx = {
         **base_tx(rpc, borrower, account_seq(rpc, borrower), "24"),
@@ -222,61 +235,37 @@ def main() -> int:
         "type": "loan",
         "ledger_index": "validated",
     }).get("account_objects", [])
-    loan = objs[-1]
-    loan_id = loan["index"]
-    debt = float(loan.get("TotalValueOutstanding", principal))
-    pre_hf = hf_bps(falcon_collateral, debt, price) / 10000
-    log(f"loan {loan_id[:16]}… debt={debt:.6f} HF={pre_hf:.3f}")
+    loan_id = objs[-1]["index"]
 
+    # Crash price via AMM dumps
     tx = {
         **base_tx(rpc, faucet_acct, account_seq(rpc, faucet_acct)),
         "TransactionType": "TrustSet",
         "LimitAmount": {"currency": CURRENCY, "issuer": issuer, "value": "1000000"},
     }
     er, h = sign_submit(rpc, faucet_sec, tx)
-    if wait_tx(rpc, h) != "tesSUCCESS":
-        log(f"faucet trust failed {er}")
-        return 1
-
-    crashed = False
-    for swap_falcon in (2000, 4000, 8000, 12000):
-        price = amm_falcon_per_fusdc(rpc, issuer)
-        cur_hf = hf_bps(falcon_collateral, debt, price) / 10000
-        if cur_hf < 1.1:
-            crashed = True
-            break
-        max_usdc = f"{swap_falcon * price * 0.9:.6f}"
-        min_usdc = f"{swap_falcon * price * 0.4:.6f}"
+    wait_tx(rpc, h)
+    time.sleep(1)
+    for swap in (4000, 8000, 12000):
+        price = amm_price(rpc, issuer)
+        max_usdc = f"{swap * price * 0.9:.6f}"
+        min_usdc = f"{swap * price * 0.4:.6f}"
         tx = {
             **base_tx(rpc, faucet_acct, account_seq(rpc, faucet_acct), "24"),
             "TransactionType": "Payment",
             "Destination": faucet_acct,
             "Amount": {"currency": CURRENCY, "issuer": issuer, "value": max_usdc},
-            "SendMax": str(int(swap_falcon * DROPS)),
+            "SendMax": str(int(swap * DROPS)),
             "DeliverMin": {"currency": CURRENCY, "issuer": issuer, "value": min_usdc},
             "Flags": TF_PARTIAL_PAYMENT,
         }
         er, h = sign_submit(rpc, faucet_sec, tx)
-        if wait_tx(rpc, h) != "tesSUCCESS":
-            log(f"amm dump {swap_falcon} failed {er}")
-            continue
-        price = amm_falcon_per_fusdc(rpc, issuer)
-        cur_hf = hf_bps(falcon_collateral, debt, price) / 10000
-        log(f"after {swap_falcon} FALCON dump: price={price:.6f} HF={cur_hf:.3f}")
-        if cur_hf < 1.1:
-            crashed = True
+        wait_tx(rpc, h)
+        price = amm_price(rpc, issuer)
+        hf = falcon_collateral * price / principal
+        log(f"after dump {swap}: price={price:.6f} HF≈{hf:.3f}")
+        if hf < 1.1:
             break
-
-    if not crashed:
-        log("could not breach HF < 1.1 via AMM dump")
-        return 1
-
-    coll_value = falcon_collateral * price
-    expected_surplus = max(0.0, coll_value - debt)
-    log(f"collateral_value={coll_value:.6f} expected_surplus≈{expected_surplus:.6f}")
-    if expected_surplus <= 0.001:
-        log("no collateral surplus expected; adjust dump")
-        return 1
 
     tx = {
         **base_tx(rpc, liquidator, account_seq(rpc, liquidator)),
@@ -285,34 +274,36 @@ def main() -> int:
         "Flags": TF_LOAN_DEFAULT,
     }
     er, h = sign_submit(rpc, liquidator_sec, tx)
-    log(f"default submit {er}")
     if wait_tx(rpc, h) != "tesSUCCESS":
+        log(f"default failed {er}")
         return 1
 
-    # Recovery is FALCON in the LP claim pool (not F-USDC bookkeeping credits).
-    def liq_pool() -> float:
-        node = rpc.public_rpc(
-            "ledger_entry", {"index": vault_id, "ledger_index": "validated"}
-        ).get("node", {})
-        raw = node.get("LiquidationCollateral")
-        if raw is None:
-            return 0.0
-        if isinstance(raw, str):
-            return int(raw) / DROPS
-        return float(raw) / DROPS if float(raw) > 1000 else float(raw)
-
-    pool_after = liq_pool()
-    log(f"vault LiquidationCollateral after default: {pool_after:.4f} FALCON")
-    log(
-        f"vault AssetsTotal: {vault_total_before:.4f} → {vault_assets(rpc, vault_id)[0]:.4f} "
-        f"(F-USDC debt write-down; LPs recover via FALCON claim, not book credits)"
-    )
-
-    if pool_after < falcon_collateral * 0.5:
-        log("expected LiquidationCollateral pool to hold forfeited FALCON for LPs")
+    pool_after = vault_liq_pool(rpc, vault_id)
+    log(f"vault LiquidationCollateral: {pool_before:.4f} → {pool_after:.4f} FALCON")
+    if pool_after < pool_before + falcon_collateral * 0.5:
+        log("expected liquidation pool to rise by ~forfeited FALCON")
         return 1
 
-    log("E2E PASS: default forfeits FALCON into LP claim pool (no auto-sell)")
+    # LP claims FALCON
+    tx = {
+        **base_tx(rpc, lender, account_seq(rpc, lender)),
+        "TransactionType": "VaultClaimCollateral",
+        "LoanBrokerID": broker_id,
+    }
+    er, h = sign_submit(rpc, lender_sec, tx)
+    final = wait_tx(rpc, h)
+    log(f"VaultClaimCollateral: {er} → {final}")
+    if final != "tesSUCCESS":
+        return 1
+
+    lender_falcon_after = falcon_balance(rpc, lender)
+    gained = lender_falcon_after - lender_falcon_before
+    log(f"lender FALCON: {lender_falcon_before:.4f} → {lender_falcon_after:.4f} (Δ {gained:.4f})")
+    if gained < 1.0:
+        log("lender should receive substantial forfeited FALCON as LP")
+        return 1
+
+    log("E2E PASS: default → LP FALCON claim pool → VaultClaimCollateral")
     return 0
 
 
