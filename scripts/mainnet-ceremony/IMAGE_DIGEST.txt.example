@@ -1,0 +1,4 @@
+# After build + push:
+#   docker inspect qxrp/xrpld:lending-v6 --format '{{index .RepoDigests 0}}'
+# Paste full reference here:
+# qxrp/xrpld@sha256:________________________________
