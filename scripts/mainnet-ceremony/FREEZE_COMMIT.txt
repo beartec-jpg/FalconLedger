@@ -1,5 +1,7 @@
-# Auto-written by prepare-mainnet-ceremony.sh — update after final merge.
-# Image build must use this commit (or later freeze tag).
-d0fd17dab02d6a04fd1a5b81e6f2585674e48b74
-# short: d0fd17dab
-# date:  2026-07-21T04:38:09Z
+# Protocol freeze tip for image build (refresh after every security/ops merge).
+# docker build must check out this commit (or a release tag pointing here).
+# Verify: docker run --rm $IMAGE xrpld --version
+#
+# branch: develop
+# includes: Critical slash/claim/bridge + High latency/CI + ops ceremony pack
+c323951e2611bbf03102d50c542b95b736c8ffeb
