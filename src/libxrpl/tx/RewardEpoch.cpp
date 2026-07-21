@@ -265,7 +265,10 @@ applyRewardEpoch(
     // (sfEpochPoolBalance shrinks as validators claim; this stays fixed.)
     sleEpoch->setFieldAmount(
         sfEmissionRate, STAmount{XRPAmount{poolDrops}});
-    sleEpoch->setFieldU32(sfLPAllocationBps, lpAllocBps);
+    // SoeDefault fields must not be explicitly set to 0 (FieldErr abort).
+    // Quiet/bootstrap epochs often have lpAllocBps==0 until LPs appear.
+    if (lpAllocBps != 0)
+        sleEpoch->setFieldU32(sfLPAllocationBps, lpAllocBps);
     if (aggregateLPShares != 0)
         sleEpoch->setFieldU64(sfAggregateLPShares, aggregateLPShares);
     if (ammAllocBps != 0)
