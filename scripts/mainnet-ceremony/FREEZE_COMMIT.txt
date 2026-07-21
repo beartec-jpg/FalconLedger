@@ -1,7 +1,3 @@
-# Protocol freeze tip for image build (refresh after every security/ops merge).
-# docker build must check out this commit (or a release tag pointing here).
+# Protocol freeze tip for image build.
 # Verify: docker run --rm $IMAGE xrpld --version
-#
-# branch: develop
-# includes: Critical + High + ops ceremony pack
-e053b18522447ce4576f54a7bbeb4ef2b6bfe8ad
+c5355f2a163943a7a9cbf19bdd5e01c254bbd00e
