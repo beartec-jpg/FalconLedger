@@ -432,35 +432,55 @@ def rpc_local(method, params=None):
     return json.loads(out)
 
 
-def local_validated_seq():
+def local_server_info():
     try:
-        info = rpc_local("server_info", {})
-        return int(info.get("result", {}).get("info", {}).get("validated_ledger", {}).get("seq", 0))
+        return rpc_local("server_info", {}).get("result", {}).get("info", {}) or {}
     except Exception:
-        return 0
+        return {}
 
 
-def local_complete_ledgers():
-    try:
-        info = rpc_local("server_info", {})
-        return info.get("result", {}).get("info", {}).get("complete_ledgers", "")
-    except Exception:
-        return ""
+def local_sync_progress():
+    """Return (seq, detail, state) for bond readiness.
+
+    Falcon joiners often report validated_ledger=null and complete_ledgers=empty
+    while still proposing/full with a high closed_ledger. Signing only needs a
+    live admin RPC + peers; use closed_ledger as a fallback so bonding is not
+    blocked forever.
+    """
+    info = local_server_info()
+    state = str(info.get("server_state") or "")
+    peers = int(info.get("peers") or 0)
+    ledgers = info.get("complete_ledgers") or ""
+    v = info.get("validated_ledger") or {}
+    c = info.get("closed_ledger") or {}
+    seq = 0
+    if isinstance(v, dict) and v.get("seq") is not None:
+        seq = int(v.get("seq") or 0)
+        detail = ledgers or f"validated:{seq}"
+    elif isinstance(c, dict) and c.get("seq") is not None:
+        seq = int(c.get("seq") or 0)
+        detail = ledgers if ledgers and ledgers != "empty" else f"closed:{seq}"
+    return seq, detail, state, peers
 
 
 def wait_for_local_sync():
-    print("Waiting for local validated ledger (needed for signing)...")
+    print("Waiting for local ledger (validated preferred; closed+peers OK for Falcon joiners)...")
+    ready_states = {"proposing", "full", "tracking", "syncing", "connected"}
     for i in range(120):
-        seq = local_validated_seq()
-        ledgers = local_complete_ledgers()
-        if ledgers and ledgers != "empty" and seq > MIN_SYNC_SEQ:
-            print(f"  Local ledger ready (seq {seq}, {ledgers}).")
+        seq, detail, state, peers = local_sync_progress()
+        # Prefer real complete range; otherwise accept high closed seq while peered.
+        has_range = bool(detail) and detail != "empty" and not detail.startswith("closed:")
+        closed_ok = seq > MIN_SYNC_SEQ and peers >= 1 and state in ready_states
+        if (has_range and seq > MIN_SYNC_SEQ) or closed_ok:
+            print(f"  Local ledger ready (seq {seq}, {detail}, state={state}, peers={peers}).")
             return
         if i % 6 == 0:
-            detail = "catching up" if not ledgers or ledgers == "empty" else ledgers
-            print(f"  … local seq {seq}, ledgers {detail} (need seq > {MIN_SYNC_SEQ})")
+            print(
+                f"  … seq {seq}, {detail or 'no ledger'}, state={state}, "
+                f"peers={peers} (need seq > {MIN_SYNC_SEQ} + peers)"
+            )
         time.sleep(5)
-    print("ERROR: local node has no validated ledger — check: docker logs qxrp-validator")
+    print("ERROR: local node has no usable ledger — check: docker logs qxrp-validator")
     sys.exit(1)
 
 
