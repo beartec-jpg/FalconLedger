@@ -1,3 +1,4 @@
-# Protocol freeze tip for image build.
-# Verify: docker run --rm $IMAGE xrpld --version
-c5355f2a163943a7a9cbf19bdd5e01c254bbd00e
+# Protocol freeze tip for image build (scoring final + compile fix).
+# Verify: docker inspect $IMAGE --format '{{index .Config.Labels "org.opencontainers.image.revision"}}'
+# Also: docker run --rm --entrypoint xrpld $IMAGE --version
+2eef57ea19df46434a4735ff8d749976e695821e
