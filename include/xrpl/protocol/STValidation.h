@@ -175,8 +175,10 @@ STValidation::STValidation(SerialIter& sit, LookupNodeID&& lookupNodeID, bool ch
 {
     if (checkSignature && !isValid())
     {
+        // json::Value has no ostream<< unless json_writer is included;
+        // toStyledString() is always available on Value.
         JLOG(debugLog().error()) << "Invalid signature in validation: "
-                                 << getJson(JsonOptions::Values::None);
+                                 << getJson(JsonOptions::Values::None).toStyledString();
         Throw<std::runtime_error>("Invalid signature in validation");
     }
 
