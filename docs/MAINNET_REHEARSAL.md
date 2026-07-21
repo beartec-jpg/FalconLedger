@@ -2,6 +2,11 @@
 
 **Goal:** Prove genesis → split (2B/1B/1B) → faucet fund → faucet drip → (optional) lend 5%, on a **private throwaway** network. Then **wipe**. Real T0 uses **new keys**.
 
+**Orchestrator (preferred for 8+):** `python3 scripts/ops/rehearsal-e2e.py --phases all`  
+writes `scripts/mainnet-ceremony/dry-runs/REHEARSAL_RESULTS.md`.  
+**Emissions soak:** use `bash scripts/ops/build-fast-epoch-rehearsal.sh` image only — never for real T0.  
+**Launch pin:** `qxrp/xrpld:mainnet-v1` + `scripts/mainnet-ceremony/IMAGE_DIGEST.txt`.
+
 **Not the goal:** Public one-liner, real airdrop clock, or keeping this chain.
 
 ---

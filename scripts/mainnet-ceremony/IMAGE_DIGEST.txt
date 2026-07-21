@@ -1,0 +1,8 @@
+# Auto-recorded after val5 mainnet-v1 build (not yet pushed to registry).
+# git source tip (scoring + STValidation fix): 2eef57ea19df46434a4735ff8d749976e695821e
+# image tags: qxrp/xrpld:mainnet-v1 , qxrp/xrpld:mainnet-v1-2eef57ea1
+# labels: falcon.final=true falcon.scoring=fluid-activeset-k
+# date: 2026-07-21T17:34:43Z
+#
+# Local image id (push to Hub, then replace with RepoDigest):
+qxrp/xrpld:mainnet-v1@local-1ea8dc0baac85b9acc7be657a67879c1247f514e1b77ea1264cca208a17a1e38
