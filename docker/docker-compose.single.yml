@@ -8,7 +8,7 @@ version: "3.9"
 
 services:
   xrpld:
-    image: qxrp/xrpld:latest
+    image: ${QXRP_XRPLD_IMAGE:-qxrp/xrpld:lending-v5}
     container_name: qxrp_single
     restart: unless-stopped
     volumes:

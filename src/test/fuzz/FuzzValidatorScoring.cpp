@@ -35,7 +35,6 @@ static constexpr std::uint32_t kSCORE_WEIGHT_VOTE_ACC  = 30;
 static constexpr std::uint32_t kSCORE_WEIGHT_LATENCY   = 15;
 static constexpr std::uint32_t kSCORE_WEIGHT_CONSISTENCY = 10;
 // Slash-multiplier component (5) is applied as a multiplier, not a weight.
-static constexpr std::uint32_t kLATENCY_NEUTRAL_BPS    = 5'000;  // hard-floor
 
 // ── Inline replica of ValidatorScoring formula ──────────────────────────────
 
@@ -43,20 +42,20 @@ static std::uint32_t
 computeCompositeScore(
     std::uint32_t uptimeBps,
     std::uint32_t voteAccBps,
+    std::uint32_t latencyBps,
     std::uint32_t consistencyBps,
     std::uint32_t slashMult)
 {
     // rawScore = (uptime*40 + voteAcc*30 + latency*15 + consistency*10) / 100
-    // Latency is hard-floored at kLATENCY_NEUTRAL_BPS (5000).
+    // Latency is measured relative to earliest signer (0–10000 bps).
     auto const rawScore = static_cast<std::uint32_t>(
         (static_cast<std::uint64_t>(uptimeBps)        * kSCORE_WEIGHT_UPTIME    +
          static_cast<std::uint64_t>(voteAccBps)       * kSCORE_WEIGHT_VOTE_ACC  +
-         static_cast<std::uint64_t>(kLATENCY_NEUTRAL_BPS) * kSCORE_WEIGHT_LATENCY +
+         static_cast<std::uint64_t>(latencyBps)       * kSCORE_WEIGHT_LATENCY +
          static_cast<std::uint64_t>(consistencyBps)   * kSCORE_WEIGHT_CONSISTENCY) /
         100u);
 
     // compositeScore = rawScore * slashMult / kBPS_DENOM
-    // __int128 prevents overflow even if rawScore and slashMult are both UINT32_MAX.
     auto const compositeScore = static_cast<std::uint32_t>(
         (static_cast<__int128>(rawScore) * slashMult) / kBPS_DENOM);
 
@@ -68,23 +67,26 @@ computeCompositeScore(
 extern "C" int
 LLVMFuzzerTestOneInput(std::uint8_t const* data, std::size_t size)
 {
-    // Need 20 bytes: 4 × uint32 inputs + 4 bytes for validator count.
+    // Need 20 bytes: 5 × uint32 inputs.
     if (size < 20)
         return 0;
 
-    std::uint32_t uptimeBps{}, voteAccBps{}, consistencyBps{}, slashMult{};
+    std::uint32_t uptimeBps{}, voteAccBps{}, latencyBps{}, consistencyBps{}, slashMult{};
     std::memcpy(&uptimeBps,      data,      4);
     std::memcpy(&voteAccBps,     data + 4,  4);
-    std::memcpy(&consistencyBps, data + 8,  4);
-    std::memcpy(&slashMult,      data + 12, 4);
+    std::memcpy(&latencyBps,     data + 8,  4);
+    std::memcpy(&consistencyBps, data + 12, 4);
+    std::memcpy(&slashMult,      data + 16, 4);
 
     // Clamp to valid BPS ranges (mirrors what the on-chain scoring code does).
     uptimeBps      = std::min(uptimeBps,      kBPS_DENOM);
     voteAccBps     = std::min(voteAccBps,     kBPS_DENOM);
+    latencyBps     = std::min(latencyBps,     kBPS_DENOM);
     consistencyBps = std::min(consistencyBps, kBPS_DENOM);
     slashMult      = std::min(slashMult,      kBPS_DENOM);
 
-    auto const score = computeCompositeScore(uptimeBps, voteAccBps, consistencyBps, slashMult);
+    auto const score =
+        computeCompositeScore(uptimeBps, voteAccBps, latencyBps, consistencyBps, slashMult);
 
     // Invariant 1: compositeScore ≤ kBPS_DENOM (can never exceed clean max).
     assert(score <= kBPS_DENOM);
@@ -93,10 +95,10 @@ LLVMFuzzerTestOneInput(std::uint8_t const* data, std::size_t size)
     if (slashMult == kBPS_DENOM)
     {
         auto const rawCheck = static_cast<std::uint32_t>(
-            (static_cast<std::uint64_t>(uptimeBps)            * kSCORE_WEIGHT_UPTIME    +
-             static_cast<std::uint64_t>(voteAccBps)           * kSCORE_WEIGHT_VOTE_ACC  +
-             static_cast<std::uint64_t>(kLATENCY_NEUTRAL_BPS) * kSCORE_WEIGHT_LATENCY  +
-             static_cast<std::uint64_t>(consistencyBps)        * kSCORE_WEIGHT_CONSISTENCY) /
+            (static_cast<std::uint64_t>(uptimeBps)      * kSCORE_WEIGHT_UPTIME    +
+             static_cast<std::uint64_t>(voteAccBps)     * kSCORE_WEIGHT_VOTE_ACC  +
+             static_cast<std::uint64_t>(latencyBps)     * kSCORE_WEIGHT_LATENCY  +
+             static_cast<std::uint64_t>(consistencyBps) * kSCORE_WEIGHT_CONSISTENCY) /
             100u);
         assert(score == rawCheck);
     }
@@ -104,7 +106,7 @@ LLVMFuzzerTestOneInput(std::uint8_t const* data, std::size_t size)
     // Invariant 3: slashing never increases the score.
     {
         auto const cleanScore = computeCompositeScore(
-            uptimeBps, voteAccBps, consistencyBps, kBPS_DENOM);
+            uptimeBps, voteAccBps, latencyBps, consistencyBps, kBPS_DENOM);
         assert(score <= cleanScore);
     }
 

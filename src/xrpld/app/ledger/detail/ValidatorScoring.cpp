@@ -24,9 +24,11 @@
 #include <xrpl/protocol/tokens.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <vector>
 
 namespace xrpl {
@@ -51,10 +53,27 @@ struct ScoringTarget
     NodeID nodeID{};
 };
 
+/** Per-ledger latency bps: 0s behind the earliest signer → 10_000;
+ *  each full second of lag costs kLATENCY_PENALTY_BPS_PER_SEC (floor 0). */
+constexpr std::uint32_t kLATENCY_PENALTY_BPS_PER_SEC = 100;
+/** When a validator published no validations in the window, use this latency. */
+constexpr std::uint32_t kLATENCY_NO_SAMPLE_BPS = 0;
+
+std::uint32_t
+latencyBpsFromDelay(std::uint64_t delaySeconds) noexcept
+{
+    auto const penalty = delaySeconds * kLATENCY_PENALTY_BPS_PER_SEC;
+    if (penalty >= kBPS_DENOM)
+        return 0;
+    return static_cast<std::uint32_t>(kBPS_DENOM - penalty);
+}
+
 void
 scoreBond(
     ScoringTarget& target,
     hash_map<NodeID, std::uint32_t> const& scoreTable,
+    hash_map<NodeID, std::uint64_t> const& latencySumBps,
+    hash_map<NodeID, std::uint32_t> const& latencySamples,
     LedgerIndex seq,
     OpenView& view,
     std::uint32_t& aggregateScore,
@@ -73,14 +92,29 @@ scoreBond(
             kFLAG_LEDGER_INTERVAL),
         kBPS_DENOM);
 
+    // Trusted validations for the canonical ledger hash count as correct votes.
     auto const voteAccBps = uptimeBps;
-    constexpr std::uint32_t kLATENCY_NEUTRAL_BPS = 5'000;
+
+    // Relative latency: average of per-ledger scores vs earliest signer.
+    std::uint32_t latencyBps = kLATENCY_NO_SAMPLE_BPS;
+    if (auto const sit = latencySamples.find(target.nodeID);
+        sit != latencySamples.end() && sit->second > 0)
+    {
+        auto const sumIt = latencySumBps.find(target.nodeID);
+        auto const sum =
+            (sumIt != latencySumBps.end()) ? sumIt->second : std::uint64_t{0};
+        latencyBps = static_cast<std::uint32_t>(sum / sit->second);
+        latencyBps = std::min(latencyBps, kBPS_DENOM);
+    }
+
     auto const consistencyBps = uptimeBps;
 
+    // Weights for the four measured factors sum to 95; slash multiplier (5)
+    // is applied as a post-factor (not an additive weight).
     auto const rawScore = static_cast<std::uint32_t>(
         (static_cast<std::uint64_t>(uptimeBps)      * kSCORE_WEIGHT_UPTIME +
          static_cast<std::uint64_t>(voteAccBps)     * kSCORE_WEIGHT_VOTE_ACC +
-         static_cast<std::uint64_t>(kLATENCY_NEUTRAL_BPS) * kSCORE_WEIGHT_LATENCY +
+         static_cast<std::uint64_t>(latencyBps)     * kSCORE_WEIGHT_LATENCY +
          static_cast<std::uint64_t>(consistencyBps) * kSCORE_WEIGHT_CONSISTENCY) /
         100u);
 
@@ -97,7 +131,7 @@ scoreBond(
     };
     setScore(sfUptimeBps,       uptimeBps);
     setScore(sfVoteAccuracyBps, voteAccBps);
-    setScore(sfLatencyScoreBps, kLATENCY_NEUTRAL_BPS);
+    setScore(sfLatencyScoreBps, latencyBps);
     setScore(sfConsistencyBps,  consistencyBps);
     setScore(sfCompositeScore,  compositeScore);
     sleBond->setFieldU32(sfPreviousTxnLgrSeq, seq);
@@ -106,6 +140,7 @@ scoreBond(
     JLOG(j.info()) << "qXRP ValidatorScoring: account=" << sleBond->getAccountID(sfAccount)
                    << " validations=" << validationCount
                    << " uptimeBps=" << uptimeBps
+                   << " latencyBps=" << latencyBps
                    << " rawScore=" << rawScore
                    << " slashMult=" << slashMult
                    << " compositeScore=" << compositeScore;
@@ -162,9 +197,18 @@ applyValidatorScoring(
     auto const unlKeys = app.getValidators().getTrustedMasterKeys();
 
     hash_map<NodeID, std::uint32_t> scoreTable;
+    hash_map<NodeID, std::uint64_t> latencySumBps;
+    hash_map<NodeID, std::uint32_t> latencySamples;
     scoreTable.reserve(unlKeys.size());
+    latencySumBps.reserve(unlKeys.size());
+    latencySamples.reserve(unlKeys.size());
     for (auto const& k : unlKeys)
-        scoreTable.emplace(calcNodeID(k), std::uint32_t{0});
+    {
+        auto const nid = calcNodeID(k);
+        scoreTable.emplace(nid, std::uint32_t{0});
+        latencySumBps.emplace(nid, std::uint64_t{0});
+        latencySamples.emplace(nid, std::uint32_t{0});
+    }
 
     std::uint32_t totalValsFound = 0;
     for (std::uint32_t i = 0; i < kFLAG_LEDGER_INTERVAL; ++i)
@@ -173,11 +217,40 @@ applyValidatorScoring(
         auto const ancestorSeq  = static_cast<LedgerIndex>(seq - 2 - i);
         auto const vals = validations.getTrustedForLedger(ancestorHash, ancestorSeq);
         totalValsFound += vals.size();
+
+        // Earliest sign time among trusted UNL validators for this ledger.
+        std::optional<NetClock::time_point> earliest;
         for (auto const& v : vals)
         {
             auto const nid = v->getNodeID();
-            if (auto it = scoreTable.find(nid); it != scoreTable.end())
-                ++it->second;
+            if (!scoreTable.count(nid))
+                continue;
+            auto const t = v->getSignTime();
+            if (!earliest || t < *earliest)
+                earliest = t;
+        }
+
+        for (auto const& v : vals)
+        {
+            auto const nid = v->getNodeID();
+            auto it = scoreTable.find(nid);
+            if (it == scoreTable.end())
+                continue;
+            ++it->second;
+
+            // Relative latency vs the fastest trusted signer of this ledger.
+            if (earliest)
+            {
+                auto const t = v->getSignTime();
+                auto const delay = (t > *earliest)
+                    ? std::chrono::duration_cast<std::chrono::seconds>(t - *earliest)
+                          .count()
+                    : std::int64_t{0};
+                auto const delaySec = static_cast<std::uint64_t>(
+                    delay < 0 ? 0 : delay);
+                latencySumBps[nid] += latencyBpsFromDelay(delaySec);
+                ++latencySamples[nid];
+            }
         }
         if (i < 3)
         {
@@ -280,7 +353,15 @@ applyValidatorScoring(
 
     std::uint32_t aggregateScore = 0;
     for (auto& target : targets)
-        scoreBond(target, scoreTable, seq, view, aggregateScore, j);
+        scoreBond(
+            target,
+            scoreTable,
+            latencySumBps,
+            latencySamples,
+            seq,
+            view,
+            aggregateScore,
+            j);
 
     if (auto sleEpoch = std::const_pointer_cast<SLE>(view.read(keylet::rewardEpoch())))
     {

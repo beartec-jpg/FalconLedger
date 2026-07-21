@@ -10,8 +10,13 @@ on:
       - 'src/libxrpl/protocol/PQSecretKey.cpp'
       - 'src/libxrpl/tx/GovernanceTally.cpp'
       - 'src/libxrpl/tx/RewardEpoch.cpp'
+      - 'src/xrpld/app/ledger/detail/ValidatorScoring.cpp'
+      - 'src/xrpld/app/consensus/RCLCxPeerPos.cpp'
       - 'include/xrpl/protocol/QXRPConstants.h'
       - 'src/test/fuzz/Fuzz*.cpp'
+      - 'src/test/app/ValidatorSlashEvidence_test.cpp'
+      - 'src/test/app/FalconProposalSignature_test.cpp'
+      - 'contracts/**'
       - '.github/workflows/qxrp-security.yml'
   pull_request:
     branches: [develop]
@@ -22,8 +27,13 @@ on:
       - 'src/libxrpl/protocol/PQSecretKey.cpp'
       - 'src/libxrpl/tx/GovernanceTally.cpp'
       - 'src/libxrpl/tx/RewardEpoch.cpp'
+      - 'src/xrpld/app/ledger/detail/ValidatorScoring.cpp'
+      - 'src/xrpld/app/consensus/RCLCxPeerPos.cpp'
       - 'include/xrpl/protocol/QXRPConstants.h'
       - 'src/test/fuzz/Fuzz*.cpp'
+      - 'src/test/app/ValidatorSlashEvidence_test.cpp'
+      - 'src/test/app/FalconProposalSignature_test.cpp'
+      - 'contracts/**'
       - '.github/workflows/qxrp-security.yml'
   schedule:
     # Weekly full run every Monday 02:00 UTC
@@ -61,6 +71,8 @@ jobs:
             src/libxrpl/protocol/PQSecretKey.cpp \
             src/libxrpl/tx/GovernanceTally.cpp \
             src/libxrpl/tx/RewardEpoch.cpp \
+            src/xrpld/app/ledger/detail/ValidatorScoring.cpp \
+            src/xrpld/app/consensus/RCLCxPeerPos.cpp \
             2>&1 | tee cppcheck-output.txt
 
       - name: Upload cppcheck report
@@ -106,6 +118,16 @@ jobs:
             $FUZZ_DIR/FuzzClaimReward.cpp \
             -o fuzz_claim_reward
 
+          # FuzzEpochPoolCap — claim hard-cap (C-02).
+          clang++ $FLAGS \
+            $FUZZ_DIR/FuzzEpochPoolCap.cpp \
+            -o fuzz_epoch_pool_cap
+
+          # FuzzFalconStandalone — key/sig shape checks without liboqs (H-02).
+          clang++ $FLAGS \
+            $FUZZ_DIR/FuzzFalconStandalone.cpp \
+            -o fuzz_falcon_standalone
+
       - name: Run FuzzFeeSplit (60s)
         run: |
           mkdir -p corpus/fee_split
@@ -138,6 +160,28 @@ jobs:
             -max_len=64 -timeout=10 -max_total_time=60 \
             -print_final_stats=1
 
+      - name: Run FuzzEpochPoolCap (60s)
+        run: |
+          mkdir -p corpus/pool_cap
+          printf '\x00\xe8\x76\x48\x17\x00\x00\x00\x10\x27\x00\x00\x00\x00\x00\x00\x20\x4e\x00\x00\x00\x00\x00\x00\x00\xe8\x76\x48\x17\x00\x00\x00\x88\x13\x00\x00\x00\x00\x00\x00' > corpus/pool_cap/seed1
+          ./fuzz_epoch_pool_cap corpus/pool_cap/ \
+            -max_len=64 -timeout=10 -max_total_time=60 \
+            -print_final_stats=1
+
+      - name: Run FuzzFalconStandalone (60s)
+        run: |
+          mkdir -p corpus/falcon_shape
+          # Minimal invalid seed
+          printf '\x00\x01\x00\x00\x01\xff' > corpus/falcon_shape/seed_short
+          # Prefixed lengths with garbage body
+          printf '\x03\x82\xfb' > corpus/falcon_shape/seed_fb_prefix
+          dd if=/dev/zero bs=897 count=1 2>/dev/null >> corpus/falcon_shape/seed_fb_prefix || true
+          printf '\x00\x40' >> corpus/falcon_shape/seed_fb_prefix
+          dd if=/dev/urandom bs=64 count=1 2>/dev/null >> corpus/falcon_shape/seed_fb_prefix || true
+          ./fuzz_falcon_standalone corpus/falcon_shape/ \
+            -max_len=4096 -timeout=10 -max_total_time=60 \
+            -print_final_stats=1
+
       - name: Save fuzz corpus (for future runs)
         if: always()
         uses: actions/upload-artifact@v4
@@ -147,6 +191,8 @@ jobs:
             corpus/fee_split/
             corpus/scoring/
             corpus/claim/
+            corpus/pool_cap/
+            corpus/falcon_shape/
 
   # ── Job 3: summary gate ─────────────────────────────────────────────────────
   security-passed:

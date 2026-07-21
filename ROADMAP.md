@@ -82,7 +82,7 @@ chain report) and form the protocol foundation.
 
 ### Proof of Participation hardening
 
-- [ ] Implement real latency measurement (currently hard-floored at 5,000 bps).
+- [x] Latency measurement: relative sign-time vs earliest trusted signer per ledger (epoch average → `sfLatencyScoreBps`).
 - [ ] Enable absence (25%) and invalid-vote (50%) slashing (defined but currently `temDISABLED`).
 - [ ] Address bond-minimum grandfathering edge cases surfaced in testnet.
 

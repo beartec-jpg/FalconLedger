@@ -88,8 +88,8 @@ Epoch emission (epoch ≥ 8)
 | 6 | Bridge-only stables + no bootstrap mint guards | Ops/scripts | Partial |
 | 7 | Neon: run `docs/sql/airdrop-schema.sql` | Ops | Runbook ready; apply ❌ |
 | 8 | Faucet mainnet fund from 1B bucket; env limits | Ops | Partial (code ✅) |
-| 9 | Pin public image + install one-liner uses launch tag | Portal/docs | ❌ defaults still `cid-popl` |
-| 10 | Security freeze + audit of new lending/claim code | Security | ❌ |
+| 9 | Pin public image + install one-liner uses launch tag | Portal/docs | ✅ defaults `lending-v5`; mainnet must set digest via `QXRP_XRPLD_IMAGE` |
+| 10 | Security freeze + audit of new lending/claim code | Security | ⚠️ freeze notes in `MAINNET_SECURITY_FREEZE.md`; external review still recommended |
 
 ### P1 — Airdrop (runs **during** 60 days post-genesis)
 

@@ -54,16 +54,33 @@ mkdir -p corpus/falcon
 ./fuzz_falcon_verify corpus/falcon/ -max_len=8192 -timeout=30
 ```
 
-**TODO (M-01):** Integrate this fuzzer into CI with a time budget on every PR targeting `develop`.
+**CI (H-02):** A **standalone** Falcon shape fuzzer (`FuzzFalconStandalone.cpp`) runs
+on every PR via `.github/workflows/qxrp-security.yml` (no liboqs link required).
+The full `FuzzFalconVerify` target still needs a library build with liboqs —
+run it manually on freeze tags:
+
+```bash
+# After a full build with liboqs:
+clang++ -std=c++20 -fsanitize=fuzzer,address,undefined \
+  -I include FuzzFalconVerify.cpp -o fuzz_falcon_verify \
+  -L build/lib -lxrpl -loqs   # adjust link line for your build
+./fuzz_falcon_verify corpus/falcon/ -max_len=8192 -max_total_time=300
+```
+
+### CI fuzz targets (qxrp-security.yml)
+
+| Target | Linkage | Invariants |
+|--------|---------|------------|
+| FuzzFeeSplit | standalone | burn BPS clamps |
+| FuzzValidatorScoring | standalone | composite score bounds + slash mult |
+| FuzzClaimReward | standalone | shares ≤ emission |
+| FuzzEpochPoolCap | standalone | pay ≤ remaining pool (C-02) |
+| FuzzFalconStandalone | standalone | Falcon key prefix + length shapes |
 
 ### Future Fuzz Targets (High Value)
 
-We should add dedicated fuzzers for:
-
 - Governance proposal / vote parsing and tally logic
-- Fee split and burn BPS calculations under adversarial inputs
-- Validator scoring inputs (uptime, vote accuracy, slash multipliers)
-- ClaimReward share calculations with extreme aggregate scores
+- Full-lib FuzzFalconVerify in CI (needs cached liboqs build)
 
 ## 3. Test Coverage Targets
 
@@ -102,17 +119,19 @@ cppcheck --enable=all --inconclusive \
   src/libxrpl/tx/RewardEpoch.cpp
 ```
 
-## 5. Continuous Integration Recommendations
+## 5. Continuous Integration
 
-We should add a dedicated "qXRP Security" CI job that:
+**Live:** `.github/workflows/qxrp-security.yml` runs cppcheck + ASAN/UBSAN fuzz
+targets on every PR/push that touches the qXRP delta (and weekly on schedule).
 
-1. Builds with `-DSANITIZE=address,undefined`
-2. Runs the full test suite
-3. Runs the Falcon fuzzer for a fixed time budget (e.g. 5–10 minutes)
-4. Runs clang-tidy + cppcheck on qXRP files only
-5. (Future) Generates coverage reports for the qxrp/ directories
+**Still recommended locally before freeze:**
 
-Until this job exists, developers are expected to run sanitizer builds locally before submitting PRs that touch consensus-critical paths.
+1. Full `-DSANITIZE=address,undefined` build + `ctest`
+2. Full-lib FuzzFalconVerify for ≥5 minutes
+3. clang-tidy on qxrp/ translation units
+4. Coverage report for `transactors/qxrp/` (target ≥80%)
+
+See also `docs/MAINNET_SECURITY_FREEZE.md`.
 
 ## 6. Threat Model Focus Areas
 

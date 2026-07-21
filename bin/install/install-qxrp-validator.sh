@@ -10,7 +10,7 @@
 #     --node-name my-validator
 #
 # What it does:
-#   1. Installs Docker (if needed) and pulls qxrp/xrpld:falcon (pinned Falcon build)
+#   1. Installs Docker (if needed) and pulls the pinned Falcon image (never :latest)
 #   2. Falcon smoke tests (local image + validator fleet signature check) — see docs/fleet-image-pinning.md
 #   3. Generates validator + node identity keys
 #   4. Writes config (UNL, bootstrap peers, network 1001)
@@ -21,12 +21,16 @@
 #
 # Recommended: fund the validator address from the faucet (2,000 qXRP drip) BEFORE
 # or AFTER running this script — bonding starts automatically once funded.
+#
+# Mainnet / launch: set QXRP_XRPLD_IMAGE to a digest from IMAGE_DIGEST.txt
+#   export QXRP_XRPLD_IMAGE='qxrp/xrpld@sha256:…'
 
 set -euo pipefail
 
 # ── Defaults (Falcon testnet) ─────────────────────────────────────────────────
-# Pin to the Falcon-capable build — never use floating :latest across a validator fleet.
-DOCKER_IMAGE="${QXRP_XRPLD_IMAGE:-qxrp/xrpld:latest}"
+# Pin to a named release tag — never floating :latest across a validator fleet.
+# Override with QXRP_XRPLD_IMAGE (prefer @sha256: digest for mainnet).
+DOCKER_IMAGE="${QXRP_XRPLD_IMAGE:-qxrp/xrpld:lending-v5}"
 NETWORK_ID=1001
 PUBLIC_RPC="${QXRP_PUBLIC_RPC:-http://46.224.0.140:6005}"
 BOOTSTRAP_PEERS="46.224.0.140:51235,167.233.55.43:51235,204.168.175.194:51235,89.167.109.241:51235"

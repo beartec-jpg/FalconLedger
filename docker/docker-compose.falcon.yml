@@ -11,21 +11,22 @@
 # Both roles share the same xrpld image and the same trusted UNL
 # (cfg/falcon-validators.txt mounted as validators.txt).
 #
-# Build the image first:
-#   docker build -t qxrp/xrpld:latest -f docker/Dockerfile .
+# Build / pin the image (prefer a digest for mainnet):
+#   docker build -t qxrp/xrpld:lending-v5 -f docker/Dockerfile .
+#   export QXRP_XRPLD_IMAGE=qxrp/xrpld@sha256:…
 #
 # Then launch a role:
 #   docker compose -f docker/docker-compose.falcon.yml up validator
 #   docker compose -f docker/docker-compose.falcon.yml up fullhistory
 #
-# Before launch, fill in [validation_seed] in cfg/falcon-validator.cfg and the
-# real validator keys in cfg/falcon-validators.txt.
+# Before launch, fill in [validation_falcon_secret] in cfg/falcon-validator.cfg
+# and the real validator keys in cfg/falcon-validators.txt.
 
 version: "3.9"
 
 services:
   validator:
-    image: qxrp/xrpld:latest
+    image: ${QXRP_XRPLD_IMAGE:-qxrp/xrpld:lending-v5}
     container_name: falcon_validator
     restart: unless-stopped
     volumes:
@@ -39,7 +40,7 @@ services:
     command: ["--conf", "/cfg/xrpld.cfg"]
 
   fullhistory:
-    image: qxrp/xrpld:latest
+    image: ${QXRP_XRPLD_IMAGE:-qxrp/xrpld:lending-v5}
     container_name: falcon_fullhistory
     restart: unless-stopped
     volumes:

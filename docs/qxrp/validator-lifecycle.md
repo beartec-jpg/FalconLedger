@@ -50,26 +50,37 @@
 | 3 | Proven invalid vote | 50 % | `kSLASH_INVALID_VOTE_BPS` |
 
 ### ValidatorSlash
-- Submits a `ValidatorSlash` transaction with cryptographic proof of the offense.
+- Submits a `ValidatorSlash` transaction with **cryptographic proof** of the offense.
+- **DOUBLE_SIGN only** (offense code 1): two Falcon-signed `STValidation` blobs,
+  same consensus key, same ledger sequence, different ledger hashes.
+  ABSENCE / INVALID_VOTE return `temDISABLED` until detection is production-ready.
 - Deducts `slashBps * bondAmount / kBPS_DENOM` from the bond.
-- A double-sign slash (100 %) forces the validator into UNBONDING immediately
-  (`ReleaseBond` is triggered automatically on the next ledger close).
-- Slashed drops go to the treasury.
+- A double-sign slash (100 %) forces the validator into UNBONDING immediately.
+- **Slashed drops are burned** via `destroyXRP` (not paid to the slasher, not
+  credited to the treasury) — removes the profit motive for grief slashing.
 
 ## Composite Score
 
 The composite score determines reward share and ClaimReward eligibility.
 
 ```
-compositeScore = (uptime      * kSCORE_WEIGHT_UPTIME      / 100)
-              + (voteAccuracy * kSCORE_WEIGHT_VOTE_ACC    / 100)
-              + (latencyScore * kSCORE_WEIGHT_LATENCY     / 100)
-              + (consistency  * kSCORE_WEIGHT_CONSISTENCY / 100)
-              + (slashMult    * kSCORE_WEIGHT_SLASH_MULT  / 100)
+rawScore = (uptime      * 40
+         +  voteAccuracy * 30
+         +  latencyScore * 15
+         +  consistency  * 10) / 100
+
+compositeScore = rawScore * slashMultiplier / 10000
 ```
 
-Weights: 40/30/15/10/5 (must sum to 100 — enforced by `static_assert`).
+Additive weights: 40 / 30 / 15 / 10 (slash multiplier is applied separately).
+`kSCORE_WEIGHT_SLASH_MULT` (5) is bookkeeping for the multiplier path, not an
+additive term. Enforced by `static_assert` that all five constants sum to 100.
 
-Scores are written back each epoch by `NegativeUNLVote` and `RCLConsensus`
-into `sfCompositeScore` on the `ltVALIDATOR_BOND` object, and summed into
-`sfAggregateCompositeScore` on the `ltREWARD_EPOCH` object.
+**Latency (on-ledger):** for each ledger in the scoring window, score each
+validator relative to the earliest trusted sign time of that ledger
+(0 s lag → 10_000 bps; −100 bps per second of lag, floor 0). Epoch average
+is written to `sfLatencyScoreBps`.
+
+Scores are written each epoch by `ValidatorScoring` into `sfCompositeScore`
+on the `ltVALIDATOR_BOND` object, and summed into `sfAggregateCompositeScore`
+on the `ltREWARD_EPOCH` object.

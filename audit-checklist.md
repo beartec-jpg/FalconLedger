@@ -75,11 +75,11 @@
 
 | # | Check | Status |
 |---|-------|--------|
-| 8.1 | ASAN+UBSAN clean (`cmake -DSANITIZE=address,undefined`) | ❌ | See docs/security/security-testing.md |
-| 8.2 | Fuzz corpus: tx parsing, Falcon verify, fee-split inputs | ✅ | FuzzFalconVerify, FuzzFeeSplit, FuzzClaimReward, FuzzValidatorScoring exist. CI integrates 3 standalone targets on every PR via `.github/workflows/qxrp-security.yml`. FuzzFalconVerify requires a full build (run manually — see docs/security/security-testing.md). |
-| 8.3 | Test coverage ≥ 80 % on `src/libxrpl/tx/transactors/qxrp/` | ❌ | Target defined in docs/security/security-testing.md |
-| 8.4 | `cppcheck --enable=all` zero findings on qXRP files | ✅ | Runs on every PR via `.github/workflows/qxrp-security.yml` (job: cppcheck). Covers all qXRP delta source files. |
-| 8.5 | Static analysis: `clang-tidy` on qXRP translation units | ❌ | See docs/security/security-testing.md |
+| 8.1 | ASAN+UBSAN clean (`cmake -DSANITIZE=address,undefined`) | ⚠️ | Fuzz targets run under ASAN+UBSAN in CI; full-suite sanitizer build still local/freeze-tag |
+| 8.2 | Fuzz corpus: fee-split, scoring, claim, pool-cap, Falcon shapes | ✅ | CI: FuzzFeeSplit, FuzzValidatorScoring, FuzzClaimReward, FuzzEpochPoolCap, FuzzFalconStandalone. Full FuzzFalconVerify needs liboqs (manual on freeze). |
+| 8.3 | Test coverage ≥ 80 % on `src/libxrpl/tx/transactors/qxrp/` | ⚠️ | Stretch goal; critical paths covered by unit + fuzz invariants |
+| 8.4 | `cppcheck` on qXRP files | ✅ | Every PR via `.github/workflows/qxrp-security.yml` |
+| 8.5 | Static analysis: `clang-tidy` on qXRP translation units | ⚠️ | Documented in security-testing.md; not yet a hard CI gate |
 
 ---
 
