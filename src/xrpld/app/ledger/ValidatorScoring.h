@@ -3,15 +3,17 @@
 //
 // Phase 7 – Validator Reputation Scoring
 //
-// applyValidatorScoring() runs once per epoch boundary (seq % kQXRP_LEDGERS_PER_EPOCH == 0).
-// It builds a 256-ledger validation-count table from RCLValidations, then for each trusted
-// UNL key it:
+// applyValidatorScoring() runs every flag interval (seq % kFLAG_LEDGER_INTERVAL == 0).
+// It measures a 256-ledger window from RCLValidations, then for each trusted UNL key:
 //   1. Looks up ltVALIDATOR_BOND via calcValidatorBondID(pubKey.slice())
 //   2. Falls back to legacy bond/UNL pairing when consensus key != UNL key
-//   3. Computes signal BPS values (uptime, vote accuracy, latency, consistency)
-//   4. Multiplies the raw weighted score by sfSlashMultiplier / kBPS_DENOM
-//   5. Writes updated scoring fields back to ltVALIDATOR_BOND
-//   6. Accumulates sfAggregateCompositeScore into ltREWARD_EPOCH
+//   3. Computes *independent* continuous signals:
+//        uptime (presence), vote accuracy (correct/cast), latency (vs earliest),
+//        consistency (max absence streak)
+//   4. rawScore × slashMultiplier, then EMA-blend with previous composite
+//   5. ActiveSet(K): top-K composites kept; others cleared (components retained)
+//   6. Writes scoring fields to ltVALIDATOR_BOND
+//   7. Sets sfAggregateCompositeScore on ltREWARD_EPOCH from the active set
 
 #pragma once
 

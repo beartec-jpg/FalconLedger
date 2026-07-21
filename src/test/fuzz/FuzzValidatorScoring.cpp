@@ -34,12 +34,13 @@ static constexpr std::uint32_t kSCORE_WEIGHT_UPTIME    = 40;
 static constexpr std::uint32_t kSCORE_WEIGHT_VOTE_ACC  = 30;
 static constexpr std::uint32_t kSCORE_WEIGHT_LATENCY   = 15;
 static constexpr std::uint32_t kSCORE_WEIGHT_CONSISTENCY = 10;
+static constexpr std::uint32_t kSCORE_EMA_NEW_BPS      = 3'500;
 // Slash-multiplier component (5) is applied as a multiplier, not a weight.
 
 // ── Inline replica of ValidatorScoring formula ──────────────────────────────
 
 static std::uint32_t
-computeCompositeScore(
+computeRawSlashed(
     std::uint32_t uptimeBps,
     std::uint32_t voteAccBps,
     std::uint32_t latencyBps,
@@ -47,7 +48,6 @@ computeCompositeScore(
     std::uint32_t slashMult)
 {
     // rawScore = (uptime*40 + voteAcc*30 + latency*15 + consistency*10) / 100
-    // Latency is measured relative to earliest signer (0–10000 bps).
     auto const rawScore = static_cast<std::uint32_t>(
         (static_cast<std::uint64_t>(uptimeBps)        * kSCORE_WEIGHT_UPTIME    +
          static_cast<std::uint64_t>(voteAccBps)       * kSCORE_WEIGHT_VOTE_ACC  +
@@ -55,11 +55,33 @@ computeCompositeScore(
          static_cast<std::uint64_t>(consistencyBps)   * kSCORE_WEIGHT_CONSISTENCY) /
         100u);
 
-    // compositeScore = rawScore * slashMult / kBPS_DENOM
-    auto const compositeScore = static_cast<std::uint32_t>(
+    return static_cast<std::uint32_t>(
         (static_cast<__int128>(rawScore) * slashMult) / kBPS_DENOM);
+}
 
-    return compositeScore;
+static std::uint32_t
+emaComposite(std::uint32_t raw, std::uint32_t previous)
+{
+    if (previous == 0)
+        return raw;
+    return static_cast<std::uint32_t>(
+        (static_cast<std::uint64_t>(raw) * kSCORE_EMA_NEW_BPS +
+         static_cast<std::uint64_t>(previous) * (kBPS_DENOM - kSCORE_EMA_NEW_BPS)) /
+        kBPS_DENOM);
+}
+
+static std::uint32_t
+computeCompositeScore(
+    std::uint32_t uptimeBps,
+    std::uint32_t voteAccBps,
+    std::uint32_t latencyBps,
+    std::uint32_t consistencyBps,
+    std::uint32_t slashMult,
+    std::uint32_t previous = 0)
+{
+    return emaComposite(
+        computeRawSlashed(uptimeBps, voteAccBps, latencyBps, consistencyBps, slashMult),
+        previous);
 }
 
 // ── libFuzzer entry ──────────────────────────────────────────────────────────
@@ -91,7 +113,7 @@ LLVMFuzzerTestOneInput(std::uint8_t const* data, std::size_t size)
     // Invariant 1: compositeScore ≤ kBPS_DENOM (can never exceed clean max).
     assert(score <= kBPS_DENOM);
 
-    // Invariant 2: with a clean slash multiplier (10000) compositeScore == rawScore.
+    // Invariant 2: clean slash + no history → composite == rawScore.
     if (slashMult == kBPS_DENOM)
     {
         auto const rawCheck = static_cast<std::uint32_t>(
@@ -103,11 +125,22 @@ LLVMFuzzerTestOneInput(std::uint8_t const* data, std::size_t size)
         assert(score == rawCheck);
     }
 
-    // Invariant 3: slashing never increases the score.
+    // Invariant 3: slashing never increases the score (same previous).
     {
         auto const cleanScore = computeCompositeScore(
-            uptimeBps, voteAccBps, latencyBps, consistencyBps, kBPS_DENOM);
+            uptimeBps, voteAccBps, latencyBps, consistencyBps, kBPS_DENOM, 0);
         assert(score <= cleanScore);
+    }
+
+    // Invariant 5: EMA is a convex blend (between raw and previous when previous > 0).
+    {
+        auto const raw = computeRawSlashed(
+            uptimeBps, voteAccBps, latencyBps, consistencyBps, slashMult);
+        auto const prev = static_cast<std::uint32_t>(kBPS_DENOM / 2);
+        auto const blended = emaComposite(raw, prev);
+        auto const lo = std::min(raw, prev);
+        auto const hi = std::max(raw, prev);
+        assert(blended >= lo && blended <= hi);
     }
 
     // Invariant 4: aggregate accumulation saturates safely for up to 1000 validators.

@@ -1018,6 +1018,30 @@ public:
         return res;
     }
 
+    /** Get trusted full validations for a ledger sequence (any ledger hash).
+
+        Used by reputation scoring to separate *uptime* (published any full
+        validation for the sequence) from *vote accuracy* (published the
+        canonical hash for that sequence).
+    */
+    std::vector<WrappedValidationType>
+    getTrustedForSequence(Seq const& seq)
+    {
+        std::vector<WrappedValidationType> res;
+        std::scoped_lock const lock{mutex_};
+        auto it = bySequence_.find(seq);
+        if (it == bySequence_.end())
+            return res;
+        bySequence_.touch(it);
+        res.reserve(it->second.size());
+        for (auto const& [_, v] : it->second)
+        {
+            if (v.trusted() && v.full())
+                res.emplace_back(v.unwrap());
+        }
+        return res;
+    }
+
     /** Returns fees reported by trusted full validators in the given ledger
 
         @param ledgerID The identifier of ledger of interest

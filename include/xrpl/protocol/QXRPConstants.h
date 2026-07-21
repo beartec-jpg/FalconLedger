@@ -191,8 +191,10 @@ constexpr std::uint8_t kBOND_STATUS_UNBONDING   = 2;
 // applied separately as a multiplicative slashMultiplier factor (bps / 10_000),
 // not as an additive term in the raw average.
 //
-// Latency (H-05 / L-02): per-epoch relative timing vs the earliest trusted
-// signer of each ledger in the scoring window (see ValidatorScoring.cpp).
+// Signals are independent and continuous (no fixed flat demerits such as
+// "everyone who failed X loses 200"). Latency is relative to the earliest
+// trusted signer; consistency uses max absence streak in the window.
+// Composite is EMA-smoothed across scoring passes so recovery is incremental.
 
 constexpr std::uint32_t kSCORE_WEIGHT_UPTIME      = 40;
 constexpr std::uint32_t kSCORE_WEIGHT_VOTE_ACC    = 30;
@@ -205,6 +207,24 @@ static_assert(
             kSCORE_WEIGHT_CONSISTENCY + kSCORE_WEIGHT_SLASH_MULT ==
         100,
     "Composite score weights must sum to 100");
+
+/// EMA blend for composite: weight of the *new* window sample in bps.
+/// score = (raw * NEW + prev * (10000-NEW)) / 10000.  0 prev → raw only.
+constexpr std::uint32_t kSCORE_EMA_NEW_BPS = 3'500;  // 35 % new / 65 % history
+
+static_assert(kSCORE_EMA_NEW_BPS <= kBPS_DENOM, "EMA new weight must be <= 100%");
+
+/// Relative latency: −1 bps per 10 ms behind earliest signer (≡ −100 bps/s),
+/// continuous (not a single lump for "late"). Floor at 0.
+constexpr std::uint32_t kLATENCY_PENALTY_BPS_PER_10MS = 1;
+
+// ─── Active set (score-ranked proposers / reward-eligible cap) ───────────────
+
+/// Top-K bonded validators by composite score remain reward-eligible
+/// (sfCompositeScore kept). Others keep component metrics for transparency
+/// but composite is cleared so they do not dilute the active set pool.
+/// K must be >= the intended mainnet UNL size; raise only via protocol upgrade.
+constexpr std::uint32_t kQXRP_ACTIVE_SET_K = 32;
 
 // ─── Minimum composite score to claim rewards ────────────────────────────────
 

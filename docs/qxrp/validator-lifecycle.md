@@ -62,6 +62,8 @@
 ## Composite Score
 
 The composite score determines reward share and ClaimReward eligibility.
+Signals are **independent and continuous** — there is no shared flat demerit
+(e.g. “everyone who failed X loses 200 points”).
 
 ```
 rawScore = (uptime      * 40
@@ -69,18 +71,27 @@ rawScore = (uptime      * 40
          +  latencyScore * 15
          +  consistency  * 10) / 100
 
-compositeScore = rawScore * slashMultiplier / 10000
+rawSlashed     = rawScore * slashMultiplier / 10000
+compositeScore = EMA(rawSlashed, previousComposite)
+               // 35 % new window / 65 % history (kSCORE_EMA_NEW_BPS)
 ```
+
+| Signal | Meaning (256-ledger window) |
+|--------|------------------------------|
+| Uptime | Any trusted full validation for the sequence / 256 |
+| Vote accuracy | Canonical-hash votes / votes cast (not / 256) |
+| Latency | Avg vs earliest correct signer (−1 bps / 10 ms lag) |
+| Consistency | 10_000 − max_absence_streak × 10_000 / 256 |
 
 Additive weights: 40 / 30 / 15 / 10 (slash multiplier is applied separately).
 `kSCORE_WEIGHT_SLASH_MULT` (5) is bookkeeping for the multiplier path, not an
 additive term. Enforced by `static_assert` that all five constants sum to 100.
 
-**Latency (on-ledger):** for each ledger in the scoring window, score each
-validator relative to the earliest trusted sign time of that ledger
-(0 s lag → 10_000 bps; −100 bps per second of lag, floor 0). Epoch average
-is written to `sfLatencyScoreBps`.
+**Cadence:** re-scored every `kFLAG_LEDGER_INTERVAL` (256) ledgers so recovery
+after a fix is incremental, not once-per-epoch only.
 
-Scores are written each epoch by `ValidatorScoring` into `sfCompositeScore`
-on the `ltVALIDATOR_BOND` object, and summed into `sfAggregateCompositeScore`
-on the `ltREWARD_EPOCH` object.
+**ActiveSet(K):** after scoring, bonded validators are ranked by composite
+(descending; account id tie-break). Top `kQXRP_ACTIVE_SET_K` (32) keep
+`sfCompositeScore` and contribute to `sfAggregateCompositeScore`. Others keep
+component scores for transparency but composite is cleared (not reward-eligible
+until they rank in the top K again).

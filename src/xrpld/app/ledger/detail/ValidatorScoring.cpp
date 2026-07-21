@@ -2,6 +2,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 // Phase 7 – Validator Reputation Scoring implementation.
+//
+// Fluid / incremental design:
+//   - Independent signals: uptime ≠ vote accuracy ≠ consistency ≠ latency
+//   - Continuous latency (bps vs earliest signer, 10 ms steps)
+//   - Consistency from max absence streak (outages hurt more than scatter)
+//   - EMA of composite so recovery is gradual, not a fixed flat demerit
+//   - ActiveSet(K): top-K by composite keep reward weight; others clear composite
 
 #include <xrpld/app/ledger/ValidatorScoring.h>
 
@@ -53,75 +60,128 @@ struct ScoringTarget
     NodeID nodeID{};
 };
 
-/** Per-ledger latency bps: 0s behind the earliest signer → 10_000;
- *  each full second of lag costs kLATENCY_PENALTY_BPS_PER_SEC (floor 0). */
-constexpr std::uint32_t kLATENCY_PENALTY_BPS_PER_SEC = 100;
-/** When a validator published no validations in the window, use this latency. */
-constexpr std::uint32_t kLATENCY_NO_SAMPLE_BPS = 0;
-
+/** Per-ledger latency bps: 0 ms behind earliest signer → 10_000;
+ *  each 10 ms of lag costs kLATENCY_PENALTY_BPS_PER_10MS (floor 0). */
 std::uint32_t
-latencyBpsFromDelay(std::uint64_t delaySeconds) noexcept
+latencyBpsFromDelayMs(std::uint64_t delayMs) noexcept
 {
-    auto const penalty = delaySeconds * kLATENCY_PENALTY_BPS_PER_SEC;
+    auto const units = delayMs / 10u;
+    auto const penalty = units * kLATENCY_PENALTY_BPS_PER_10MS;
     if (penalty >= kBPS_DENOM)
         return 0;
     return static_cast<std::uint32_t>(kBPS_DENOM - penalty);
 }
 
+/** EMA: blend new raw composite with previous on-bond composite. */
+std::uint32_t
+emaComposite(std::uint32_t raw, std::uint32_t previous) noexcept
+{
+    if (previous == 0)
+        return raw;
+    return static_cast<std::uint32_t>(
+        (static_cast<std::uint64_t>(raw) * kSCORE_EMA_NEW_BPS +
+         static_cast<std::uint64_t>(previous) * (kBPS_DENOM - kSCORE_EMA_NEW_BPS)) /
+        kBPS_DENOM);
+}
+
+/** Consistency from max consecutive absence in the window (continuous). */
+std::uint32_t
+consistencyFromPresence(std::vector<std::uint8_t> const& present) noexcept
+{
+    if (present.empty())
+        return 0;
+
+    std::uint32_t maxGap = 0;
+    std::uint32_t gap = 0;
+    for (auto const bit : present)
+    {
+        if (bit == 0)
+        {
+            ++gap;
+            maxGap = std::max(maxGap, gap);
+        }
+        else
+        {
+            gap = 0;
+        }
+    }
+
+    // Linear continuous penalty: full-window absence → 0; no gap → 10_000.
+    auto const pen = (static_cast<std::uint64_t>(maxGap) * kBPS_DENOM) / present.size();
+    if (pen >= kBPS_DENOM)
+        return 0;
+    return static_cast<std::uint32_t>(kBPS_DENOM - pen);
+}
+
+struct WindowStats
+{
+    std::uint32_t presenceCount = 0;   // any trusted full val for the seq
+    std::uint32_t correctCount = 0;    // signed the canonical ledger hash
+    std::uint64_t latencySumBps = 0;
+    std::uint32_t latencySamples = 0;
+    std::vector<std::uint8_t> present;  // per-ledger in window, 0/1
+};
+
 void
 scoreBond(
     ScoringTarget& target,
-    hash_map<NodeID, std::uint32_t> const& scoreTable,
-    hash_map<NodeID, std::uint64_t> const& latencySumBps,
-    hash_map<NodeID, std::uint32_t> const& latencySamples,
+    hash_map<NodeID, WindowStats> const& stats,
     LedgerIndex seq,
     OpenView& view,
-    std::uint32_t& aggregateScore,
     beast::Journal j)
 {
     auto sleBond = target.bond;
-    auto const validationCount = [&]() -> std::uint32_t {
-        if (auto it = scoreTable.find(target.nodeID); it != scoreTable.end())
-            return it->second;
-        return 0;
-    }();
+
+    WindowStats empty;
+    auto const* st = &empty;
+    if (auto it = stats.find(target.nodeID); it != stats.end())
+        st = &it->second;
+
+    auto const window = static_cast<std::uint32_t>(
+        st->present.empty() ? kFLAG_LEDGER_INTERVAL : st->present.size());
 
     auto const uptimeBps = std::min(
         static_cast<std::uint32_t>(
-            static_cast<std::uint64_t>(validationCount) * kBPS_DENOM /
-            kFLAG_LEDGER_INTERVAL),
+            static_cast<std::uint64_t>(st->presenceCount) * kBPS_DENOM / window),
         kBPS_DENOM);
 
-    // Trusted validations for the canonical ledger hash count as correct votes.
-    auto const voteAccBps = uptimeBps;
-
-    // Relative latency: average of per-ledger scores vs earliest signer.
-    std::uint32_t latencyBps = kLATENCY_NO_SAMPLE_BPS;
-    if (auto const sit = latencySamples.find(target.nodeID);
-        sit != latencySamples.end() && sit->second > 0)
+    // Vote accuracy independent of uptime: correct / votes cast (not / window).
+    // Offline → 0; always-wrong while online → 0 with high uptime.
+    std::uint32_t voteAccBps = 0;
+    if (st->presenceCount > 0)
     {
-        auto const sumIt = latencySumBps.find(target.nodeID);
-        auto const sum =
-            (sumIt != latencySumBps.end()) ? sumIt->second : std::uint64_t{0};
-        latencyBps = static_cast<std::uint32_t>(sum / sit->second);
+        voteAccBps = std::min(
+            static_cast<std::uint32_t>(
+                static_cast<std::uint64_t>(st->correctCount) * kBPS_DENOM /
+                st->presenceCount),
+            kBPS_DENOM);
+    }
+
+    std::uint32_t latencyBps = 0;
+    if (st->latencySamples > 0)
+    {
+        latencyBps = static_cast<std::uint32_t>(st->latencySumBps / st->latencySamples);
         latencyBps = std::min(latencyBps, kBPS_DENOM);
     }
 
-    auto const consistencyBps = uptimeBps;
+    auto const consistencyBps = consistencyFromPresence(st->present);
 
-    // Weights for the four measured factors sum to 95; slash multiplier (5)
-    // is applied as a post-factor (not an additive weight).
     auto const rawScore = static_cast<std::uint32_t>(
-        (static_cast<std::uint64_t>(uptimeBps)      * kSCORE_WEIGHT_UPTIME +
-         static_cast<std::uint64_t>(voteAccBps)     * kSCORE_WEIGHT_VOTE_ACC +
-         static_cast<std::uint64_t>(latencyBps)     * kSCORE_WEIGHT_LATENCY +
+        (static_cast<std::uint64_t>(uptimeBps) * kSCORE_WEIGHT_UPTIME +
+         static_cast<std::uint64_t>(voteAccBps) * kSCORE_WEIGHT_VOTE_ACC +
+         static_cast<std::uint64_t>(latencyBps) * kSCORE_WEIGHT_LATENCY +
          static_cast<std::uint64_t>(consistencyBps) * kSCORE_WEIGHT_CONSISTENCY) /
         100u);
 
     auto const slashMult = sleBond->getFieldU32(sfSlashMultiplier);
-
-    auto const compositeScore = static_cast<std::uint32_t>(
+    auto const rawSlashed = static_cast<std::uint32_t>(
         (static_cast<__int128>(rawScore) * slashMult) / kBPS_DENOM);
+
+    // Incremental recovery / decay: blend with previous composite.
+    auto const previous =
+        sleBond->isFieldPresent(sfCompositeScore) ? sleBond->getFieldU32(sfCompositeScore)
+                                                  : 0u;
+    auto const compositeScore = emaComposite(rawSlashed, previous);
 
     auto setScore = [&](SField const& f, std::uint32_t v) {
         if (v == 0)
@@ -129,26 +189,78 @@ scoreBond(
         else
             sleBond->setFieldU32(f, v);
     };
-    setScore(sfUptimeBps,       uptimeBps);
+    setScore(sfUptimeBps, uptimeBps);
     setScore(sfVoteAccuracyBps, voteAccBps);
     setScore(sfLatencyScoreBps, latencyBps);
-    setScore(sfConsistencyBps,  consistencyBps);
-    setScore(sfCompositeScore,  compositeScore);
+    setScore(sfConsistencyBps, consistencyBps);
+    setScore(sfCompositeScore, compositeScore);
     sleBond->setFieldU32(sfPreviousTxnLgrSeq, seq);
     view.rawReplace(sleBond);
 
     JLOG(j.info()) << "qXRP ValidatorScoring: account=" << sleBond->getAccountID(sfAccount)
-                   << " validations=" << validationCount
-                   << " uptimeBps=" << uptimeBps
-                   << " latencyBps=" << latencyBps
-                   << " rawScore=" << rawScore
-                   << " slashMult=" << slashMult
-                   << " compositeScore=" << compositeScore;
+                   << " presence=" << st->presenceCount << "/" << window
+                   << " correct=" << st->correctCount
+                   << " uptimeBps=" << uptimeBps << " voteAccBps=" << voteAccBps
+                   << " latencyBps=" << latencyBps << " consistencyBps=" << consistencyBps
+                   << " rawScore=" << rawScore << " rawSlashed=" << rawSlashed
+                   << " prevComposite=" << previous << " compositeScore=" << compositeScore
+                   << " slashMult=" << slashMult;
+}
 
-    if (compositeScore <= std::numeric_limits<std::uint32_t>::max() - aggregateScore)
-        aggregateScore += compositeScore;
-    else
-        aggregateScore = std::numeric_limits<std::uint32_t>::max();
+/** Keep only top-K composites for the active set; clear the rest. */
+void
+applyActiveSet(
+    std::vector<ScoringTarget>& targets,
+    OpenView& view,
+    std::uint32_t& aggregateScore,
+    beast::Journal j)
+{
+    aggregateScore = 0;
+    if (targets.empty())
+        return;
+
+    // Sort by composite desc, then account for deterministic ties (no shared flat rank).
+    std::sort(targets.begin(), targets.end(), [](ScoringTarget const& a, ScoringTarget const& b) {
+        auto const ca = a.bond->isFieldPresent(sfCompositeScore)
+            ? a.bond->getFieldU32(sfCompositeScore)
+            : 0u;
+        auto const cb = b.bond->isFieldPresent(sfCompositeScore)
+            ? b.bond->getFieldU32(sfCompositeScore)
+            : 0u;
+        if (ca != cb)
+            return ca > cb;
+        return a.bond->getAccountID(sfAccount) < b.bond->getAccountID(sfAccount);
+    });
+
+    auto const keep = std::min<std::size_t>(kQXRP_ACTIVE_SET_K, targets.size());
+    for (std::size_t i = 0; i < targets.size(); ++i)
+    {
+        auto& sleBond = targets[i].bond;
+        if (i < keep)
+        {
+            auto const c = sleBond->isFieldPresent(sfCompositeScore)
+                ? sleBond->getFieldU32(sfCompositeScore)
+                : 0u;
+            if (c <= std::numeric_limits<std::uint32_t>::max() - aggregateScore)
+                aggregateScore += c;
+            else
+                aggregateScore = std::numeric_limits<std::uint32_t>::max();
+            continue;
+        }
+
+        // Outside ActiveSet(K): keep diagnostic component scores, drop composite.
+        if (sleBond->isFieldPresent(sfCompositeScore))
+        {
+            JLOG(j.info()) << "qXRP ActiveSet: demote account="
+                           << sleBond->getAccountID(sfAccount)
+                           << " rank=" << (i + 1) << " (K=" << kQXRP_ACTIVE_SET_K << ")";
+            sleBond->makeFieldAbsent(sfCompositeScore);
+            view.rawReplace(sleBond);
+        }
+    }
+
+    JLOG(j.info()) << "qXRP ActiveSet: kept=" << keep << " of " << targets.size()
+                   << " aggregateCompositeScore=" << aggregateScore;
 }
 
 }  // namespace
@@ -164,10 +276,11 @@ applyValidatorScoring(
 {
     if (!rules.enabled(featureProofOfParticipation))
         return;
-    if (seq == 0 || seq % kQXRP_LEDGERS_PER_EPOCH != 0)
+    // Fluid cadence: re-score every flag interval (256 ledgers), not only epoch.
+    if (seq == 0 || seq % kFLAG_LEDGER_INTERVAL != 0)
         return;
 
-    JLOG(j.debug()) << "qXRP ValidatorScoring: epoch boundary at ledger " << seq;
+    JLOG(j.debug()) << "qXRP ValidatorScoring: window boundary at ledger " << seq;
 
     auto& validations = app.getValidations();
 
@@ -196,75 +309,86 @@ applyValidatorScoring(
 
     auto const unlKeys = app.getValidators().getTrustedMasterKeys();
 
-    hash_map<NodeID, std::uint32_t> scoreTable;
-    hash_map<NodeID, std::uint64_t> latencySumBps;
-    hash_map<NodeID, std::uint32_t> latencySamples;
-    scoreTable.reserve(unlKeys.size());
-    latencySumBps.reserve(unlKeys.size());
-    latencySamples.reserve(unlKeys.size());
+    hash_map<NodeID, WindowStats> stats;
+    stats.reserve(unlKeys.size());
     for (auto const& k : unlKeys)
     {
-        auto const nid = calcNodeID(k);
-        scoreTable.emplace(nid, std::uint32_t{0});
-        latencySumBps.emplace(nid, std::uint64_t{0});
-        latencySamples.emplace(nid, std::uint32_t{0});
+        auto& s = stats[calcNodeID(k)];
+        s.present.assign(kFLAG_LEDGER_INTERVAL, 0);
     }
 
     std::uint32_t totalValsFound = 0;
     for (std::uint32_t i = 0; i < kFLAG_LEDGER_INTERVAL; ++i)
     {
         auto const ancestorHash = ledgerAncestors[numAncestors - 1 - i];
-        auto const ancestorSeq  = static_cast<LedgerIndex>(seq - 2 - i);
-        auto const vals = validations.getTrustedForLedger(ancestorHash, ancestorSeq);
-        totalValsFound += vals.size();
+        auto const ancestorSeq = static_cast<LedgerIndex>(seq - 2 - i);
 
-        // Earliest sign time among trusted UNL validators for this ledger.
+        // Any trusted full validation at this sequence (uptime / vote cast).
+        auto const anyVals = validations.getTrustedForSequence(ancestorSeq);
+        // Canonical-hash validations (correct vote + latency baseline).
+        auto const correctVals =
+            validations.getTrustedForLedger(ancestorHash, ancestorSeq);
+        totalValsFound += correctVals.size();
+
         std::optional<NetClock::time_point> earliest;
-        for (auto const& v : vals)
+        for (auto const& v : correctVals)
         {
             auto const nid = v->getNodeID();
-            if (!scoreTable.count(nid))
+            if (!stats.count(nid))
                 continue;
             auto const t = v->getSignTime();
             if (!earliest || t < *earliest)
                 earliest = t;
         }
 
-        for (auto const& v : vals)
+        for (auto const& v : anyVals)
         {
             auto const nid = v->getNodeID();
-            auto it = scoreTable.find(nid);
-            if (it == scoreTable.end())
+            auto it = stats.find(nid);
+            if (it == stats.end())
                 continue;
-            ++it->second;
+            if (it->second.present[i] == 0)
+            {
+                it->second.present[i] = 1;
+                ++it->second.presenceCount;
+            }
+        }
 
-            // Relative latency vs the fastest trusted signer of this ledger.
+        for (auto const& v : correctVals)
+        {
+            auto const nid = v->getNodeID();
+            auto it = stats.find(nid);
+            if (it == stats.end())
+                continue;
+            ++it->second.correctCount;
+
             if (earliest)
             {
                 auto const t = v->getSignTime();
                 auto const delay = (t > *earliest)
-                    ? std::chrono::duration_cast<std::chrono::seconds>(t - *earliest)
+                    ? std::chrono::duration_cast<std::chrono::milliseconds>(t - *earliest)
                           .count()
                     : std::int64_t{0};
-                auto const delaySec = static_cast<std::uint64_t>(
-                    delay < 0 ? 0 : delay);
-                latencySumBps[nid] += latencyBpsFromDelay(delaySec);
-                ++latencySamples[nid];
+                auto const delayMs = static_cast<std::uint64_t>(delay < 0 ? 0 : delay);
+                it->second.latencySumBps += latencyBpsFromDelayMs(delayMs);
+                ++it->second.latencySamples;
             }
         }
+
         if (i < 3)
         {
             JLOG(j.info()) << "qXRP ValidatorScoring diag: i=" << i
                            << " ancestorSeq=" << ancestorSeq
                            << " hash=" << ancestorHash
-                           << " valsFound=" << vals.size();
+                           << " anyVals=" << anyVals.size()
+                           << " correctVals=" << correctVals.size();
         }
     }
     JLOG(j.info()) << "qXRP ValidatorScoring diag: seq=" << seq
-                   << " scoreTableSize=" << scoreTable.size()
-                   << " totalValsFoundAcross256=" << totalValsFound;
+                   << " statsSize=" << stats.size()
+                   << " totalCorrectAcross256=" << totalValsFound;
 
-    // ── 2. Map bonded validators → UNL NodeID and score ──
+    // ── Map bonded validators → UNL NodeID and score ──
 
     hash_set<uint256> scoredBondKeys;
     std::vector<ScoringTarget> targets;
@@ -304,7 +428,6 @@ applyValidatorScoring(
         });
     }
 
-    // Legacy: bonds keyed by wallet master (sfAccount) while UNL uses n9.
     for (auto const& sleConst : view.sles)
     {
         if (sleConst->getType() != ltVALIDATOR_BOND)
@@ -316,7 +439,6 @@ applyValidatorScoring(
         legacyBonds.push_back(sleConst);
     }
 
-    // Pair legacy wallet-keyed bonds with unmatched UNL keys (sorted stable).
     if (!legacyBonds.empty() && !legacyUnl.empty())
     {
         std::sort(
@@ -351,17 +473,11 @@ applyValidatorScoring(
         }
     }
 
-    std::uint32_t aggregateScore = 0;
     for (auto& target : targets)
-        scoreBond(
-            target,
-            scoreTable,
-            latencySumBps,
-            latencySamples,
-            seq,
-            view,
-            aggregateScore,
-            j);
+        scoreBond(target, stats, seq, view, j);
+
+    std::uint32_t aggregateScore = 0;
+    applyActiveSet(targets, view, aggregateScore, j);
 
     if (auto sleEpoch = std::const_pointer_cast<SLE>(view.read(keylet::rewardEpoch())))
     {
