@@ -2,8 +2,11 @@
 pragma solidity ^0.8.20;
 
 /// @title FalconCollateralLock
-/// @notice Locks Sepolia USDC until Falcon validators attest and mint (or testnet owner releases).
-/// @dev Testnet v1: deployer is owner. Production: transfer ownership to validator multisig.
+/// @notice Locks EVM USDC until Falcon Ledger mints matching QUC (bridge-in)
+///         and releases USDC after QUC burn/return (bridge-out).
+/// @dev Mainnet-ready custody model: N-of-M owner multi-sig for all privileged
+///      operations (withdraw / release / ownership changes). Testnet can set
+///      required = 1 with a single owner.
 interface IERC20 {
     function transferFrom(address from, address to, uint256 amount) external returns (bool);
     function transfer(address to, uint256 amount) external returns (bool);
@@ -11,7 +14,11 @@ interface IERC20 {
 
 contract FalconCollateralLock {
     IERC20 public immutable usdc;
-    address public owner;
+
+    // ── Multi-sig owners ──────────────────────────────────────────────────
+    mapping(address => bool) public isOwner;
+    address[] public owners;
+    uint256 public required; // confirmations needed (1..owners.length)
 
     struct DepositRecord {
         address sender;
@@ -22,6 +29,13 @@ contract FalconCollateralLock {
 
     mapping(bytes32 => DepositRecord) public deposits;
     uint256 public nextDepositNonce;
+
+    mapping(bytes32 => bool) public processedWithdrawals;
+
+    // opHash => owner => confirmed
+    mapping(bytes32 => mapping(address => bool)) public confirmations;
+    mapping(bytes32 => uint256) public confirmationCount;
+    mapping(bytes32 => bool) public executed;
 
     event DepositCreated(
         bytes32 indexed depositId,
@@ -37,24 +51,47 @@ contract FalconCollateralLock {
         string falconAccount,
         string falconTxHash
     );
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
-
-    mapping(bytes32 => bool) public processedWithdrawals;
+    event OwnerAdded(address indexed owner);
+    event OwnerRemoved(address indexed owner);
+    event RequirementChanged(uint256 required);
+    event OperationConfirmed(bytes32 indexed opHash, address indexed owner, uint256 count);
+    event OperationExecuted(bytes32 indexed opHash);
 
     modifier onlyOwner() {
-        require(msg.sender == owner, "not owner");
+        require(isOwner[msg.sender], "not owner");
         _;
     }
 
-    constructor(address usdcToken) {
+    /// @param usdcToken USDC token address (must not be zero)
+    /// @param initialOwners Multi-sig owner set (unique, non-zero)
+    /// @param requiredConfirmations Threshold in [1, initialOwners.length]
+    constructor(address usdcToken, address[] memory initialOwners, uint256 requiredConfirmations) {
         require(usdcToken != address(0), "zero usdc");
+        require(initialOwners.length > 0, "no owners");
+        require(
+            requiredConfirmations > 0 && requiredConfirmations <= initialOwners.length,
+            "bad required"
+        );
+
         usdc = IERC20(usdcToken);
-        owner = msg.sender;
+        required = requiredConfirmations;
+
+        for (uint256 i = 0; i < initialOwners.length; ++i) {
+            address o = initialOwners[i];
+            require(o != address(0), "zero owner");
+            require(!isOwner[o], "duplicate owner");
+            isOwner[o] = true;
+            owners.push(o);
+            emit OwnerAdded(o);
+        }
+        emit RequirementChanged(requiredConfirmations);
+    }
+
+    function ownerCount() external view returns (uint256) {
+        return owners.length;
     }
 
     /// @notice Lock USDC and tag with the recipient's Falcon Ledger address (r...).
-    /// @param amount USDC amount in token units (6 decimals on Sepolia Circle USDC).
-    /// @param falconAccount Falcon address string, e.g. rN7n7otQDd6FczFgLdlqtyMVQ...
     function deposit(uint256 amount, string calldata falconAccount) external returns (bytes32 depositId) {
         require(amount > 0, "amount required");
         require(bytes(falconAccount).length > 0, "falcon account required");
@@ -81,9 +118,46 @@ contract FalconCollateralLock {
         emit DepositCreated(depositId, msg.sender, amount, falconAccount);
     }
 
-    /// @notice Release USDC after Falcon QUC is returned to the issuer (bridge-out).
-    /// @dev Testnet v1: owner-operated relay. Mainnet: validator multisig attestation.
-    function withdraw(
+    // ── Multi-sig helpers ─────────────────────────────────────────────────
+
+    function _confirm(bytes32 opHash) internal returns (uint256 count) {
+        require(isOwner[msg.sender], "not owner");
+        require(!executed[opHash], "already executed");
+        require(!confirmations[opHash][msg.sender], "already confirmed");
+        confirmations[opHash][msg.sender] = true;
+        count = ++confirmationCount[opHash];
+        emit OperationConfirmed(opHash, msg.sender, count);
+    }
+
+    function _markExecuted(bytes32 opHash) internal {
+        require(confirmationCount[opHash] >= required, "insufficient confirmations");
+        require(!executed[opHash], "already executed");
+        executed[opHash] = true;
+        emit OperationExecuted(opHash);
+    }
+
+    /// @notice Hash for a bridge-out USDC release (after Falcon QUC return).
+    function withdrawOpHash(
+        uint256 amount,
+        address recipient,
+        bytes32 withdrawalId,
+        string calldata falconAccount,
+        string calldata falconTxHash
+    ) public pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                "withdraw",
+                amount,
+                recipient,
+                withdrawalId,
+                falconAccount,
+                falconTxHash
+            )
+        );
+    }
+
+    /// @notice Confirm a withdraw op. Executes automatically at threshold.
+    function confirmWithdraw(
         uint256 amount,
         address recipient,
         bytes32 withdrawalId,
@@ -96,25 +170,120 @@ contract FalconCollateralLock {
         require(bytes(falconAccount).length > 0, "falcon account required");
         require(bytes(falconTxHash).length > 0, "falcon tx required");
 
-        processedWithdrawals[withdrawalId] = true;
-        require(usdc.transfer(recipient, amount), "transfer failed");
-        emit WithdrawalReleased(withdrawalId, recipient, amount, falconAccount, falconTxHash);
+        bytes32 opHash = withdrawOpHash(amount, recipient, withdrawalId, falconAccount, falconTxHash);
+        _confirm(opHash);
+
+        if (confirmationCount[opHash] >= required) {
+            _markExecuted(opHash);
+            processedWithdrawals[withdrawalId] = true;
+            require(usdc.transfer(recipient, amount), "transfer failed");
+            emit WithdrawalReleased(withdrawalId, recipient, amount, falconAccount, falconTxHash);
+        }
     }
 
-    /// @notice Testnet / interim release back to depositor. Replace with validator-signed release on mainnet.
-    function release(bytes32 depositId, address recipient) external onlyOwner {
+    /// @notice Hash for releasing a deposit back to a recipient (refund path).
+    function releaseOpHash(bytes32 depositId, address recipient) public pure returns (bytes32) {
+        return keccak256(abi.encode("release", depositId, recipient));
+    }
+
+    /// @notice Confirm a deposit release. Executes automatically at threshold.
+    function confirmRelease(bytes32 depositId, address recipient) external onlyOwner {
         DepositRecord storage record = deposits[depositId];
         require(record.amount > 0, "unknown deposit");
         require(!record.released, "already released");
+        require(recipient != address(0), "zero recipient");
 
-        record.released = true;
-        require(usdc.transfer(recipient, record.amount), "transfer failed");
-        emit DepositReleased(depositId, recipient, record.amount);
+        bytes32 opHash = releaseOpHash(depositId, recipient);
+        _confirm(opHash);
+
+        if (confirmationCount[opHash] >= required) {
+            _markExecuted(opHash);
+            record.released = true;
+            require(usdc.transfer(recipient, record.amount), "transfer failed");
+            emit DepositReleased(depositId, recipient, record.amount);
+        }
     }
 
-    function transferOwnership(address newOwner) external onlyOwner {
+    // ── Owner set management (also multi-sig) ─────────────────────────────
+
+    function addOwnerOpHash(address newOwner) public pure returns (bytes32) {
+        return keccak256(abi.encode("addOwner", newOwner));
+    }
+
+    function confirmAddOwner(address newOwner) external onlyOwner {
         require(newOwner != address(0), "zero owner");
-        emit OwnershipTransferred(owner, newOwner);
-        owner = newOwner;
+        require(!isOwner[newOwner], "already owner");
+
+        bytes32 opHash = addOwnerOpHash(newOwner);
+        _confirm(opHash);
+
+        if (confirmationCount[opHash] >= required) {
+            _markExecuted(opHash);
+            isOwner[newOwner] = true;
+            owners.push(newOwner);
+            emit OwnerAdded(newOwner);
+        }
+    }
+
+    function removeOwnerOpHash(address ownerToRemove) public pure returns (bytes32) {
+        return keccak256(abi.encode("removeOwner", ownerToRemove));
+    }
+
+    function confirmRemoveOwner(address ownerToRemove) external onlyOwner {
+        require(isOwner[ownerToRemove], "not an owner");
+        require(owners.length > required, "would break threshold");
+
+        bytes32 opHash = removeOwnerOpHash(ownerToRemove);
+        _confirm(opHash);
+
+        if (confirmationCount[opHash] >= required) {
+            _markExecuted(opHash);
+            isOwner[ownerToRemove] = false;
+            for (uint256 i = 0; i < owners.length; ++i) {
+                if (owners[i] == ownerToRemove) {
+                    owners[i] = owners[owners.length - 1];
+                    owners.pop();
+                    break;
+                }
+            }
+            emit OwnerRemoved(ownerToRemove);
+        }
+    }
+
+    function changeRequirementOpHash(uint256 newRequired) public pure returns (bytes32) {
+        return keccak256(abi.encode("changeRequirement", newRequired));
+    }
+
+    function confirmChangeRequirement(uint256 newRequired) external onlyOwner {
+        require(newRequired > 0 && newRequired <= owners.length, "bad required");
+
+        bytes32 opHash = changeRequirementOpHash(newRequired);
+        _confirm(opHash);
+
+        if (confirmationCount[opHash] >= required) {
+            _markExecuted(opHash);
+            required = newRequired;
+            emit RequirementChanged(newRequired);
+        }
+    }
+
+    // ── Legacy single-call aliases (only when required == 1) ──────────────
+    // Kept so 1-of-1 testnet deploys keep a simple API. Mainnet must use
+    // required >= 2 and confirm* functions only.
+
+    function withdraw(
+        uint256 amount,
+        address recipient,
+        bytes32 withdrawalId,
+        string calldata falconAccount,
+        string calldata falconTxHash
+    ) external onlyOwner {
+        require(required == 1, "use confirmWithdraw (multi-sig)");
+        confirmWithdraw(amount, recipient, withdrawalId, falconAccount, falconTxHash);
+    }
+
+    function release(bytes32 depositId, address recipient) external onlyOwner {
+        require(required == 1, "use confirmRelease (multi-sig)");
+        confirmRelease(depositId, recipient);
     }
 }

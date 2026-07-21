@@ -39,9 +39,9 @@
 |---|-------|--------|-------|
 | 4.1 | Only bond owner can call `ValidatorUnbond` | ✅ | `sfAccount` check |
 | 4.2 | `kUNBONDING_LOCK_LEDGERS` (30 days) enforced before fund release | ✅ | `ValidatorUnbond.cpp` |
-| 4.3 | Slash proof is validated before deducting bond | ⚠️ | Proof verification logic needs unit test |
+| 4.3 | Slash proof is validated before deducting bond | ✅ | Falcon STValidation double-sign crypto verify in preclaim/doApply; ABSENCE/INVALID_VOTE return `temDISABLED` |
 | 4.4 | Double-sign slash forces UNBONDING — validator cannot re-bond without `ReleaseBond` | ✅ | `ValidatorSlash.cpp` |
-| 4.5 | Slashed drops go to treasury (not destroyed) | ✅ | `RewardEpoch.cpp` path |
+| 4.5 | Slashed drops are burned (not paid to slasher) | ✅ | `destroyXRP` in `ValidatorSlash.cpp` (anti-griefing) |
 | 4.6 | Minimum bond `kQXRP_MIN_BOND_DROPS` checked in `ValidatorBond` | ✅ | `ValidatorBond.cpp` |
 
 ## 5. Governance Security

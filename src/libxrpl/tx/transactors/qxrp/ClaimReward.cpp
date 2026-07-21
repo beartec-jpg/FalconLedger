@@ -102,11 +102,18 @@ ClaimReward::doApply()
 
     auto const emissionDrops = emissionRate.xrp().drops();
     auto const validatorPoolDrops = muldiv64(emissionDrops, validatorBps, kBPS_DENOM);
-    auto const shareDrops =
+    auto shareDrops =
         muldiv64(validatorPoolDrops, compositeScore, aggregateScore);
 
     if (shareDrops <= 0)
         return tesSUCCESS;  // rounding to zero — no reward to distribute
+
+    // Hard-cap: never pay more than remaining epoch pool commitment (C-02).
+    auto const poolRemaining = poolBalance.xrp().drops();
+    if (poolRemaining <= 0)
+        return tecUNFUNDED;
+    if (shareDrops > poolRemaining)
+        shareDrops = poolRemaining;
 
     // ── Transfer: treasury → validator ───────────────────────────────────
     auto const& kTreasuryID = getTreasuryAccountID();
@@ -115,11 +122,12 @@ ClaimReward::doApply()
     if (!sleTreasury)
         return tefINTERNAL;  // LCOV_EXCL_LINE
 
+    auto const pay = STAmount{XRPAmount{shareDrops}};
     auto const treasuryBalance = sleTreasury->getFieldAmount(sfBalance);
-    if (treasuryBalance < STAmount{XRPAmount{shareDrops}})
+    if (treasuryBalance < pay)
         return tecUNFUNDED;
 
-    sleTreasury->setFieldAmount(sfBalance, treasuryBalance - STAmount{XRPAmount{shareDrops}});
+    sleTreasury->setFieldAmount(sfBalance, treasuryBalance - pay);
     ctx_.view().update(sleTreasury);
 
     auto sleAccount = ctx_.view().peek(keylet::account(account));
@@ -127,13 +135,11 @@ ClaimReward::doApply()
         return tefINTERNAL;  // LCOV_EXCL_LINE
 
     auto const valBalance = sleAccount->getFieldAmount(sfBalance);
-    sleAccount->setFieldAmount(sfBalance, valBalance + STAmount{XRPAmount{shareDrops}});
+    sleAccount->setFieldAmount(sfBalance, valBalance + pay);
     ctx_.view().update(sleAccount);
 
     // ── Deduct from epoch pool ────────────────────────────────────────────
-    sleEpoch->setFieldAmount(
-        sfEpochPoolBalance,
-        poolBalance - STAmount{XRPAmount{shareDrops}});
+    sleEpoch->setFieldAmount(sfEpochPoolBalance, poolBalance - pay);
     sleEpoch->setFieldH256(sfPreviousTxnID, ctx_.tx.getTransactionID());
     sleEpoch->setFieldU32(sfPreviousTxnLgrSeq, view().seq());
     ctx_.view().update(sleEpoch);

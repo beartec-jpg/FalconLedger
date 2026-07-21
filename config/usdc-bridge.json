@@ -1,7 +1,12 @@
 {
-  "version": 1,
+  "version": 2,
   "status": "testnet",
-  "description": "Sepolia USDC → Falcon QUC bridge. Lock on Sepolia; qUSDC issuer mints on Falcon via bridge-deposit-relay.py.",
+  "description": "EVM USDC → Falcon QUC bridge. Lock contract is N-of-M multi-sig (mainnet REQUIRED>=2). Deposit relay mints QUC; withdraw relay confirms multi-sig release.",
+  "custody": {
+    "model": "multisig",
+    "mainnet_min_required": 2,
+    "note": "Deploy with OWNERS=... REQUIRED>=2. Single-EOA (required=1) is testnet-only."
+  },
   "sepolia": {
     "chain_id": 11155111,
     "chain_name": "Sepolia",

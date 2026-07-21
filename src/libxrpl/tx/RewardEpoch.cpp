@@ -212,8 +212,8 @@ applyRewardEpoch(
 
     // ── Epoch pool balance ────────────────────────────────────────────────
     // The pool is a *commitment* from the treasury for this epoch window.
-    // Drops are not physically moved here; ClaimReward draws from the treasury
-    // account directly and checks total claimed vs. sfEpochPoolBalance.
+    // Drops are not physically moved here; claim txs draw from the treasury
+    // and hard-cap each payout to remaining sfEpochPoolBalance (C-02).
     //
     // muldiv64(a, b, d): no overflow because emissionBps <= kBPS_DENOM.
     auto const poolDrops = emissionBps == 0

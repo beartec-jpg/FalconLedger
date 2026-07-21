@@ -4,8 +4,10 @@
 #include <xrpl/tx/transactors/qxrp/ClaimLPReward.h>
 
 #include <xrpl/basics/WideArith.h>
+#include <xrpl/ledger/ReadView.h>
 #include <xrpl/protocol/Feature.h>
 #include <xrpl/protocol/Indexes.h>
+#include <xrpl/protocol/LedgerFormats.h>
 #include <xrpl/protocol/MPTIssue.h>
 #include <xrpl/protocol/QXRPConstants.h>
 #include <xrpl/protocol/SField.h>
@@ -18,6 +20,25 @@
 #include <cstdint>
 
 namespace xrpl {
+namespace {
+
+/** Live sum of outstanding vault share MPT (all vaults). */
+std::uint64_t
+liveAggregateVaultShareSupply(ReadView const& view)
+{
+    std::uint64_t total = 0;
+    for (auto const& sle : view.sles)
+    {
+        if (!sle || sle->getType() != ltVAULT)
+            continue;
+        auto const shareMptID = sle->at(sfShareMPTID);
+        if (auto const sleIssuance = view.read(keylet::mptIssuance(shareMptID)))
+            total += sleIssuance->getFieldU64(sfOutstandingAmount);
+    }
+    return total;
+}
+
+}  // namespace
 
 NotTEC
 ClaimLPReward::preflight(PreflightContext const& ctx)
@@ -83,11 +104,11 @@ ClaimLPReward::doApply()
 
     auto const currentEpoch = sleEpoch->getFieldU32(sfEpochNumber);
     auto const lpAllocBps = sleEpoch->getFieldU32(sfLPAllocationBps);
-    auto const aggregateLPShares = sleEpoch->getFieldU64(sfAggregateLPShares);
+    auto const snapshotLPShares = sleEpoch->getFieldU64(sfAggregateLPShares);
     auto const poolBalance = sleEpoch->getFieldAmount(sfEpochPoolBalance);
     auto const emissionRate = sleEpoch->getFieldAmount(sfEmissionRate);
 
-    if (lpAllocBps == 0 || aggregateLPShares == 0)
+    if (lpAllocBps == 0 || snapshotLPShares == 0)
         return tecNO_PERMISSION;
 
     auto const shareMptID = sleVault->at(sfShareMPTID);
@@ -99,13 +120,28 @@ ClaimLPReward::doApply()
     if (userShares == 0)
         return tecNO_PERMISSION;
 
+    // C-02: use live total outstanding as denominator (at least the snapshot)
+    // so post-epoch minting cannot inflate claims above the basket.
+    auto const liveAgg = liveAggregateVaultShareSupply(ctx_.view());
+    auto const denom = std::max(snapshotLPShares, liveAgg);
+    if (denom == 0)
+        return tecNO_PERMISSION;
+
     auto const emissionDrops = static_cast<std::uint64_t>(
         std::max<std::int64_t>(0, emissionRate.xrp().drops()));
     auto const lpPoolDrops = muldivU64(emissionDrops, lpAllocBps, kBPS_DENOM);
-    auto const shareDrops = muldivU64(lpPoolDrops, userShares, aggregateLPShares);
+    auto shareDrops = muldivU64(lpPoolDrops, userShares, denom);
 
     if (shareDrops == 0)
         return tesSUCCESS;
+
+    // Hard-cap: never exceed remaining epoch pool (C-02).
+    auto const poolRemaining = static_cast<std::uint64_t>(
+        std::max<std::int64_t>(0, poolBalance.xrp().drops()));
+    if (poolRemaining == 0)
+        return tecUNFUNDED;
+    if (shareDrops > poolRemaining)
+        shareDrops = poolRemaining;
 
     auto const& kTreasuryID = getTreasuryAccountID();
 

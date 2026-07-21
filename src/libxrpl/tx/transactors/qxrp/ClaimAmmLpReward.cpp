@@ -4,10 +4,12 @@
 #include <xrpl/tx/transactors/qxrp/ClaimAmmLpReward.h>
 
 #include <xrpl/basics/WideArith.h>
+#include <xrpl/ledger/ReadView.h>
 #include <xrpl/ledger/helpers/AMMHelpers.h>
 #include <xrpl/protocol/AMMCore.h>
 #include <xrpl/protocol/Feature.h>
 #include <xrpl/protocol/Indexes.h>
+#include <xrpl/protocol/LedgerFormats.h>
 #include <xrpl/protocol/QXRPConstants.h>
 #include <xrpl/protocol/SField.h>
 #include <xrpl/protocol/STLedgerEntry.h>
@@ -45,6 +47,24 @@ positiveMantissa(STAmount const& amt)
         return 0;
     auto const m = amt.mantissa();
     return m > 0 ? static_cast<std::uint64_t>(m) : 0;
+}
+
+/** Live TVL across all native (FALCON) AMMs — used as claim denominator floor. */
+std::uint64_t
+liveAggregateNativeAmmTvl(ReadView const& view)
+{
+    std::uint64_t tvl = 0;
+    for (auto const& sle : view.sles)
+    {
+        if (!sle || sle->getType() != ltAMM)
+            continue;
+        Asset const a1 = sle->at(sfAsset);
+        Asset const a2 = sle->at(sfAsset2);
+        if (!a1.native() && !a2.native())
+            continue;
+        tvl += nativeAmmTvlDrops(view, *sle);
+    }
+    return tvl;
 }
 
 }  // namespace
@@ -152,17 +172,32 @@ ClaimAmmLpReward::doApply()
 
     auto const poolTvl = nativeAmmTvlDrops(ctx_.view(), *ammSle);
 
+    // C-02: floor denominator at live aggregate TVL so post-epoch liquidity
+    // adds cannot inflate claims above the AMM basket.
+    auto const liveTvl = liveAggregateNativeAmmTvl(ctx_.view());
+    auto const tvlDenom = std::max(aggregateAmmTvl, liveTvl);
+    if (tvlDenom == 0 || poolTvl == 0)
+        return tecNO_PERMISSION;
+
     auto const emissionDrops = static_cast<std::uint64_t>(
         std::max<std::int64_t>(0, emissionRate.xrp().drops()));
     // ammBasket = emission * ammAllocBps / 10000
     auto const ammBasket = muldivU64(emissionDrops, ammAllocBps, kBPS_DENOM);
-    // poolBasket = ammBasket * poolTvl / aggregateTvl
-    auto const poolBasket = muldivU64(ammBasket, poolTvl, aggregateAmmTvl);
-    // share = poolBasket * userLp / totalLp
-    auto const shareDrops = muldivU64(poolBasket, userMant, totalMant);
+    // poolBasket = ammBasket * poolTvl / tvlDenom
+    auto const poolBasket = muldivU64(ammBasket, poolTvl, tvlDenom);
+    // share = poolBasket * userLp / totalLp (live LP balances)
+    auto shareDrops = muldivU64(poolBasket, userMant, totalMant);
 
     if (shareDrops == 0)
         return tesSUCCESS;
+
+    // Hard-cap: never exceed remaining epoch pool (C-02).
+    auto const poolRemaining = static_cast<std::uint64_t>(
+        std::max<std::int64_t>(0, poolBalance.xrp().drops()));
+    if (poolRemaining == 0)
+        return tecUNFUNDED;
+    if (shareDrops > poolRemaining)
+        shareDrops = poolRemaining;
 
     auto const& kTreasuryID = getTreasuryAccountID();
 
