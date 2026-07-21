@@ -94,6 +94,9 @@ __pycache__
 cfg/*
 # ...except the tracked example/template configs used to build node images.
 !cfg/*-example.*
+!cfg/**/*-example.*
+!cfg/mainnet/
+!cfg/mainnet/**
 !cfg/falcon-validator.cfg
 !cfg/falcon-fullhistory.cfg
 !cfg/falcon-validators.txt
