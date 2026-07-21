@@ -1,0 +1,4 @@
+# Mainnet UNL — Falcon public keys only (hex FB/FC prefix).
+# Copy from ceremony validators/unl-public.txt after key gen.
+#
+# [validator_list_keys] not used when validators_file lists keys directly.

@@ -78,13 +78,22 @@ Repo ships only **templates** (examples). You create the real files locally.
 
 | File | Purpose |
 |------|---------|
+| `NETWORK_ID.txt` | **1026** locked mainnet network id |
+| `FREEZE_COMMIT.txt` | Protocol git SHA for image build |
+| `DEV_CUSTODY.md` | 2-of-3 multi-sig plan for 1B DEV bucket |
+| `DNS_RPC.md` | Hostname / publish checklist |
+| `roles/ROLES.md` | Who runs genesis / portal / keys |
 | `IMAGE_DIGEST.txt.example` | Where to paste Hub digest after push |
-| `portal.env.mainnet.example` | Vercel/env vars for mainnet faucet + airdrop |
+| `portal.env.mainnet.example` | Vercel/env vars (network 1026, drip 100) |
 | `T0-RUNBOOK.md` | Short ordered launch-day script |
+| `validators/*.example` | UNL + peers templates |
+| `dry-runs/` | Offline split plan outputs |
 | `README.md` | This overview |
 
-Copy checklist from repo:
+Refresh pack from repo tip:
 
 ```bash
-cp docs/MAINNET_GO_LIVE_CHECKLIST.md scripts/mainnet-ceremony/CHECKLIST.md
+bash scripts/ops/prepare-mainnet-ceremony.sh
+# or offline USB:
+bash scripts/ops/prepare-mainnet-ceremony.sh /media/usb/falcon-mainnet-ceremony
 ```

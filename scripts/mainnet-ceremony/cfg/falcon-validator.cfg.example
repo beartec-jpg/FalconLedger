@@ -1,0 +1,70 @@
+#
+# Falcon Ledger — MAINNET validator template
+# Copy to offline ceremony pack; fill secrets locally. Never commit secrets.
+#
+# network id must match scripts/mainnet-ceremony/NETWORK_ID.txt (1026)
+#
+
+[network_id]
+1026
+
+[server]
+port_rpc_admin_local
+port_peer
+port_ws_public
+
+[port_rpc_admin_local]
+port = 5005
+ip = 127.0.0.1
+admin = 127.0.0.1
+protocol = http
+
+[port_peer]
+port = 51235
+ip = 0.0.0.0
+protocol = peer
+
+[port_ws_public]
+port = 6006
+ip = 0.0.0.0
+protocol = ws
+
+[node_size]
+medium
+
+[ledger_history]
+256
+
+[node_db]
+type=NuDB
+path=/var/lib/xrpld/db/nudb
+online_delete=512
+advisory_delete=0
+
+[database_path]
+/var/lib/xrpld/db
+
+[debug_logfile]
+/var/log/xrpld/debug.log
+
+# Paste falcon_secret from validation_create / wallet_propose (offline pack only)
+[validation_falcon_secret]
+
+[validators_file]
+validators.txt
+
+[features]
+ProofOfParticipation
+SingleAssetVault
+LendingProtocol
+
+# Fill from ceremony validators/peers.txt at T0
+[ips_fixed]
+# validator-1.example 51235
+# validator-2.example 51235
+
+[rpc_startup]
+{ "command": "log_level", "severity": "warning" }
+
+[ssl_verify]
+1

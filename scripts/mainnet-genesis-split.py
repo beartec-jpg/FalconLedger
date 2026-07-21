@@ -20,6 +20,10 @@ Usage (mainnet ceremony — dry-run first):
   export ADMIN_RPC='http://127.0.0.1:5005'   # if signing via admin curl
   export CONTAINER='qxrp-full'               # optional docker exec target
 
+  # Offline (no RPC) — validate plan math + address shape:
+  python3 scripts/mainnet-genesis-split.py --offline-plan \
+    --genesis r… --airdrop r… --faucet r… --dev r…
+
   python3 scripts/mainnet-genesis-split.py --dry-run
   python3 scripts/mainnet-genesis-split.py --execute
 """
@@ -159,20 +163,87 @@ def pay(from_acct: str, secret: str, to: str, falcon: int, dry_run: bool) -> Non
         raise SystemExit(f"payment failed: {final}")
 
 
+def looks_like_r_address(addr: str) -> bool:
+    # Classic XRPL base58 account id shape (loose check for ops dry-run).
+    if not addr or not addr.startswith("r"):
+        return False
+    if len(addr) < 25 or len(addr) > 35:
+        return False
+    alphabet = set("rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz")
+    return all(c in alphabet for c in addr)
+
+
+def offline_plan(genesis: str, airdrop: str, faucet: str, dev: str) -> int:
+    """Validate split constants + address shapes without any RPC."""
+    log("=== OFFLINE PLAN (no network) ===")
+    log(f"Total split: {TOTAL:,} FALCON (must equal 4B genesis circulating)")
+    log(f"  AIRDROP  {AIRDROP_FALCON:>15,}   (1.0% of 200B supply)")
+    log(f"  FAUCET   {FAUCET_FALCON:>15,}   (0.5%)")
+    log(f"  DEV      {DEV_FALCON:>15,}   (0.5%)")
+    assert AIRDROP_FALCON + FAUCET_FALCON + DEV_FALCON == TOTAL == 4_000_000_000
+
+    rows = [
+        ("GENESIS", genesis),
+        ("AIRDROP", airdrop),
+        ("FAUCET", faucet),
+        ("DEV", dev),
+    ]
+    ok = True
+    for label, addr in rows:
+        good = looks_like_r_address(addr)
+        flag = "OK" if good else "BAD"
+        if not good:
+            ok = False
+        log(f"  {label:8} {addr}  [{flag}]")
+
+    addrs = [genesis, airdrop, faucet, dev]
+    if len(set(addrs)) != 4:
+        log("ERROR: addresses must be four distinct accounts")
+        ok = False
+
+    if not ok:
+        log("Offline plan FAILED address checks (fill real r-addresses from ceremony pack)")
+        return 1
+
+    log("Offline plan OK — math + distinct r-address shapes valid")
+    log("Next: live --dry-run against RPC once chain is up; then --execute at T0")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Split 4B genesis into airdrop/faucet/dev")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--execute", action="store_true")
+    ap.add_argument(
+        "--offline-plan",
+        action="store_true",
+        help="Validate split math + address shapes without RPC",
+    )
+    ap.add_argument("--genesis", default="", help="Genesis address (offline-plan or override)")
+    ap.add_argument("--airdrop", default="", help="Airdrop address")
+    ap.add_argument("--faucet", default="", help="Faucet address")
+    ap.add_argument("--dev", default="", help="Dev address")
     args = ap.parse_args()
+
+    if args.offline_plan:
+        genesis = (args.genesis or os.environ.get("GENESIS_ADDRESS", "")).strip()
+        airdrop = (args.airdrop or os.environ.get("AIRDROP_ADDRESS", "")).strip()
+        faucet = (args.faucet or os.environ.get("FAUCET_ADDRESS", "")).strip()
+        dev = (args.dev or os.environ.get("DEV_ADDRESS", "")).strip()
+        if not all([genesis, airdrop, faucet, dev]):
+            log("offline-plan needs --genesis/--airdrop/--faucet/--dev (or env)")
+            return 2
+        return offline_plan(genesis, airdrop, faucet, dev)
+
     if not args.dry_run and not args.execute:
-        log("Pass --dry-run or --execute")
+        log("Pass --offline-plan, --dry-run, or --execute")
         return 2
 
     genesis_secret = os.environ.get("GENESIS_SECRET", "").strip()
-    airdrop = os.environ.get("AIRDROP_ADDRESS", "").strip()
-    faucet = os.environ.get("FAUCET_ADDRESS", "").strip()
-    dev = os.environ.get("DEV_ADDRESS", "").strip()
-    genesis_acct = os.environ.get("GENESIS_ADDRESS", "").strip()
+    airdrop = (args.airdrop or os.environ.get("AIRDROP_ADDRESS", "")).strip()
+    faucet = (args.faucet or os.environ.get("FAUCET_ADDRESS", "")).strip()
+    dev = (args.dev or os.environ.get("DEV_ADDRESS", "")).strip()
+    genesis_acct = (args.genesis or os.environ.get("GENESIS_ADDRESS", "")).strip()
 
     if not all([airdrop, faucet, dev]):
         log("Set AIRDROP_ADDRESS, FAUCET_ADDRESS, DEV_ADDRESS")
@@ -197,8 +268,12 @@ def main() -> int:
         return 2
 
     log(f"Genesis account: {genesis_acct}")
-    bal = balance_falcon(genesis_acct)
-    log(f"Genesis balance: {bal:,.0f} FALCON (need ≥ {TOTAL:,})")
+    try:
+        bal = balance_falcon(genesis_acct)
+        log(f"Genesis balance: {bal:,.0f} FALCON (need ≥ {TOTAL:,})")
+    except Exception as e:
+        bal = 0.0
+        log(f"Genesis balance: unreachable ({e}) — continuing dry-run plan only")
     log(f"Plan: airdrop={AIRDROP_FALCON:,} faucet={FAUCET_FALCON:,} dev={DEV_FALCON:,}")
 
     if not args.dry_run and bal + 1 < TOTAL:

@@ -1,0 +1,11 @@
+[genesis-split] === OFFLINE PLAN (no network) ===
+[genesis-split] Total split: 4,000,000,000 FALCON (must equal 4B genesis circulating)
+[genesis-split]   AIRDROP    2,000,000,000   (1.0% of 200B supply)
+[genesis-split]   FAUCET     1,000,000,000   (0.5%)
+[genesis-split]   DEV        1,000,000,000   (0.5%)
+[genesis-split]   GENESIS  rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh  [OK]
+[genesis-split]   AIRDROP  rN7n7otQDd6FczFgLdLN8Nua9eK2vmH1i1  [OK]
+[genesis-split]   FAUCET   rLNaPoKeeBjZe2qs6x52yVPZpZ8td4dc6w  [OK]
+[genesis-split]   DEV      rPEPPER7kfTD9w2To4CQk6UCfuHM9c6GDY  [OK]
+[genesis-split] Offline plan OK — math + distinct r-address shapes valid
+[genesis-split] Next: live --dry-run against RPC once chain is up; then --execute at T0

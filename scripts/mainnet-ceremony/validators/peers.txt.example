@@ -1,0 +1,5 @@
+# Bootstrap peers for [ips_fixed] — fill at T0 (host:port or IP port).
+# Keep private until launch if you do not want early scanners.
+#
+# example.validator-1.falcon.example 51235
+# example.validator-2.falcon.example 51235

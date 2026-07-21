@@ -1,0 +1,6 @@
+# Never commit secrets if this folder is inside a git worktree
+*.secret
+portal.env.mainnet
+IMAGE_DIGEST.txt
+validators/secrets/**
+!validators/secrets/.gitkeep

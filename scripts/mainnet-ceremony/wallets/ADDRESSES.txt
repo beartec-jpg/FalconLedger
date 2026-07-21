@@ -1,0 +1,13 @@
+# Public addresses only — safe to share among operators.
+# Secrets: NEVER in git. Generate offline → wallets/*.secret (local pack only).
+#
+# Fill after Falcon wallet_propose on a freeze-image node:
+#
+GENESIS_ADDRESS=r______________________________
+AIRDROP_ADDRESS=r______________________________
+FAUCET_ADDRESS=r______________________________
+DEV_ADDRESS=r______________________________
+#
+# Optional hot wallets (funded later from buckets):
+FAUCET_HOT_ADDRESS=r______________________________
+OPS_HOT_ADDRESS=r______________________________

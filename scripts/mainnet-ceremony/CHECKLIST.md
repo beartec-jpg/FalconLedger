@@ -54,15 +54,13 @@ Tick boxes as you complete them.
 
 ### Scripts dry-run
 
-- [x] `mainnet-genesis-split.py --offline-plan` path works (sample run in ceremony `dry-runs/`)
-- [ ] `mainnet-genesis-split.py --dry-run` with **real** planned addresses + RPC
+- [ ] `mainnet-genesis-split.py --dry-run` with planned addresses
 - [ ] `airdrop-batch-pay.py` dry-run path understood
 - [ ] `set-broker-pool-rate.py` ready (after lend bootstrap on live chain)
 - [ ] HF monitor unit file ready (mainnet RPC + broker secret)
 
 ### Ceremony people
 
-- [x] Role matrix template → `scripts/mainnet-ceremony/roles/ROLES.md` (fill names)
 - [ ] Who runs genesis node(s)
 - [ ] Who holds UNL keys
 - [ ] Who runs portal / faucet

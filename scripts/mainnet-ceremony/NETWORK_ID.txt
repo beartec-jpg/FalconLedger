@@ -1,0 +1,11 @@
+# Falcon Ledger mainnet network id (locked for launch planning).
+# Must match:
+#   - node cfg [network_id]
+#   - NEXT_PUBLIC_MAINNET_NETWORK_ID / portal env
+#   - peer handshake NetworkID
+#
+# Distinct from:
+#   XRPL mainnet = 0
+#   Falcon testnet (this fleet) = 1001
+#
+1026

@@ -1,0 +1,8 @@
+# Falcon mainnet UNL — public keys only (uppercase hex, FB/FC prefix).
+# One key per line. Paste into validators.txt on every node.
+# DO NOT put falcon_secret here.
+#
+# Example (fake — replace with real keys from validation_create):
+# FB0123ABCDEF...
+#
+# Quorum guidance: for N validators, typical quorum is ceil(N*0.8) or project policy.
