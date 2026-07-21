@@ -133,4 +133,9 @@ Recommend a third-party review focused on:
 
 ---
 
+## 7. Path from protocol 7.5 → 8.5+
+
+See **`docs/PROTOCOL_READINESS_7_5_PLAN.md`** (items 1–12): image pin, soak,
+adversarial checklist, ASAN, design deferrals, external audit scope.
+
 *Update this file when the freeze commit SHA and image digest are final.*
