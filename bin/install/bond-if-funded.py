@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Wait for funding + local sync, then bond via sign (local) + submit (public RPC)."""
+"""Wait for funding + local sync, then bond via sign (local) + submit (public RPC).
+
+Falcon joiners often have no validated/current ledger for online sign().
+We sign offline with Sequence/LastLedgerSequence taken from the public RPC.
+"""
 import json
 import subprocess
 import sys
@@ -39,13 +43,7 @@ def local_server_info():
 
 
 def local_sync_progress():
-    """Return (seq, detail, state) for bond readiness.
-
-    Falcon joiners often report validated_ledger=null and complete_ledgers=empty
-    while still proposing/full with a high closed_ledger. Signing only needs a
-    live admin RPC + peers; use closed_ledger as a fallback so bonding is not
-    blocked forever.
-    """
+    """Return (seq, detail, state, peers) for bond readiness."""
     info = local_server_info()
     state = str(info.get("server_state") or "")
     peers = int(info.get("peers") or 0)
@@ -67,7 +65,6 @@ def wait_for_local_sync():
     ready_states = {"proposing", "full", "tracking", "syncing", "connected"}
     for i in range(120):
         seq, detail, state, peers = local_sync_progress()
-        # Prefer real complete range; otherwise accept high closed seq while peered.
         has_range = bool(detail) and detail != "empty" and not detail.startswith("closed:")
         closed_ok = seq > MIN_SYNC_SEQ and peers >= 1 and state in ready_states
         if (has_range and seq > MIN_SYNC_SEQ) or closed_ok:
@@ -83,9 +80,47 @@ def wait_for_local_sync():
     sys.exit(1)
 
 
+def public_account_sequence(account):
+    info = rpc(PUBLIC_RPC, "account_info", {"account": account, "ledger_index": "validated"})
+    result = info.get("result", info)
+    if result.get("error"):
+        raise RuntimeError(
+            f"account_info: {result.get('error')}: {result.get('error_message', '')}"
+        )
+    return int(result["account_data"]["Sequence"])
+
+
+def public_validated_seq():
+    info = rpc(PUBLIC_RPC, "server_info", {})
+    v = info.get("result", {}).get("info", {}).get("validated_ledger") or {}
+    if not isinstance(v, dict) or v.get("seq") is None:
+        raise RuntimeError("public RPC has no validated_ledger")
+    return int(v["seq"])
+
+
+def fill_tx_for_offline_sign(tx_json, account):
+    """Fill Sequence / LastLedgerSequence from public network so local offline sign works."""
+    seq = public_account_sequence(account)
+    ledger = public_validated_seq()
+    tx_json = dict(tx_json)
+    tx_json["Sequence"] = seq
+    tx_json.setdefault("Fee", "12")
+    # Leave room for a few ledger closes while the tx is in flight.
+    tx_json["LastLedgerSequence"] = ledger + 20
+    print(f"  Offline sign fields: Sequence={seq}, LastLedgerSequence={ledger + 20}")
+    return tx_json
+
+
 def sign_and_submit_public(tx_json, falcon_secret):
-    """Sign on local admin RPC; broadcast signed blob via public RPC."""
-    sign = rpc_local("sign", {"tx_json": tx_json, "falcon_secret": falcon_secret})
+    """Sign offline on local admin RPC; broadcast signed blob via public RPC."""
+    sign = rpc_local(
+        "sign",
+        {
+            "tx_json": tx_json,
+            "falcon_secret": falcon_secret,
+            "offline": True,
+        },
+    )
     result = sign.get("result", sign)
     if result.get("error"):
         err = result.get("error", "error")
@@ -121,7 +156,7 @@ def main():
             if bal >= MIN_FUND:
                 print(f"Funded: {bal / 1_000_000} qXRP")
                 break
-        except (urllib.error.URLError, KeyError, ValueError):
+        except (urllib.error.URLError, KeyError, ValueError, RuntimeError):
             bal = 0
         if i % 6 == 0:
             print(f"  … balance {bal} drops (need {MIN_FUND})")
@@ -134,13 +169,17 @@ def main():
 
     print("Submitting ValidatorRegister...")
     try:
-        eng, msg = sign_and_submit_public({
-            "TransactionType": "ValidatorRegister",
-            "Account": account,
-            "PublicKey": falcon_pk,
-            "ConsensusKey": consensus,
-            "Fee": "12",
-        }, falcon_secret)
+        tx = fill_tx_for_offline_sign(
+            {
+                "TransactionType": "ValidatorRegister",
+                "Account": account,
+                "PublicKey": falcon_pk,
+                "ConsensusKey": consensus,
+                "Fee": "12",
+            },
+            account,
+        )
+        eng, msg = sign_and_submit_public(tx, falcon_secret)
     except RuntimeError as e:
         print(f"  ValidatorRegister: error — {e}")
         sys.exit(1)
@@ -151,13 +190,18 @@ def main():
 
     print("Submitting ValidatorBond (1,000 qXRP)...")
     try:
-        eng, msg = sign_and_submit_public({
-            "TransactionType": "ValidatorBond",
-            "Account": account,
-            "ConsensusKey": consensus,
-            "BondedAmount": str(MIN_BOND),
-            "Fee": "12",
-        }, falcon_secret)
+        # Sequence advanced after successful register (or same if duplicate).
+        tx = fill_tx_for_offline_sign(
+            {
+                "TransactionType": "ValidatorBond",
+                "Account": account,
+                "ConsensusKey": consensus,
+                "BondedAmount": str(MIN_BOND),
+                "Fee": "12",
+            },
+            account,
+        )
+        eng, msg = sign_and_submit_public(tx, falcon_secret)
     except RuntimeError as e:
         print(f"  ValidatorBond: error — {e}")
         sys.exit(1)
