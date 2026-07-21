@@ -363,25 +363,44 @@ echo "Restarting validator (Falcon-only identity, tracking mode)..."
 (cd /var/lib/qxrp-validator && dc up -d --force-recreate)
 
 echo "Waiting for ledger sync before enabling validation (up to 10 min)..."
+# Falcon joiners often never populate validated_ledger/complete_ledgers even when
+# proposing with a high closed_ledger. Accept closed+peers as "synced enough".
 SYNCED=0
 for i in $(seq 1 120); do
   INFO=$(docker exec qxrp-validator curl -sf -X POST http://127.0.0.1:5005 \
     -H 'Content-Type: application/json' \
     -d '{"method":"server_info","params":[{}]}' 2>/dev/null || echo '{}')
-  STATE=$(echo "$INFO" | python3 -c "import sys,json; print(json.load(sys.stdin).get('result',{}).get('info',{}).get('server_state',''))" 2>/dev/null || echo "")
-  SEQ=$(echo "$INFO" | python3 -c "import sys,json; print(json.load(sys.stdin).get('result',{}).get('info',{}).get('validated_ledger',{}).get('seq',0))" 2>/dev/null || echo "0")
-  LEDGERS=$(echo "$INFO" | python3 -c "import sys,json; print(json.load(sys.stdin).get('result',{}).get('info',{}).get('complete_ledgers',''))" 2>/dev/null || echo "")
+  eval "$(echo "$INFO" | python3 -c "
+import sys, json
+i=json.load(sys.stdin).get('result',{}).get('info',{}) or {}
+v=i.get('validated_ledger') or {}
+c=i.get('closed_ledger') or {}
+seq=int((v.get('seq') if isinstance(v,dict) else 0) or (c.get('seq') if isinstance(c,dict) else 0) or 0)
+ledgers=i.get('complete_ledgers') or ''
+state=i.get('server_state') or ''
+peers=int(i.get('peers') or 0)
+src='validated' if isinstance(v,dict) and v.get('seq') else ('closed' if seq else 'none')
+print(f'STATE={state!r}')
+print(f'SEQ={seq}')
+print(f'LEDGERS={ledgers!r}')
+print(f'PEERS={peers}')
+print(f'SRC={src!r}')
+" 2>/dev/null || echo "STATE=''; SEQ=0; LEDGERS=''; PEERS=0; SRC='none'")"
   if [[ $((i % 6)) -eq 1 ]]; then
-    if [[ -z "${LEDGERS}" || "${LEDGERS}" == "empty" ]]; then
-      STATUS="catching up (peers connected, downloading ledgers)"
-    else
-      STATUS="ledgers ${LEDGERS}"
-    fi
-    echo "  … validated seq=${SEQ} ${STATUS}"
+    echo "  … ${SRC} seq=${SEQ} state=${STATE} peers=${PEERS} ledgers=${LEDGERS:-empty}"
   fi
+  READY_STATE=0
+  case "${STATE}" in
+    proposing|full|tracking|syncing|connected) READY_STATE=1 ;;
+  esac
   if [[ -n "${LEDGERS}" && "${LEDGERS}" != "empty" ]] && [[ "${SEQ}" -gt "${MIN_SYNC_SEQ}" ]]; then
     SYNCED=1
-    echo "Ledger sync OK (seq ${SEQ}, ${LEDGERS})."
+    echo "Ledger sync OK (validated range seq ${SEQ}, ${LEDGERS})."
+    break
+  fi
+  if [[ "${SEQ}" -gt "${MIN_SYNC_SEQ}" && "${PEERS}" -ge 1 && "${READY_STATE}" -eq 1 ]]; then
+    SYNCED=1
+    echo "Ledger sync OK via ${SRC} ledger (seq ${SEQ}, state=${STATE}, peers=${PEERS})."
     break
   fi
   sleep 5
