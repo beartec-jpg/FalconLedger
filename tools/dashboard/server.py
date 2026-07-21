@@ -139,10 +139,14 @@ def collect_stats() -> Dict[str, Any]:
     local_info = rpc_local("server_info").get("info", {})
     net_info = rpc_network("server_info").get("info", {})
 
-    local_vl = local_info.get("validated_ledger", {}) or {}
-    net_vl = net_info.get("validated_ledger", {}) or {}
+    # Prefer validated; Falcon joiners often only expose closed_ledger.
+    local_vl = local_info.get("validated_ledger") or local_info.get("closed_ledger") or {}
+    net_vl = net_info.get("validated_ledger") or net_info.get("closed_ledger") or {}
 
-    bond = fetch_bond(VALIDATOR_ACCOUNT, rpc_local)
+    # Bond/balance always from public network (joiners may lack local ledger APIs).
+    bond = fetch_bond(VALIDATOR_ACCOUNT, rpc_network) if VALIDATOR_ACCOUNT else {}
+    if not bond and VALIDATOR_ACCOUNT:
+        bond = fetch_bond(VALIDATOR_ACCOUNT, rpc_local)
     balance_qxrp = None
     if VALIDATOR_ACCOUNT:
         acct = rpc_network("account_info", {
@@ -430,6 +434,15 @@ function tile(id, label, value, sub, metric, valueClass='') {
   </div>`;
 }
 
+function fmtUptime(sec) {
+  sec = Math.max(0, Math.floor(Number(sec) || 0));
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  if (h <= 0) return m + 'm';
+  if (m <= 0) return h + 'h';
+  return h + 'h ' + m + 'm';
+}
+
 function drawSpark(canvas, points, color) {
   if (!canvas || !points.length) return;
   const cssW = canvas.clientWidth || canvas.parentElement?.clientWidth || 180;
@@ -487,7 +500,7 @@ async function refresh() {
     tile('v_bond', 'Bond status', bond.status || '—', (bond.bonded_amount_qxrp || '—') + ' qXRP', 'bonded_validators', bond.status === 'bonded' ? 'good' : 'warn'),
     tile('v_score', 'Composite score', bond.composite_score ?? '—', 'basis points', 'composite_score', (bond.composite_score||0) >= 5000 ? 'good' : 'warn'),
     tile('v_bal', 'Balance', (node.balance_qxrp ?? '—') + ' qXRP', 'validator account', 'ledger_rate_per_min'),
-    tile('v_uptime', 'Uptime', Math.floor((node.uptime_seconds||0)/3600) + 'h', 'load ×' + (node.load_factor||1), 'load_factor'),
+    tile('v_uptime', 'Uptime', fmtUptime(node.uptime_seconds), 'load ×' + (node.load_factor||1), 'load_factor'),
   ];
   document.getElementById('nodeGrid').innerHTML = nodeCards.join('');
 

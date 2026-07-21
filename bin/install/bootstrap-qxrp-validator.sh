@@ -270,11 +270,25 @@ if [ -n "$NODE_NAME" ]; then
   echo "Saved node name."
 fi
 
-echo "Pulling ${DOCKER_IMAGE}..."
-docker pull "$DOCKER_IMAGE"
+echo "Pulling ${DOCKER_IMAGE} (retries on flaky registry)..."
+PULL_OK=0
+for attempt in 1 2 3; do
+  if docker pull "$DOCKER_IMAGE"; then
+    PULL_OK=1
+    break
+  fi
+  echo "  docker pull failed (attempt ${attempt}/3); waiting 5s..."
+  sleep 5
+done
+if [[ "$PULL_OK" -ne 1 ]]; then
+  echo "ERROR: could not pull ${DOCKER_IMAGE}" >&2
+  exit 1
+fi
+# Record image id for support / image-skew debugging
+docker image inspect "$DOCKER_IMAGE" --format 'Image ID: {{.Id}}' || true
 
 echo "Starting validator container..."
-(cd /var/lib/qxrp-validator && dc up -d)
+(cd /var/lib/qxrp-validator && dc up -d --force-recreate)
 
 echo "Waiting for RPC to be ready (up to 90s)..."
 RPC_READY=0
@@ -620,8 +634,17 @@ if __name__ == "__main__":
 BOND
 chmod +x "$BOND_SCRIPT"
 
+# Integrity check — offline sign is required when joiners lack validated_ledger
+if ! grep -q 'offline' "$BOND_SCRIPT" || ! grep -q 'LastLedgerSequence' "$BOND_SCRIPT"; then
+  echo "ERROR: bond-if-funded.py missing offline-sign path; refusing to start broken bond watcher." >&2
+  exit 1
+fi
+
 echo "Starting auto-bond watcher (logs: /var/lib/qxrp-validator/bond.log)..."
+# Kill any prior bond watcher so re-runs don't stack
+pkill -f '/var/lib/qxrp-validator/bond-if-funded.py' 2>/dev/null || true
 nohup python3 "$BOND_SCRIPT" > /var/lib/qxrp-validator/bond.log 2>&1 &
+echo "Bond watcher PID $!"
 
 # Hourly ClaimReward cron (no-op until composite scores exist after epoch boundary)
 CLAIM_SCRIPT="/var/lib/qxrp-validator/claim-rewards.sh"
