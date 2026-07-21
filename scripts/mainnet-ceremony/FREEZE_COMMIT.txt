@@ -3,5 +3,5 @@
 # Verify: docker run --rm $IMAGE xrpld --version
 #
 # branch: develop
-# includes: Critical slash/claim/bridge + High latency/CI + ops ceremony pack
-c323951e2611bbf03102d50c542b95b736c8ffeb
+# includes: Critical + High + ops ceremony pack
+e053b18522447ce4576f54a7bbeb4ef2b6bfe8ad
