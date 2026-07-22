@@ -293,7 +293,11 @@ applyValidatorScoring(
         if (!sleConst->isFieldPresent(sfConsensusKey))
             continue;
 
-        auto const ck = makeSlice(sleConst->getFieldVL(sfConsensusKey));
+        // getFieldVL returns Blob by value — must keep it alive for makeSlice.
+        // (Previously: makeSlice(getFieldVL(...)) left a dangling Slice and all
+        // Falcon ConsensusKeys failed isValidNodeKey → no scores / no claims.)
+        auto const ckBlob = sleConst->getFieldVL(sfConsensusKey);
+        auto const ck = makeSlice(ckBlob);
         // Falcon node keys (0xFB/0xFC) — use isValidNodeKey, not publicKeyType.
         if (!isValidNodeKey(ck))
         {
