@@ -2,7 +2,8 @@
 
 **Status:** **PROTOCOL FREEZE DECLARED 2026-07-22**  
 **Freeze commit:** `1789d2fb4865964d69a3005285293e6845235eb8` (`1789d2fb4`)  
-**Image:** `qxrp/xrpld:mainnet-v1` @ local `e5086df99920…` (see `scripts/mainnet-ceremony/IMAGE_DIGEST.txt`)  
+**Image:** `qxrp/xrpld@sha256:e5086df99920ca62a6c7c09e65d49decd43ae3a67cf6167aa46419e006fcb31c`  
+  tags: `mainnet-v1` · `mainnet-v1-1789d2fb4` (Hub push 2026-07-22)  
 **Smoke:** PASS on private net 1099 (val5) · soak left running  
 **Last updated:** 2026-07-22  
 **Companion docs:** `MAINNET_GO_LIVE_CHECKLIST.md`, `MAINNET_REHEARSAL.md`, `ops/MAINNET_OPS_RUNBOOK.md`, `scripts/mainnet-ceremony/dry-runs/SOAK_CHECK.md`

@@ -141,7 +141,7 @@ The launch experience that removes the need for any centralized exchange:
 
 - [x] Network id **1026** chosen; ceremony pack + freeze commit recorded.
 - [x] Private dress rehearsal smoke PASS; soak left running.
-- [ ] Image pushed to registry with published digest (local pin today).
+- [x] Image pushed to registry with published digest (`qxrp/xrpld@sha256:e5086df99920…`).
 - [ ] Genesis + AIRDROP / FAUCET / DEV keys offline; UNL public keys finalized.
 - [ ] Production security audit packages / external review signed off.
 - [ ] Operator tooling and public validator onboarding documentation published.

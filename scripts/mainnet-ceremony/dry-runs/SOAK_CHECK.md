@@ -51,11 +51,11 @@ Optional: one manual Payment from genesis to a test wallet — proves txs still 
 
 | Path | Status |
 |------|--------|
-| Docker Hub `docker push qxrp/xrpld:mainnet-v1` | **Blocked** 2026-07-22 — `insufficient_scope` / no Hub login on val5 |
-| Offline tarball on val5 | **Ready** — `/root/mainnet-ceremony-artifacts/qxrp-xrpld-mainnet-v1-1789d2fb4.tar.gz` (~62M gzip) |
-| Load on another host | `gunzip -c …tar.gz \| docker load` then tag verify `1789d2fb4` |
+| Docker Hub | **Pushed** 2026-07-22 — `mainnet-v1` + `mainnet-v1-1789d2fb4` |
+| RepoDigest | `qxrp/xrpld@sha256:e5086df99920ca62a6c7c09e65d49decd43ae3a67cf6167aa46419e006fcb31c` |
+| Offline tarball on val5 | also available — `/root/mainnet-ceremony-artifacts/qxrp-xrpld-mainnet-v1-1789d2fb4.tar.gz` |
 
-After successful Hub push, replace local id in `IMAGE_DIGEST.txt` with `RepoDigests`.
+Pull pin: `docker pull qxrp/xrpld@sha256:e5086df99920ca62a6c7c09e65d49decd43ae3a67cf6167aa46419e006fcb31c`
 
 ## Tx simulator?
 
