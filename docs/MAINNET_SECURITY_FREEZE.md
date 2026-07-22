@@ -22,7 +22,7 @@ This document records the **security freeze** assumptions and remaining ops gate
 | Claim paths hard-cap to `sfEpochPoolBalance` | ✅ | ClaimReward / ClaimLPReward / ClaimAmmLpReward |
 | LP claim denom uses live aggregate floor | ✅ | Prevents post-epoch mint overpay |
 | Relative latency scoring (not flat 5000) | ✅ | `ValidatorScoring` earliest-signer baseline + continuous 10 ms steps |
-| Fluid composite (EMA + ActiveSet K=32) | ✅ | independent signals; 35% new / 65% history EMA |
+| Fluid composite (EMA; pay ∝ score all bonded) | ✅ | independent signals; 35% new / 65% history EMA; **no ActiveSet K=32 rank-cut** (`mainnet-v2`) |
 | AccountNames (NameSet / Unbond / Release) | ✅ | 100 FALCON bond; 1/account; 1-epoch cooldown |
 | Bridge contract multi-sig (N-of-M) | ✅ code · Sepolia e2e | **Redeploy** ETH mainnet lock with `REQUIRED≥2` |
 
@@ -68,7 +68,7 @@ Scaffold in repo: `scripts/mainnet-ceremony/` + `bash scripts/ops/prepare-mainne
 | DNS / RPC publish list | ✅ template | `DNS_RPC.md` |
 | Genesis + AIRDROP / FAUCET / DEV **keys** | ❌ offline human | Falcon `wallet_propose` on freeze image |
 | UNL public keys finalized | ❌ offline human | `validators/unl-public.txt` |
-| Image built + **digest** on Hub | ❌ build host | `IMAGE_DIGEST.txt` |
+| Image built + **digest** on Hub | ✅ `qxrp/xrpld@sha256:e5086df99920…` | `IMAGE_DIGEST.txt` |
 | Live `--dry-run` vs real balances | ❌ needs chain | after rehearsal / T0 |
 | Private dress rehearsal + wipe | ⚠️ smoke **PASS** · soak left up · **wipe still due** before T0 | `MAINNET_REHEARSAL.md` · `REHEARSAL_RESULTS.md` |
 | Neon provisioned + schema applied | ❌ ops cloud | runbook §1 |

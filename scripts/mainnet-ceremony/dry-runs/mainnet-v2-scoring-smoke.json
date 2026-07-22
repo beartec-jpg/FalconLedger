@@ -1,0 +1,84 @@
+{
+  "pin": "mainnet-v2",
+  "image": "qxrp/xrpld:mainnet-v2",
+  "image_id": "sha256:7286556f5bdb6cc8a3abe4864f06ca9a6af4f59c2fba82775793800744aa931e",
+  "mode": "fresh-genesis",
+  "network_id": 1099,
+  "host": "val5 5.78.142.246",
+  "tests": [
+    {
+      "name": "server health",
+      "status": "PASS",
+      "detail": "state=full seq=29 peers=2 ledgers=5-29 proposers=2"
+    },
+    {
+      "name": "image labels",
+      "status": "PASS",
+      "detail": "all-bonded-pro-rata|disabled|1af01dbfb"
+    },
+    {
+      "name": "wallet_propose",
+      "status": "PASS",
+      "detail": "r48XFhq7qNUAWJYDetQasGRk3PPMwpo3oy secret_len=4358"
+    },
+    {
+      "name": "seq advancing",
+      "status": "PASS",
+      "detail": "29->31"
+    },
+    {
+      "name": "peers",
+      "status": "PASS",
+      "detail": "peers=2"
+    },
+    {
+      "name": "proposers",
+      "status": "PASS",
+      "detail": "proposers=2"
+    },
+    {
+      "name": "containers",
+      "status": "PASS",
+      "detail": "qxrp-rehearsal-3 Up 2 minutes (healthy) qxrp/xrpld:mainnet-v2 | qxrp-rehearsal-1 Up 2 minutes (healthy) qxrp/xrpld:mainnet-v2 | qxrp-rehearsal-2 Up 2 minutes (healthy) qxrp/xrpld:mainnet-v2"
+    },
+    {
+      "name": "start flag",
+      "status": "PASS",
+      "detail": "[\"--conf\",\"/cfg/xrpld.cfg\",\"--start\"]; [\"--conf\",\"/cfg/xrpld.cfg\",\"--start\"]; [\"--conf\",\"/cfg/xrpld.cfg\",\"--start\"]"
+    },
+    {
+      "name": "no ActiveSet demote",
+      "status": "PASS",
+      "detail": "clean"
+    },
+    {
+      "name": "scoring wait",
+      "status": "PASS",
+      "detail": "flag interval may not have fired yet (long epoch)"
+    },
+    {
+      "name": "binary has new scoring string",
+      "status": "PASS",
+      "detail": "found=True size=86234440"
+    },
+    {
+      "name": "AccountNames feature",
+      "status": "PASS",
+      "detail": "{\"key\": \"AFBD9AF10542C5438ED4D41FF7672E90A87B231ED9316E4FAD27A2CEF8DBD953\", \"name\": \"AccountNames\", \"enabled\": true, \"supported\": true}"
+    }
+  ],
+  "notes": [
+    "Fresh genesis: wipe NuDB/db + recreate with --start + mainnet-v2",
+    "ips_fixed 172.30.0.2/3/4 match compose static IPs",
+    "n=3 cannot numerically prove K=32 removal; labels + binary + no demote logs",
+    "Open UNL amendment is docs-only future work"
+  ],
+  "ts": "2026-07-22T13:36:18.545648+00:00",
+  "summary": {
+    "PASS": 12,
+    "FAIL": 0,
+    "WARN": 0
+  },
+  "overall": "PASS",
+  "completed_at": "2026-07-22T13:36:28.477290+00:00"
+}

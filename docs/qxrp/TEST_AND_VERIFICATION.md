@@ -15,7 +15,7 @@ For protocol design, see the [White Paper](whitepaper.md). For account names, se
 |------|--------|--------|
 | Falcon-512 accounts & consensus | **Verified** | Falcon-native signing; classical P2P `node_seed` disabled |
 | CID emission + PoPL LP split | **Verified** | Continuous decline schedule; first claimable unlock at epoch 8 |
-| Fluid scoring + pay ∝ score (all bonded) | **In tree** | EMA composite; no ActiveSet rank-cut; joiners scored when vals seen |
+| Fluid scoring + pay ∝ score (all bonded) | **Verified** (private net) | EMA composite; no ActiveSet rank-cut; `mainnet-v2` fresh-genesis smoke 12/12 |
 | AMM + vault + lending path | **Verified** | Create pool → vault → broker → borrow → repay |
 | USDC bridge multi-sig (test EVM) | **Verified** | N-of-M lock; single owner cannot release; threshold does |
 | Account Names | **Verified** | Claim, lookup, duplicate reject, unbond, early-release gate |

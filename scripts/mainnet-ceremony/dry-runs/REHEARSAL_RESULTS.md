@@ -323,10 +323,33 @@ Also available offline (not re-run this pass): ASAN freeze build, full destructi
 **Summary:** **14/14 PASS · 0 FAIL**  
 **Notes:** RPC `Name` field is hex-encoded VL; full NameRelease cooldown not waited on long-epoch pin (correct `tecTOO_SOON` proves gate). Stack left **soaking** on val5 (`qxrp-rehearsal-1/2/3`).
 
+## Scoring-pay pin smoke — mainnet-v2 (2026-07-22 ~13:36Z)
+
+**Image:** `qxrp/xrpld:mainnet-v2` · local `sha256:7286556f5bdb6cc8a3abe4864f06ca9a6af4f59c2fba82775793800744aa931e`  
+**Rev label:** `1af01dbfb` · labels `falcon.scoring=all-bonded-pro-rata` · `falcon.activeset=disabled`  
+**Host / net:** val5 · private `network_id=1099` · long-epoch  
+**Mode:** **fresh genesis** — wipe NuDB/db, compose IPs `172.30.0.2/3/4` matching `ips_fixed`, all three with `--start`  
+**Artifact:** `dry-runs/mainnet-v2-scoring-smoke.json` · `IMAGE_DIGEST_mainnet-v2.txt`
+
+| Test | Status | Detail |
+|------|--------|--------|
+| server health | **PASS** | `full` · seq advancing · ledgers non-empty · proposers=2 |
+| image labels | **PASS** | all-bonded-pro-rata \| disabled \| 1af01dbfb |
+| wallet_propose | **PASS** | Falcon secret (admin RPC via docker exec) |
+| seq / peers / proposers | **PASS** | peers=2 · proposers=2 |
+| containers + `--start` | **PASS** | 3× healthy mainnet-v2 |
+| no ActiveSet demote | **PASS** | clean logs |
+| binary scoring string | **PASS** | contains `no ActiveSet rank cut` |
+| AccountNames | **PASS** | enabled at genesis |
+
+**Summary:** **12/12 PASS · 0 FAIL**  
+**Notes:** Rolling upgrade without wipe left empty `complete_ledgers` / null validated ledger — **fresh genesis required**. n=3 cannot numerically prove removal of K=32; proof is code path + labels + binary string + absence of demote logs. Open/rotating UNL remains a **post-genesis amendment** (see `docs/qxrp/OPEN_UNL_AMENDMENT.md`). Stack left **soaking** on mainnet-v2.
+
 ## Next
 
-1. Re-check soak in a few days (`SOAK_CHECK.md`) — seq advancing, peers=2, no crash loops  
-2. Registry push of `mainnet-v1` when ready (replace local id with RepoDigest in `IMAGE_DIGEST.txt`)  
-3. Wipe rehearsal stack before real T0; destroy throwaway secrets  
-4. Real ETH mainnet bridge: new 2-of-N lock + cold owners (not Sepolia keys)
+1. Multi-day soak on **mainnet-v2** (`SOAK_CHECK.md`) — seq advancing, peers=2, no crash loops  
+2. Optional Hub push of `mainnet-v2` (replace local id with RepoDigest in `IMAGE_DIGEST_mainnet-v2.txt`)  
+3. Prefer **mainnet-v2** over mainnet-v1 for T0 if all-bonded pay ∝ score is required at launch  
+4. Wipe rehearsal stack before real T0; destroy throwaway secrets  
+5. Real ETH mainnet bridge: new 2-of-N lock + cold owners (not Sepolia keys)
 

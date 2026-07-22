@@ -13,17 +13,20 @@ A short, shareable snapshot of progress toward public mainnet. Operator runbooks
 | Falcon-512 for accounts, consensus, P2P | Done |
 | Fixed 200B supply + protocol treasury | Done |
 | CID emission (first unlock epoch 8) + PoPL LP split | Done |
-| Fluid scoring; pay ∝ score all bonded (no K=32 cut) | In tree — needs new image / smoke |
-| Open/rotating UNL | Future amendment — bootstrap UNL until then |
+| Fluid scoring; pay ∝ score all bonded (no K=32 cut) | Done — `mainnet-v2` fresh-genesis smoke **PASS** (12/12) |
+| Open/rotating UNL | Future amendment — bootstrap UNL until then ([OPEN_UNL_AMENDMENT.md](OPEN_UNL_AMENDMENT.md)) |
 | Claim paths with epoch pool hard-caps | Done |
 | Double-sign slash (pure bond burn) | Done |
-| Account Names amendment | Done (smoke on freeze pin) |
+| Account Names amendment | Done (smoke on freeze pin + mainnet-v2) |
 | AMM + lending stack (vault / broker / loan) | Exercised on test & private nets |
 | Bridge multi-sig model (N-of-M) | Code + Sepolia e2e proven |
 | Freeze image on Docker Hub | `qxrp/xrpld:mainnet-v1` @ `1789d2fb4` |
+| Scoring-pay image (recommended T0) | `qxrp/xrpld:mainnet-v2` @ local `7286556f5bdb…` (Hub optional) |
 
-**Image pin (public):**  
-`qxrp/xrpld@sha256:e5086df99920ca62a6c7c09e65d49decd43ae3a67cf6167aa46419e006fcb31c`
+**Image pin (public freeze):**  
+`qxrp/xrpld@sha256:e5086df99920ca62a6c7c09e65d49decd43ae3a67cf6167aa46419e006fcb31c`  
+**Scoring-pay pin (local, smoke-proven):**  
+`qxrp/xrpld:mainnet-v2` · `sha256:7286556f5bdb6cc8a3abe4864f06ca9a6af4f59c2fba82775793800744aa931e`
 
 **Mainnet network id (planned):** `1026`  
 **Testnet network id (live):** `1001`
