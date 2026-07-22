@@ -520,7 +520,8 @@ and remaining work are tracked in the [Roadmap](../../ROADMAP.md).
 - 🔲 Operator one-liner + validator onboarding for public joiners
 - 🔲 Long-horizon reward model simulations and continued adversarial testing
 
-See [ROADMAP.md](../../ROADMAP.md) for the full, status-tracked plan.
+See [ROADMAP.md](../../ROADMAP.md) for the full, status-tracked plan.  
+Public test summary: [TEST_AND_VERIFICATION.md](TEST_AND_VERIFICATION.md) · [MAINNET_READINESS_SUMMARY.md](MAINNET_READINESS_SUMMARY.md).
 
 ---
 

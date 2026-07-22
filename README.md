@@ -172,11 +172,14 @@ A detailed, status-tracked roadmap lives in [ROADMAP.md](ROADMAP.md). In summary
 ## Documentation
 
 - [Falcon Ledger White Paper](docs/qxrp/whitepaper.md) — full protocol rationale and design (v2.6).
+- [Test & verification](docs/qxrp/TEST_AND_VERIFICATION.md) — public summary of what was proven (safe to share).
+- [Mainnet readiness summary](docs/qxrp/MAINNET_READINESS_SUMMARY.md) — short progress vs T0 (no ops secrets).
+- [Public docs index](docs/qxrp/PUBLIC_DOCS_INDEX.md) — what to share on X / blog.
 - [Roadmap](ROADMAP.md) — what's accomplished and the path to mainnet.
 - [Account Names](docs/qxrp/NAME_SERVICE.md) — bonded human handles (`NameSet` / unbond / release).
 - [Validator Lifecycle](docs/qxrp/validator-lifecycle.md) — bonding, fluid scoring, ActiveSet.
 - [Supply Model](docs/qxrp/supply-model.md), [Epoch Emission](docs/qxrp/epoch-emission.md), [Fee Split](docs/qxrp/fee-split.md), [Governance](docs/qxrp/governance.md).
-- [Mainnet security freeze](docs/MAINNET_SECURITY_FREEZE.md) · [Dress rehearsal](docs/MAINNET_REHEARSAL.md) · [Bridge](docs/MAINNET_BRIDGE.md).
+- [Mainnet security freeze](docs/MAINNET_SECURITY_FREEZE.md) · [Dress rehearsal](docs/MAINNET_REHEARSAL.md) · [Bridge](docs/MAINNET_BRIDGE.md) (ops — not for public dump).
 
 ## Contributing
 
