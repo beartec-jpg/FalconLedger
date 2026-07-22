@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 #pragma once
 
+#include <xrpl/basics/Blob.h>
 #include <xrpl/basics/Slice.h>
 #include <xrpl/protocol/QXRPConstants.h>
 
@@ -49,6 +50,13 @@ normalizeName(Slice raw)
         return std::nullopt;
 
     return out;
+}
+
+/// Convenience overload for STObject::getFieldVL (returns Blob).
+inline std::optional<std::string>
+normalizeName(Blob const& raw)
+{
+    return normalizeName(makeSlice(raw));
 }
 
 inline bool
