@@ -33,6 +33,21 @@ python3 scripts/mainnet-genesis-split.py --dry-run \
 | | live dry-run | | |
 | | execute | | **T0 only** |
 
+## Ceremony public pack filled (2026-07-22)
+
+| Item | Status |
+|------|--------|
+| `wallets/ADDRESSES.txt` | GENESIS / AIRDROP / FAUCET / DEV r-addresses from ceremony keygen |
+| `wallets/ADDRESSES.public.json` | Full public JSON (validators FB09… pubs) |
+| `validators/unl-public.txt` | VAL1–VAL5 validation public keys |
+| `NETWORK_ID.txt` | **1026** |
+| `IMAGE_DIGEST.txt` | `qxrp/xrpld@sha256:e5086df99920…` (Hub) |
+| `portal.env.mainnet` | **LIVE=false**; FAUCET account set; secrets empty (local/gitignored) |
+| Encrypted secrets | Offline on operator machine: `falcon-ceremony-backup.enc.json` |
+
+Neon airdrop schema: apply when `DATABASE_URL` is available:
+`psql "$DATABASE_URL" -f docs/sql/airdrop-schema.sql`
+
 ## Bridge multi-sig (Sepolia mainnet-parity)
 
 | Date | Result | Lock | Notes |

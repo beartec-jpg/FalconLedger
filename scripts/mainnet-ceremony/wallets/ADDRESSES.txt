@@ -1,13 +1,17 @@
 # Public addresses only — safe to share among operators.
-# Secrets: NEVER in git. Generate offline → wallets/*.secret (local pack only).
+# Secrets: NEVER in git. Encrypted backup: falcon-ceremony-backup.enc.json (offline).
+# Generated: 2026-07-22T10:27:49Z · network_id=1026 · image=mainnet-v1
 #
-# Fill after Falcon wallet_propose on a freeze-image node:
+GENESIS_ADDRESS=rNTRqoebch25by3cNLNX3ZF4dw8KWdxLy4
+AIRDROP_ADDRESS=rGV8X27j4sPsG8gatasvNL63puJM4kkkqY
+FAUCET_ADDRESS=rLCzmA1Ak1uYcpeTVqGgs7BU15wfYK3XBS
+DEV_ADDRESS=rhHvWeQZG9Y54SEoom3umBGdZ3nniryx7s
 #
-GENESIS_ADDRESS=r______________________________
-AIRDROP_ADDRESS=r______________________________
-FAUCET_ADDRESS=r______________________________
-DEV_ADDRESS=r______________________________
+# Optional hot wallets (funded later from buckets — generate when needed):
+FAUCET_HOT_ADDRESS=
+OPS_HOT_ADDRESS=
 #
-# Optional hot wallets (funded later from buckets):
-FAUCET_HOT_ADDRESS=r______________________________
-OPS_HOT_ADDRESS=r______________________________
+# After T0 split, expected balances:
+# AIRDROP  2_000_000_000 FALCON
+# FAUCET   1_000_000_000 FALCON
+# DEV      1_000_000_000 FALCON
