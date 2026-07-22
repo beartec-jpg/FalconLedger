@@ -1,0 +1,298 @@
+[
+  {
+    "t": "2026-07-21T19:07:04.611787+00:00",
+    "tag": "start",
+    "seq": 34,
+    "state": "full",
+    "peers": 2,
+    "proposers": 2,
+    "bonds": [
+      {
+        "acct": "rP2pWyHVDF",
+        "BondStatus": 1,
+        "CompositeScore": null,
+        "UptimeBps": null,
+        "VoteAccuracyBps": null,
+        "LatencyScoreBps": null,
+        "ConsistencyBps": null
+      },
+      {
+        "acct": "r9PM7ZxE5V",
+        "BondStatus": 1,
+        "CompositeScore": null,
+        "UptimeBps": null,
+        "VoteAccuracyBps": null,
+        "LatencyScoreBps": null,
+        "ConsistencyBps": null
+      },
+      {
+        "acct": "r9XAn4hQPU",
+        "BondStatus": 1,
+        "CompositeScore": null,
+        "UptimeBps": null,
+        "VoteAccuracyBps": null,
+        "LatencyScoreBps": null,
+        "ConsistencyBps": null
+      }
+    ]
+  },
+  {
+    "t": "2026-07-21T19:08:34.634238+00:00",
+    "tag": ">=64",
+    "seq": 64,
+    "state": "full",
+    "peers": 2,
+    "proposers": 2,
+    "bonds": [
+      {
+        "acct": "rP2pWyHVDF",
+        "BondStatus": 1,
+        "CompositeScore": null,
+        "UptimeBps": null,
+        "VoteAccuracyBps": null,
+        "LatencyScoreBps": null,
+        "ConsistencyBps": null
+      },
+      {
+        "acct": "r9PM7ZxE5V",
+        "BondStatus": 1,
+        "CompositeScore": null,
+        "UptimeBps": null,
+        "VoteAccuracyBps": null,
+        "LatencyScoreBps": null,
+        "ConsistencyBps": null
+      },
+      {
+        "acct": "r9XAn4hQPU",
+        "BondStatus": 1,
+        "CompositeScore": null,
+        "UptimeBps": null,
+        "VoteAccuracyBps": null,
+        "LatencyScoreBps": null,
+        "ConsistencyBps": null
+      }
+    ]
+  },
+  {
+    "t": "2026-07-21T19:11:54.675636+00:00",
+    "tag": ">=128",
+    "seq": 131,
+    "state": "full",
+    "peers": 2,
+    "proposers": 2,
+    "bonds": [
+      {
+        "acct": "rP2pWyHVDF",
+        "BondStatus": 1,
+        "CompositeScore": null,
+        "UptimeBps": null,
+        "VoteAccuracyBps": null,
+        "LatencyScoreBps": null,
+        "ConsistencyBps": null
+      },
+      {
+        "acct": "r9PM7ZxE5V",
+        "BondStatus": 1,
+        "CompositeScore": null,
+        "UptimeBps": null,
+        "VoteAccuracyBps": null,
+        "LatencyScoreBps": null,
+        "ConsistencyBps": null
+      },
+      {
+        "acct": "r9XAn4hQPU",
+        "BondStatus": 1,
+        "CompositeScore": null,
+        "UptimeBps": null,
+        "VoteAccuracyBps": null,
+        "LatencyScoreBps": null,
+        "ConsistencyBps": null
+      }
+    ]
+  },
+  {
+    "t": "2026-07-21T19:18:14.748341+00:00",
+    "tag": ">=256",
+    "seq": 257,
+    "state": "full",
+    "peers": 2,
+    "proposers": 2,
+    "bonds": [
+      {
+        "acct": "rP2pWyHVDF",
+        "BondStatus": 1,
+        "CompositeScore": null,
+        "UptimeBps": null,
+        "VoteAccuracyBps": null,
+        "LatencyScoreBps": null,
+        "ConsistencyBps": null
+      },
+      {
+        "acct": "r9PM7ZxE5V",
+        "BondStatus": 1,
+        "CompositeScore": null,
+        "UptimeBps": null,
+        "VoteAccuracyBps": null,
+        "LatencyScoreBps": null,
+        "ConsistencyBps": null
+      },
+      {
+        "acct": "r9XAn4hQPU",
+        "BondStatus": 1,
+        "CompositeScore": null,
+        "UptimeBps": null,
+        "VoteAccuracyBps": null,
+        "LatencyScoreBps": null,
+        "ConsistencyBps": null
+      }
+    ]
+  },
+  {
+    "t": "2026-07-21T19:18:14.752156+00:00",
+    "tag": ">=257",
+    "seq": 257,
+    "state": "full",
+    "peers": 2,
+    "proposers": 2,
+    "bonds": [
+      {
+        "acct": "rP2pWyHVDF",
+        "BondStatus": 1,
+        "CompositeScore": null,
+        "UptimeBps": null,
+        "VoteAccuracyBps": null,
+        "LatencyScoreBps": null,
+        "ConsistencyBps": null
+      },
+      {
+        "acct": "r9PM7ZxE5V",
+        "BondStatus": 1,
+        "CompositeScore": null,
+        "UptimeBps": null,
+        "VoteAccuracyBps": null,
+        "LatencyScoreBps": null,
+        "ConsistencyBps": null
+      },
+      {
+        "acct": "r9XAn4hQPU",
+        "BondStatus": 1,
+        "CompositeScore": null,
+        "UptimeBps": null,
+        "VoteAccuracyBps": null,
+        "LatencyScoreBps": null,
+        "ConsistencyBps": null
+      }
+    ]
+  },
+  {
+    "t": "2026-07-21T19:31:04.899513+00:00",
+    "tag": ">=512",
+    "seq": 514,
+    "state": "full",
+    "peers": 2,
+    "proposers": 2,
+    "bonds": [
+      {
+        "acct": "rP2pWyHVDF",
+        "BondStatus": 1,
+        "CompositeScore": 9500,
+        "UptimeBps": 10000,
+        "VoteAccuracyBps": 10000,
+        "LatencyScoreBps": 10000,
+        "ConsistencyBps": 10000
+      },
+      {
+        "acct": "r9PM7ZxE5V",
+        "BondStatus": 1,
+        "CompositeScore": 9500,
+        "UptimeBps": 10000,
+        "VoteAccuracyBps": 10000,
+        "LatencyScoreBps": 10000,
+        "ConsistencyBps": 10000
+      },
+      {
+        "acct": "r9XAn4hQPU",
+        "BondStatus": 1,
+        "CompositeScore": 9500,
+        "UptimeBps": 10000,
+        "VoteAccuracyBps": 10000,
+        "LatencyScoreBps": 10000,
+        "ConsistencyBps": 10000
+      }
+    ]
+  },
+  {
+    "t": "2026-07-21T19:31:24.906494+00:00",
+    "tag": ">=520",
+    "seq": 521,
+    "state": "full",
+    "peers": 2,
+    "proposers": 2,
+    "bonds": [
+      {
+        "acct": "rP2pWyHVDF",
+        "BondStatus": 1,
+        "CompositeScore": 9500,
+        "UptimeBps": 10000,
+        "VoteAccuracyBps": 10000,
+        "LatencyScoreBps": 10000,
+        "ConsistencyBps": 10000
+      },
+      {
+        "acct": "r9PM7ZxE5V",
+        "BondStatus": 1,
+        "CompositeScore": 9500,
+        "UptimeBps": 10000,
+        "VoteAccuracyBps": 10000,
+        "LatencyScoreBps": 10000,
+        "ConsistencyBps": 10000
+      },
+      {
+        "acct": "r9XAn4hQPU",
+        "BondStatus": 1,
+        "CompositeScore": 9500,
+        "UptimeBps": 10000,
+        "VoteAccuracyBps": 10000,
+        "LatencyScoreBps": 10000,
+        "ConsistencyBps": 10000
+      }
+    ]
+  },
+  {
+    "t": "2026-07-21T19:31:24.910469+00:00",
+    "tag": "done",
+    "seq": 521,
+    "state": "full",
+    "peers": 2,
+    "proposers": 2,
+    "bonds": [
+      {
+        "acct": "rP2pWyHVDF",
+        "BondStatus": 1,
+        "CompositeScore": 9500,
+        "UptimeBps": 10000,
+        "VoteAccuracyBps": 10000,
+        "LatencyScoreBps": 10000,
+        "ConsistencyBps": 10000
+      },
+      {
+        "acct": "r9PM7ZxE5V",
+        "BondStatus": 1,
+        "CompositeScore": 9500,
+        "UptimeBps": 10000,
+        "VoteAccuracyBps": 10000,
+        "LatencyScoreBps": 10000,
+        "ConsistencyBps": 10000
+      },
+      {
+        "acct": "r9XAn4hQPU",
+        "BondStatus": 1,
+        "CompositeScore": 9500,
+        "UptimeBps": 10000,
+        "VoteAccuracyBps": 10000,
+        "LatencyScoreBps": 10000,
+        "ConsistencyBps": 10000
+      }
+    ]
+  }
+]

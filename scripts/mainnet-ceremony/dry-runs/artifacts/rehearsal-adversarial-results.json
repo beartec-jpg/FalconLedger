@@ -1,0 +1,173 @@
+{
+  "started_at": "2026-07-22T03:36:53.133126+00:00",
+  "checklist": "docs/ops/ADVERSARIAL_PROTOCOL_CHECKLIST.md",
+  "tests": [
+    {
+      "id": "D2",
+      "name": "wallet_propose falcon",
+      "expected": "long falcon_secret",
+      "got": "seclen=4358",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "id": "D3",
+      "name": "Falcon Payment",
+      "expected": "tesSUCCESS",
+      "got": "tesSUCCESS",
+      "status": "PASS",
+      "detail": "8003450B53748256"
+    },
+    {
+      "id": "N1",
+      "name": "Wrong NetworkID",
+      "expected": "telWRONG_NETWORK/reject",
+      "got": "telWRONG_NETWORK",
+      "status": "PASS",
+      "detail": "29A266915E335EC6"
+    },
+    {
+      "id": "N2",
+      "name": "Missing NetworkID",
+      "expected": "sign auto-injects or reject",
+      "got": "tesSUCCESS auto_NetworkID=1099",
+      "status": "PASS",
+      "detail": "sign path fills NetworkID \u2014 clients without it still bind to chain"
+    },
+    {
+      "id": "A1",
+      "name": "Garbage slash evidence",
+      "expected": "not tesSUCCESS",
+      "got": "temMALFORMED",
+      "status": "PASS",
+      "detail": "9E4D970DE4BA8E02"
+    },
+    {
+      "id": "A2",
+      "name": "Slash ABSENCE",
+      "expected": "temDISABLED / reject",
+      "got": "temDISABLED",
+      "status": "PASS",
+      "detail": "want temDISABLED"
+    },
+    {
+      "id": "A3",
+      "name": "Slash INVALID_VOTE",
+      "expected": "temDISABLED / reject",
+      "got": "temDISABLED",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "id": "A4",
+      "name": "Valid double-sign slash",
+      "expected": "tesSUCCESS+UNBONDING",
+      "got": "\u2014",
+      "status": "DEFERRED",
+      "detail": "needs offline Falcon STValidation pair harness"
+    },
+    {
+      "id": "A5",
+      "name": "Replay same slash",
+      "expected": "tecDUPLICATE",
+      "got": "\u2014",
+      "status": "DEFERRED",
+      "detail": "depends on A4"
+    },
+    {
+      "id": "A6",
+      "name": "Slash wrong target bond",
+      "expected": "reject",
+      "got": "\u2014",
+      "status": "DEFERRED",
+      "detail": "depends on valid evidence"
+    },
+    {
+      "id": "B5",
+      "name": "ClaimReward no bond",
+      "expected": "reject",
+      "got": "sign:Field 'ConsensusKey' is required but missing.",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "id": "B4",
+      "name": "Duplicate ClaimReward",
+      "expected": "tecDUPLICATE",
+      "got": "\u2014",
+      "status": "PARTIAL",
+      "detail": "need val secret; single claim proven in session"
+    },
+    {
+      "id": "B1",
+      "name": "Sum claims \u2264 pool",
+      "expected": "cap",
+      "got": "fuzz",
+      "status": "CI",
+      "detail": "FuzzClaimReward + FuzzEpochPoolCap"
+    },
+    {
+      "id": "B2",
+      "name": "Pool exhausted claim",
+      "expected": "no over-drain",
+      "got": "fuzz",
+      "status": "CI",
+      "detail": "FuzzEpochPoolCap C-02"
+    },
+    {
+      "id": "C1",
+      "name": "Stop 1/3 validators",
+      "expected": "liveness",
+      "got": "session",
+      "status": "SESSION",
+      "detail": "knockdown: chain continued, score 9500\u21928331"
+    },
+    {
+      "id": "C2",
+      "name": "Restart node",
+      "expected": "rejoin",
+      "got": "session",
+      "status": "SESSION",
+      "detail": "recovery ~8500"
+    },
+    {
+      "id": "R1",
+      "name": "Malformed account_info",
+      "expected": "error",
+      "got": "actMalformed",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "id": "R2",
+      "name": "Public RPC sign denied",
+      "expected": "notSupported",
+      "got": "notSupported",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "id": "L1",
+      "name": "Chain live after negatives",
+      "expected": "full prop>=2",
+      "got": "full prop=2",
+      "status": "PASS",
+      "detail": ""
+    }
+  ],
+  "server": {
+    "state": "full",
+    "seq": 8933,
+    "proposers": 2,
+    "network_id": 1099
+  },
+  "updated_at": "2026-07-22T03:36:56.874729+00:00",
+  "summary": {
+    "PASS": 11,
+    "DEFERRED": 3,
+    "PARTIAL": 1,
+    "CI": 2,
+    "SESSION": 2
+  },
+  "finished_at": "2026-07-22T03:36:56.874720+00:00"
+}

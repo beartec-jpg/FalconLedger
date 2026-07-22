@@ -1,0 +1,57 @@
+{
+  "steps": [
+    {
+      "name": "fund_iss",
+      "er": "tesSUCCESS",
+      "hash": "71B664DF19336A72E1DFE2ACF6E44E1A5C33AE35ADF24C370C2BEB06004CD966"
+    },
+    {
+      "name": "fund_lp",
+      "er": "tesSUCCESS",
+      "hash": "6CD23549D94A98C48819E9E085523D489991E1E988BB49CD5464C2B49F979290"
+    },
+    {
+      "name": "fund_tr",
+      "er": "tesSUCCESS",
+      "hash": "86D2D95C3BE5343039507304764DB5D42F4EB6D76C6E297D22EFA6ECCB31B9FD"
+    },
+    {
+      "name": "issuer_DefaultRipple",
+      "er": "tesSUCCESS",
+      "hash": "7C4E6D2416A3B338748407FEE44E34990454A9DED6212CFC99776B6B2F32ACED"
+    },
+    {
+      "name": "trust_lp",
+      "er": "tesSUCCESS",
+      "hash": "F3D3B0C41FFF3A29DDC6E5024FB8DABA22FDB48ADF13733001F727624C46AD4D"
+    },
+    {
+      "name": "trust_tr",
+      "er": "tesSUCCESS",
+      "hash": "E052E03E7B70ED2B4A525FF421FCBD8EA6F5DFE67F768F677A5342114752B7F4"
+    },
+    {
+      "name": "mint_lp",
+      "er": "tesSUCCESS",
+      "hash": "9DB34D42559793265BEC6702446325D7BC8B5C9FB04CEF2D429C0AE8DF0C8F03"
+    },
+    {
+      "name": "mint_tr",
+      "er": "tesSUCCESS",
+      "hash": "393DD40C1C9FD3F0445D941DC8C83C4142C67D8C1896AFADC607EB72A37AF488"
+    },
+    {
+      "name": "AMMCreate",
+      "er": "tesSUCCESS",
+      "hash": "BF567CFFBA94F5BF805E1E8ADFB24457CAD5BEC19A7E3F5FAEEAC7E89D93AE70"
+    },
+    {
+      "name": "AMMDeposit",
+      "er": "tesSUCCESS",
+      "hash": "193C49E995DA72C4C79BD6AC7AC237BAD4F0396EE25C48B414932FAE5B17D57E"
+    }
+  ],
+  "has_amm": true,
+  "mpt_enabled": false,
+  "note": "MPTokensV1 not enabled in time; vault skipped"
+}

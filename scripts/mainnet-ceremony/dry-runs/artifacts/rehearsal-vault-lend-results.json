@@ -1,0 +1,104 @@
+{
+  "started_at": "2026-07-22T01:54:20.894853+00:00",
+  "steps": [
+    {
+      "name": "fund_iss",
+      "er": "tesSUCCESS",
+      "hash": "566D0B0AAA8BC42EC34E08A57D1851A42358D8DAF48F6F80DC8528B9EC05B73C"
+    },
+    {
+      "name": "fund_lp",
+      "er": "tesSUCCESS",
+      "hash": "982E089FB1B3F3A0B99FB6A7A74F804BBEDF5943738E7DA7310FCCAF11F1C752"
+    },
+    {
+      "name": "fund_br",
+      "er": "tesSUCCESS",
+      "hash": "D9D965E4929DF5DD3042738C1A243BB6B80354E272A866091E30DDAEAB226635"
+    },
+    {
+      "name": "issuer_DefaultRipple",
+      "er": "tesSUCCESS",
+      "hash": "9DD6C9812DD161A8521828D115789B3465AEC4BBB885BD61C63C5F84577B0AA1"
+    },
+    {
+      "name": "trust_lp",
+      "er": "tesSUCCESS",
+      "hash": "1A105FDC60C9350CFBA5EB17184AB65275C5200EAF890AF2FCD16C68427339EA"
+    },
+    {
+      "name": "trust_br",
+      "er": "tesSUCCESS",
+      "hash": "C70240326B42B896B38742E773CCF97C51C4FC01D8A30E1E9A5F4BAB4D2D0849"
+    },
+    {
+      "name": "mint_lp",
+      "er": "tesSUCCESS",
+      "hash": "ABF05D8E1802D1E9C941EAF1C91846F0CB26C00DF7DE815EAB0904627BEAC513"
+    },
+    {
+      "name": "mint_br",
+      "er": "tesSUCCESS",
+      "hash": "7918C06DAAAD40AE339BE8251A298EBEDEB91FF020F7690BBB6E12242C60C29C"
+    },
+    {
+      "name": "AMMCreate",
+      "er": "tesSUCCESS",
+      "hash": "98A5796FA991EBBF99B73BF6D829914D0395ED7DA6812FA3B3F97B44EC1D31C2"
+    },
+    {
+      "name": "VaultCreate",
+      "er": "tesSUCCESS",
+      "hash": "5B894B8620B89491674B9D438E069736F522E27921A4651A7454B27A76BF1BF9"
+    },
+    {
+      "name": "VaultDeposit",
+      "er": "tesSUCCESS",
+      "hash": "73BD88F1FBE70B5A3A6D9F8EEC19B61CB8DE1F0B63B1FE0F606A99BC303B0484"
+    },
+    {
+      "name": "LoanBrokerSet",
+      "er": "tesSUCCESS",
+      "hash": "339FD6EF7DF95AF29DB2A64D81ACE7AE330F21C27F731652715B78AC071E95D3"
+    },
+    {
+      "name": "LoanSet",
+      "er": "tesSUCCESS",
+      "hash": "6A997A010778A062FE747F6B3B5113DCDB9BA33CE488814FD326F595677ED4C8"
+    },
+    {
+      "name": "mint_br_repay",
+      "er": "tesSUCCESS",
+      "hash": "5C2534D0501CB22A64AD46FB996DA05D58AF1973AE718A9B5CBEEBBD2DE8B9F6"
+    },
+    {
+      "name": "LoanPay",
+      "er": "tesSUCCESS",
+      "hash": "233761404EAA9D97DC04A41DC7BBA97DBFBC8B33F3409EDFD73D6065EFD7A991"
+    }
+  ],
+  "note": "done steps_ok=15/15 vault=BEA3523BCD2E7F857FC0FFA81B09333E1AC39EDBE3DA6D527EECA625D3E0D3F9 broker=B83F05579691264C00B75864FE429E0ADA5CD5A89E494A380A99A84ACFF6CC81 loan=BFA4EE0477E5ECF86C957E896605435AE204A6EF1FF2BC3D8F4874E4A1FB051F loan_ok=True price=1.0",
+  "vault_id": "BEA3523BCD2E7F857FC0FFA81B09333E1AC39EDBE3DA6D527EECA625D3E0D3F9",
+  "broker_id": "B83F05579691264C00B75864FE429E0ADA5CD5A89E494A380A99A84ACFF6CC81",
+  "loan_id": "BFA4EE0477E5ECF86C957E896605435AE204A6EF1FF2BC3D8F4874E4A1FB051F",
+  "issuer": "rPMoKvD7wBN6Ai19DpJ4aipXHVi7329RWm",
+  "lp": "rpimnxczJ9nKe9RpT4CiLoy79LpvmaFwcw",
+  "borrower": "rE6b1Mgq2AnFps5gUWQLgrSxpNvowLCUh2",
+  "amm_price_usd_per_falcon": 1.0,
+  "feat_MPTokensV1": true,
+  "feat_SingleAssetVault": true,
+  "feat_LendingProtocol": true,
+  "feat_LendingPermissionless": true,
+  "feat_LendingCollateral": true,
+  "feat_AMM": true,
+  "updated_at": "2026-07-22T01:55:29.113176+00:00",
+  "funder": "rGoSzgiL47qQaNoaGxC4udCB4xujYoEBA7",
+  "loan_preview": {
+    "LedgerEntryType": "Loan",
+    "TotalValueOutstanding": "100.00057077625",
+    "PeriodicPayment": "100.0005707762491478",
+    "Collateral": "165000000",
+    "InterestRate": 5000
+  },
+  "finished_at": "2026-07-22T01:55:29.113169+00:00"
+}

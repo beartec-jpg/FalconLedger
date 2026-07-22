@@ -1,0 +1,14 @@
+{
+  "status": "PARTIAL",
+  "crypto_verify": "PASS",
+  "apply": "tecINVARIANT_FAILED",
+  "hash": "8DED82D2A491EF8E930F48777F575ED80F9503E2AE1C26712CD54D702C475E42",
+  "root_cause": "destroyXRP fee-split + drop conservation invariant rejects bond burn",
+  "fix_in_tree": [
+    "ValidatorSlash.cpp rawDestroyXRP",
+    "XRPNotCreated + QXRPDropConservation allow slash burn beyond fee"
+  ],
+  "needs": "rebuild mainnet-rehearsal-fast-epoch and re-submit slash",
+  "bond_id": "rP2pWyHVDFiGGhqZank6DdB3a4g4N4DhmS",
+  "target_still_bonded": true
+}

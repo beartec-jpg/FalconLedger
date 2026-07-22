@@ -1,0 +1,72 @@
+{
+  "steps": [
+    {
+      "name": "split_air",
+      "er": "tesSUCCESS",
+      "hash": "F4BA58A0BEFD37E383D24E193BF698A3EC730EB940497EEB9676EC3383C1A71D"
+    },
+    {
+      "name": "split_fau",
+      "er": "tesSUCCESS",
+      "hash": "BF6B08133B40373910CCE8C311C72F9D8D1F8B52C987DAEFB0F9AEBFEF689432"
+    },
+    {
+      "name": "split_dev",
+      "er": "tesSUCCESS",
+      "hash": "15F98819414AE54817BA6F4F084211290622AA1AFA425C0ECF353FBA28D29F30"
+    },
+    {
+      "name": "fund_rP2pWy",
+      "er": "tesSUCCESS",
+      "hash": "3E7C2351FCBEDC3DB347695C60EA08E9E16B9A41588CFD791063C7472D804F08"
+    },
+    {
+      "name": "fund_r9PM7Z",
+      "er": "tesSUCCESS",
+      "hash": "64E49B43645BC3D8AB9EFDC4F7BD1D72C2033156113E653D4E1A25CFB3078A6C"
+    },
+    {
+      "name": "fund_r9XAn4",
+      "er": "tesSUCCESS",
+      "hash": "CD933DA6488F7F1F2454E2438FD9FAB533A505A6CF151130CD79A7E8653E817F"
+    },
+    {
+      "name": "reg_rP2pWy",
+      "er": "tesSUCCESS",
+      "hash": "C907C75304123EA9DE8D60BCC5839A798FF04AFD69A6896861E1EA9927918303"
+    },
+    {
+      "name": "bond_rP2pWy",
+      "er": "tesSUCCESS",
+      "hash": "8635EA2B13C2FCED79BF5AF0ED0971927F191652A48A4DEEB4AB8FAF720FF3EC"
+    },
+    {
+      "name": "reg_r9PM7Z",
+      "er": "tesSUCCESS",
+      "hash": "E685DDBD442B30096D1F4744C868630CC76C247BA05785C72CD1BF8225FCFEB9"
+    },
+    {
+      "name": "bond_r9PM7Z",
+      "er": "tesSUCCESS",
+      "hash": "8E5C89561109C0F007678667D94BF4A6F25F470699011B370EC31B917A540A62"
+    },
+    {
+      "name": "reg_r9XAn4",
+      "er": "tesSUCCESS",
+      "hash": "A1B911A757033B2A2A8052A3EE38B87B081C75809F1000609DD3814864B19859"
+    },
+    {
+      "name": "bond_r9XAn4",
+      "er": "tesSUCCESS",
+      "hash": "77F261D85BD160199A4E8D67827E0E9AA480C427F733570B6F22561A7CDC25A8"
+    }
+  ],
+  "amendments": {
+    "AMM": false,
+    "SingleAssetVault": false,
+    "LendingProtocol": false,
+    "LendingPermissionless": false,
+    "fixUniversalNumber": false
+  },
+  "note": "amendments not enabled within timeout"
+}

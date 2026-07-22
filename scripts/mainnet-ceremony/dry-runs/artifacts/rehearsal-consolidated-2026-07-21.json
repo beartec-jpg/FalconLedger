@@ -1,0 +1,558 @@
+{
+  "logged_at": "2026-07-22T01:58:02.599986+00:00",
+  "server": {
+    "server_state": "full",
+    "seq": 6957,
+    "peers": 2,
+    "proposers": 2,
+    "network_id": 1099
+  },
+  "bridge": {
+    "status": "SKIP",
+    "reason": "Sepolia env not wired"
+  },
+  "summary": {
+    "health": "PASS",
+    "split_bond": "PASS",
+    "scores_at_512": "PASS",
+    "amm": "PASS",
+    "vault_create_deposit_broker": "PASS",
+    "loan_set": "PASS",
+    "loan_pay": "PASS",
+    "loan_set_root_cause_fixed": "tecNO_LINE was AMM price missing for permissionless HF; create native/IOU AMM + size collateral >=150% HF",
+    "bridge": "SKIP"
+  },
+  "artifacts": {
+    "vault_lend": {
+      "started_at": "2026-07-22T01:54:20.894853+00:00",
+      "steps": [
+        {
+          "name": "fund_iss",
+          "er": "tesSUCCESS",
+          "hash": "566D0B0AAA8BC42EC34E08A57D1851A42358D8DAF48F6F80DC8528B9EC05B73C"
+        },
+        {
+          "name": "fund_lp",
+          "er": "tesSUCCESS",
+          "hash": "982E089FB1B3F3A0B99FB6A7A74F804BBEDF5943738E7DA7310FCCAF11F1C752"
+        },
+        {
+          "name": "fund_br",
+          "er": "tesSUCCESS",
+          "hash": "D9D965E4929DF5DD3042738C1A243BB6B80354E272A866091E30DDAEAB226635"
+        },
+        {
+          "name": "issuer_DefaultRipple",
+          "er": "tesSUCCESS",
+          "hash": "9DD6C9812DD161A8521828D115789B3465AEC4BBB885BD61C63C5F84577B0AA1"
+        },
+        {
+          "name": "trust_lp",
+          "er": "tesSUCCESS",
+          "hash": "1A105FDC60C9350CFBA5EB17184AB65275C5200EAF890AF2FCD16C68427339EA"
+        },
+        {
+          "name": "trust_br",
+          "er": "tesSUCCESS",
+          "hash": "C70240326B42B896B38742E773CCF97C51C4FC01D8A30E1E9A5F4BAB4D2D0849"
+        },
+        {
+          "name": "mint_lp",
+          "er": "tesSUCCESS",
+          "hash": "ABF05D8E1802D1E9C941EAF1C91846F0CB26C00DF7DE815EAB0904627BEAC513"
+        },
+        {
+          "name": "mint_br",
+          "er": "tesSUCCESS",
+          "hash": "7918C06DAAAD40AE339BE8251A298EBEDEB91FF020F7690BBB6E12242C60C29C"
+        },
+        {
+          "name": "AMMCreate",
+          "er": "tesSUCCESS",
+          "hash": "98A5796FA991EBBF99B73BF6D829914D0395ED7DA6812FA3B3F97B44EC1D31C2"
+        },
+        {
+          "name": "VaultCreate",
+          "er": "tesSUCCESS",
+          "hash": "5B894B8620B89491674B9D438E069736F522E27921A4651A7454B27A76BF1BF9"
+        },
+        {
+          "name": "VaultDeposit",
+          "er": "tesSUCCESS",
+          "hash": "73BD88F1FBE70B5A3A6D9F8EEC19B61CB8DE1F0B63B1FE0F606A99BC303B0484"
+        },
+        {
+          "name": "LoanBrokerSet",
+          "er": "tesSUCCESS",
+          "hash": "339FD6EF7DF95AF29DB2A64D81ACE7AE330F21C27F731652715B78AC071E95D3"
+        },
+        {
+          "name": "LoanSet",
+          "er": "tesSUCCESS",
+          "hash": "6A997A010778A062FE747F6B3B5113DCDB9BA33CE488814FD326F595677ED4C8"
+        },
+        {
+          "name": "mint_br_repay",
+          "er": "tesSUCCESS",
+          "hash": "5C2534D0501CB22A64AD46FB996DA05D58AF1973AE718A9B5CBEEBBD2DE8B9F6"
+        },
+        {
+          "name": "LoanPay",
+          "er": "tesSUCCESS",
+          "hash": "233761404EAA9D97DC04A41DC7BBA97DBFBC8B33F3409EDFD73D6065EFD7A991"
+        }
+      ],
+      "note": "done steps_ok=15/15 vault=BEA3523BCD2E7F857FC0FFA81B09333E1AC39EDBE3DA6D527EECA625D3E0D3F9 broker=B83F05579691264C00B75864FE429E0ADA5CD5A89E494A380A99A84ACFF6CC81 loan=BFA4EE0477E5ECF86C957E896605435AE204A6EF1FF2BC3D8F4874E4A1FB051F loan_ok=True price=1.0",
+      "vault_id": "BEA3523BCD2E7F857FC0FFA81B09333E1AC39EDBE3DA6D527EECA625D3E0D3F9",
+      "broker_id": "B83F05579691264C00B75864FE429E0ADA5CD5A89E494A380A99A84ACFF6CC81",
+      "loan_id": "BFA4EE0477E5ECF86C957E896605435AE204A6EF1FF2BC3D8F4874E4A1FB051F",
+      "issuer": "rPMoKvD7wBN6Ai19DpJ4aipXHVi7329RWm",
+      "lp": "rpimnxczJ9nKe9RpT4CiLoy79LpvmaFwcw",
+      "borrower": "rE6b1Mgq2AnFps5gUWQLgrSxpNvowLCUh2",
+      "amm_price_usd_per_falcon": 1.0,
+      "feat_MPTokensV1": true,
+      "feat_SingleAssetVault": true,
+      "feat_LendingProtocol": true,
+      "feat_LendingPermissionless": true,
+      "feat_LendingCollateral": true,
+      "feat_AMM": true,
+      "updated_at": "2026-07-22T01:55:29.113176+00:00",
+      "funder": "rGoSzgiL47qQaNoaGxC4udCB4xujYoEBA7",
+      "loan_preview": {
+        "LedgerEntryType": "Loan",
+        "TotalValueOutstanding": "100.00057077625",
+        "PeriodicPayment": "100.0005707762491478",
+        "Collateral": "165000000",
+        "InterestRate": 5000
+      },
+      "finished_at": "2026-07-22T01:55:29.113169+00:00"
+    },
+    "product_amm": {
+      "steps": [
+        {
+          "name": "fund_iss",
+          "er": "tesSUCCESS",
+          "hash": "71B664DF19336A72E1DFE2ACF6E44E1A5C33AE35ADF24C370C2BEB06004CD966"
+        },
+        {
+          "name": "fund_lp",
+          "er": "tesSUCCESS",
+          "hash": "6CD23549D94A98C48819E9E085523D489991E1E988BB49CD5464C2B49F979290"
+        },
+        {
+          "name": "fund_tr",
+          "er": "tesSUCCESS",
+          "hash": "86D2D95C3BE5343039507304764DB5D42F4EB6D76C6E297D22EFA6ECCB31B9FD"
+        },
+        {
+          "name": "issuer_DefaultRipple",
+          "er": "tesSUCCESS",
+          "hash": "7C4E6D2416A3B338748407FEE44E34990454A9DED6212CFC99776B6B2F32ACED"
+        },
+        {
+          "name": "trust_lp",
+          "er": "tesSUCCESS",
+          "hash": "F3D3B0C41FFF3A29DDC6E5024FB8DABA22FDB48ADF13733001F727624C46AD4D"
+        },
+        {
+          "name": "trust_tr",
+          "er": "tesSUCCESS",
+          "hash": "E052E03E7B70ED2B4A525FF421FCBD8EA6F5DFE67F768F677A5342114752B7F4"
+        },
+        {
+          "name": "mint_lp",
+          "er": "tesSUCCESS",
+          "hash": "9DB34D42559793265BEC6702446325D7BC8B5C9FB04CEF2D429C0AE8DF0C8F03"
+        },
+        {
+          "name": "mint_tr",
+          "er": "tesSUCCESS",
+          "hash": "393DD40C1C9FD3F0445D941DC8C83C4142C67D8C1896AFADC607EB72A37AF488"
+        },
+        {
+          "name": "AMMCreate",
+          "er": "tesSUCCESS",
+          "hash": "BF567CFFBA94F5BF805E1E8ADFB24457CAD5BEC19A7E3F5FAEEAC7E89D93AE70"
+        },
+        {
+          "name": "AMMDeposit",
+          "er": "tesSUCCESS",
+          "hash": "193C49E995DA72C4C79BD6AC7AC237BAD4F0396EE25C48B414932FAE5B17D57E"
+        }
+      ],
+      "has_amm": true,
+      "mpt_enabled": false,
+      "note": "MPTokensV1 not enabled in time; vault skipped"
+    },
+    "full_split_bond": {
+      "steps": [
+        {
+          "name": "split_air",
+          "er": "tesSUCCESS",
+          "hash": "F4BA58A0BEFD37E383D24E193BF698A3EC730EB940497EEB9676EC3383C1A71D"
+        },
+        {
+          "name": "split_fau",
+          "er": "tesSUCCESS",
+          "hash": "BF6B08133B40373910CCE8C311C72F9D8D1F8B52C987DAEFB0F9AEBFEF689432"
+        },
+        {
+          "name": "split_dev",
+          "er": "tesSUCCESS",
+          "hash": "15F98819414AE54817BA6F4F084211290622AA1AFA425C0ECF353FBA28D29F30"
+        },
+        {
+          "name": "fund_rP2pWy",
+          "er": "tesSUCCESS",
+          "hash": "3E7C2351FCBEDC3DB347695C60EA08E9E16B9A41588CFD791063C7472D804F08"
+        },
+        {
+          "name": "fund_r9PM7Z",
+          "er": "tesSUCCESS",
+          "hash": "64E49B43645BC3D8AB9EFDC4F7BD1D72C2033156113E653D4E1A25CFB3078A6C"
+        },
+        {
+          "name": "fund_r9XAn4",
+          "er": "tesSUCCESS",
+          "hash": "CD933DA6488F7F1F2454E2438FD9FAB533A505A6CF151130CD79A7E8653E817F"
+        },
+        {
+          "name": "reg_rP2pWy",
+          "er": "tesSUCCESS",
+          "hash": "C907C75304123EA9DE8D60BCC5839A798FF04AFD69A6896861E1EA9927918303"
+        },
+        {
+          "name": "bond_rP2pWy",
+          "er": "tesSUCCESS",
+          "hash": "8635EA2B13C2FCED79BF5AF0ED0971927F191652A48A4DEEB4AB8FAF720FF3EC"
+        },
+        {
+          "name": "reg_r9PM7Z",
+          "er": "tesSUCCESS",
+          "hash": "E685DDBD442B30096D1F4744C868630CC76C247BA05785C72CD1BF8225FCFEB9"
+        },
+        {
+          "name": "bond_r9PM7Z",
+          "er": "tesSUCCESS",
+          "hash": "8E5C89561109C0F007678667D94BF4A6F25F470699011B370EC31B917A540A62"
+        },
+        {
+          "name": "reg_r9XAn4",
+          "er": "tesSUCCESS",
+          "hash": "A1B911A757033B2A2A8052A3EE38B87B081C75809F1000609DD3814864B19859"
+        },
+        {
+          "name": "bond_r9XAn4",
+          "er": "tesSUCCESS",
+          "hash": "77F261D85BD160199A4E8D67827E0E9AA480C427F733570B6F22561A7CDC25A8"
+        }
+      ],
+      "amendments": {
+        "AMM": false,
+        "SingleAssetVault": false,
+        "LendingProtocol": false,
+        "LendingPermissionless": false,
+        "fixUniversalNumber": false
+      },
+      "note": "amendments not enabled within timeout"
+    },
+    "soak2_scores": [
+      {
+        "t": "2026-07-21T19:07:04.611787+00:00",
+        "tag": "start",
+        "seq": 34,
+        "state": "full",
+        "peers": 2,
+        "proposers": 2,
+        "bonds": [
+          {
+            "acct": "rP2pWyHVDF",
+            "BondStatus": 1,
+            "CompositeScore": null,
+            "UptimeBps": null,
+            "VoteAccuracyBps": null,
+            "LatencyScoreBps": null,
+            "ConsistencyBps": null
+          },
+          {
+            "acct": "r9PM7ZxE5V",
+            "BondStatus": 1,
+            "CompositeScore": null,
+            "UptimeBps": null,
+            "VoteAccuracyBps": null,
+            "LatencyScoreBps": null,
+            "ConsistencyBps": null
+          },
+          {
+            "acct": "r9XAn4hQPU",
+            "BondStatus": 1,
+            "CompositeScore": null,
+            "UptimeBps": null,
+            "VoteAccuracyBps": null,
+            "LatencyScoreBps": null,
+            "ConsistencyBps": null
+          }
+        ]
+      },
+      {
+        "t": "2026-07-21T19:08:34.634238+00:00",
+        "tag": ">=64",
+        "seq": 64,
+        "state": "full",
+        "peers": 2,
+        "proposers": 2,
+        "bonds": [
+          {
+            "acct": "rP2pWyHVDF",
+            "BondStatus": 1,
+            "CompositeScore": null,
+            "UptimeBps": null,
+            "VoteAccuracyBps": null,
+            "LatencyScoreBps": null,
+            "ConsistencyBps": null
+          },
+          {
+            "acct": "r9PM7ZxE5V",
+            "BondStatus": 1,
+            "CompositeScore": null,
+            "UptimeBps": null,
+            "VoteAccuracyBps": null,
+            "LatencyScoreBps": null,
+            "ConsistencyBps": null
+          },
+          {
+            "acct": "r9XAn4hQPU",
+            "BondStatus": 1,
+            "CompositeScore": null,
+            "UptimeBps": null,
+            "VoteAccuracyBps": null,
+            "LatencyScoreBps": null,
+            "ConsistencyBps": null
+          }
+        ]
+      },
+      {
+        "t": "2026-07-21T19:11:54.675636+00:00",
+        "tag": ">=128",
+        "seq": 131,
+        "state": "full",
+        "peers": 2,
+        "proposers": 2,
+        "bonds": [
+          {
+            "acct": "rP2pWyHVDF",
+            "BondStatus": 1,
+            "CompositeScore": null,
+            "UptimeBps": null,
+            "VoteAccuracyBps": null,
+            "LatencyScoreBps": null,
+            "ConsistencyBps": null
+          },
+          {
+            "acct": "r9PM7ZxE5V",
+            "BondStatus": 1,
+            "CompositeScore": null,
+            "UptimeBps": null,
+            "VoteAccuracyBps": null,
+            "LatencyScoreBps": null,
+            "ConsistencyBps": null
+          },
+          {
+            "acct": "r9XAn4hQPU",
+            "BondStatus": 1,
+            "CompositeScore": null,
+            "UptimeBps": null,
+            "VoteAccuracyBps": null,
+            "LatencyScoreBps": null,
+            "ConsistencyBps": null
+          }
+        ]
+      },
+      {
+        "t": "2026-07-21T19:18:14.748341+00:00",
+        "tag": ">=256",
+        "seq": 257,
+        "state": "full",
+        "peers": 2,
+        "proposers": 2,
+        "bonds": [
+          {
+            "acct": "rP2pWyHVDF",
+            "BondStatus": 1,
+            "CompositeScore": null,
+            "UptimeBps": null,
+            "VoteAccuracyBps": null,
+            "LatencyScoreBps": null,
+            "ConsistencyBps": null
+          },
+          {
+            "acct": "r9PM7ZxE5V",
+            "BondStatus": 1,
+            "CompositeScore": null,
+            "UptimeBps": null,
+            "VoteAccuracyBps": null,
+            "LatencyScoreBps": null,
+            "ConsistencyBps": null
+          },
+          {
+            "acct": "r9XAn4hQPU",
+            "BondStatus": 1,
+            "CompositeScore": null,
+            "UptimeBps": null,
+            "VoteAccuracyBps": null,
+            "LatencyScoreBps": null,
+            "ConsistencyBps": null
+          }
+        ]
+      },
+      {
+        "t": "2026-07-21T19:18:14.752156+00:00",
+        "tag": ">=257",
+        "seq": 257,
+        "state": "full",
+        "peers": 2,
+        "proposers": 2,
+        "bonds": [
+          {
+            "acct": "rP2pWyHVDF",
+            "BondStatus": 1,
+            "CompositeScore": null,
+            "UptimeBps": null,
+            "VoteAccuracyBps": null,
+            "LatencyScoreBps": null,
+            "ConsistencyBps": null
+          },
+          {
+            "acct": "r9PM7ZxE5V",
+            "BondStatus": 1,
+            "CompositeScore": null,
+            "UptimeBps": null,
+            "VoteAccuracyBps": null,
+            "LatencyScoreBps": null,
+            "ConsistencyBps": null
+          },
+          {
+            "acct": "r9XAn4hQPU",
+            "BondStatus": 1,
+            "CompositeScore": null,
+            "UptimeBps": null,
+            "VoteAccuracyBps": null,
+            "LatencyScoreBps": null,
+            "ConsistencyBps": null
+          }
+        ]
+      },
+      {
+        "t": "2026-07-21T19:31:04.899513+00:00",
+        "tag": ">=512",
+        "seq": 514,
+        "state": "full",
+        "peers": 2,
+        "proposers": 2,
+        "bonds": [
+          {
+            "acct": "rP2pWyHVDF",
+            "BondStatus": 1,
+            "CompositeScore": 9500,
+            "UptimeBps": 10000,
+            "VoteAccuracyBps": 10000,
+            "LatencyScoreBps": 10000,
+            "ConsistencyBps": 10000
+          },
+          {
+            "acct": "r9PM7ZxE5V",
+            "BondStatus": 1,
+            "CompositeScore": 9500,
+            "UptimeBps": 10000,
+            "VoteAccuracyBps": 10000,
+            "LatencyScoreBps": 10000,
+            "ConsistencyBps": 10000
+          },
+          {
+            "acct": "r9XAn4hQPU",
+            "BondStatus": 1,
+            "CompositeScore": 9500,
+            "UptimeBps": 10000,
+            "VoteAccuracyBps": 10000,
+            "LatencyScoreBps": 10000,
+            "ConsistencyBps": 10000
+          }
+        ]
+      },
+      {
+        "t": "2026-07-21T19:31:24.906494+00:00",
+        "tag": ">=520",
+        "seq": 521,
+        "state": "full",
+        "peers": 2,
+        "proposers": 2,
+        "bonds": [
+          {
+            "acct": "rP2pWyHVDF",
+            "BondStatus": 1,
+            "CompositeScore": 9500,
+            "UptimeBps": 10000,
+            "VoteAccuracyBps": 10000,
+            "LatencyScoreBps": 10000,
+            "ConsistencyBps": 10000
+          },
+          {
+            "acct": "r9PM7ZxE5V",
+            "BondStatus": 1,
+            "CompositeScore": 9500,
+            "UptimeBps": 10000,
+            "VoteAccuracyBps": 10000,
+            "LatencyScoreBps": 10000,
+            "ConsistencyBps": 10000
+          },
+          {
+            "acct": "r9XAn4hQPU",
+            "BondStatus": 1,
+            "CompositeScore": 9500,
+            "UptimeBps": 10000,
+            "VoteAccuracyBps": 10000,
+            "LatencyScoreBps": 10000,
+            "ConsistencyBps": 10000
+          }
+        ]
+      },
+      {
+        "t": "2026-07-21T19:31:24.910469+00:00",
+        "tag": "done",
+        "seq": 521,
+        "state": "full",
+        "peers": 2,
+        "proposers": 2,
+        "bonds": [
+          {
+            "acct": "rP2pWyHVDF",
+            "BondStatus": 1,
+            "CompositeScore": 9500,
+            "UptimeBps": 10000,
+            "VoteAccuracyBps": 10000,
+            "LatencyScoreBps": 10000,
+            "ConsistencyBps": 10000
+          },
+          {
+            "acct": "r9PM7ZxE5V",
+            "BondStatus": 1,
+            "CompositeScore": 9500,
+            "UptimeBps": 10000,
+            "VoteAccuracyBps": 10000,
+            "LatencyScoreBps": 10000,
+            "ConsistencyBps": 10000
+          },
+          {
+            "acct": "r9XAn4hQPU",
+            "BondStatus": 1,
+            "CompositeScore": 9500,
+            "UptimeBps": 10000,
+            "VoteAccuracyBps": 10000,
+            "LatencyScoreBps": 10000,
+            "ConsistencyBps": 10000
+          }
+        ]
+      }
+    ]
+  }
+}
