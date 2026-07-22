@@ -164,7 +164,9 @@ python3 scripts/mainnet-genesis-split.py --execute
 |-------|--------------|-------------|
 | **Minimal** | 1 node standalone + split + faucet pay | Prove scripts + balances only |
 | **Standard** | 2–3 vals + split + faucet + wipe | **Recommended before real T0** |
-| **Full** | + portal staging + lend + HF monitor + snapshot API | If you want zero surprises |
+| **Full** | + portal staging + lend + HF monitor + snapshot API + **bridge multi-sig e2e** | If you want zero surprises |
+
+Bridge multi-sig (Sepolia 2-of-3) **PASS** 2026-07-22 — lock `0x8A300…CE295`; see `scripts/mainnet-ceremony/dry-runs/REHEARSAL_RESULTS.md` and `docs/MAINNET_BRIDGE.md`.
 
 ---
 

@@ -49,7 +49,8 @@
 | DefaultRipple (IOU) | **PASS** | Product step `issuer_DefaultRipple` `tesSUCCESS` |
 | AMM create + deposit | **PASS** | `AMMCreate` + `AMMDeposit` `tesSUCCESS`; `has_amm=true` |
 | vault / lend | **PASS** | Full path: AMM (native/IOU) → VaultCreate → VaultDeposit → LoanBrokerSet → **LoanSet** → **LoanPay** (see vault section) |
-| bridge | **SKIP** | Sepolia / bridge env not wired this pass |
+| bridge (legacy 1-of-1) | **PASS** (prior) | Sepolia lock `0x2dae…b75C` · 38 mints / 9 releases on host `46.224.0.140` |
+| bridge (multi-sig 2-of-3) | **PASS** (2026-07-22) | Mainnet-parity Sepolia deploy + deposit→mint + dual-confirm release (see Bridge section) |
 | teardown | **PENDING** | Stack still up; wipe before real T0 |
 
 ## Key tx hashes (from val5 JSON)
@@ -118,9 +119,78 @@ Permissionless borrow calls `Lending::checkPermissionlessCollateral`, which need
 
 Fix: create AMM for this issuer before LoanSet; size collateral so health factor ≥ **15000 bps** (`kPermissionlessMinCollateralBps`).
 
-### Bridge
+### Bridge — multi-sig mainnet-parity (2026-07-22)
 
-**SKIP** — no Sepolia keys / bridge env on val5 this pass.
+**Host:** `46.224.0.140` (bridge/full-history; not val5)  
+**Chain:** Sepolia `11155111` · Falcon testnet `network_id=1001`  
+**Goal:** Prove lock + custody **as mainnet will run** (`REQUIRED≥2`), not the legacy single-EOA path.  
+**Full write-up:** `docs/MAINNET_BRIDGE.md` · config `config/usdc-bridge.json`  
+**Host artifacts:** `/var/lib/qxrp-bridge/mainnet-parity/` (`deploy.public.json`, `test_deposit.json`, `test_multisig_withdraw.json`, `owners.addresses.json`)
+
+#### Locks
+
+| Role | Address | Custody |
+|------|---------|---------|
+| **Legacy (still live for older portal path)** | `0x2dae31Cbf2E3a418d617081985661fCD0117b75C` | 1-of-1 EOA on host — **testnet only** |
+| **Mainnet-parity multi-sig** | `0x8A300bC6726C633ae350F58380194Ce3008CE295` | **2-of-3** owners |
+
+#### Multi-sig deploy
+
+| Field | Value |
+|-------|--------|
+| Deploy tx | `0x5b4c4373f8c6c31711f219a2ce84304e7e849175550ddca23311463964264de6` |
+| Deploy block | `11325466` |
+| Deployed at | `2026-07-22T08:19:26Z` |
+| USDC (Sepolia) | `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238` |
+| `required` (on-chain) | **2** |
+| `ownerCount` | **3** |
+| Deployer | `0x04E65Bc6e63df2813737caBbaD91C7b16fa7c325` |
+| Owner 1 | `0x7b25BC68eE9CC145dA7AfcA1D852bA616195aa15` |
+| Owner 2 | `0x92474d6320204D098759dB3998e42ec4904a5B55` |
+| Owner 3 | `0x5B707F798aA8834Fe810C5D32FE82856Dd4c8439` |
+| Contract | `contracts/FalconCollateralLock.sol` (multi-sig; `confirmWithdraw` / `confirmRelease` public) |
+
+#### E2E steps
+
+| Step | Status | Evidence |
+|------|--------|----------|
+| Deploy 2-of-3 lock | **PASS** | deploy tx above; `isOwner` true for all three |
+| Deposit 5 USDC | **PASS** | tx `0xd55ffe77828f347ac9418aaae2815a47e1572f33c4cc7f2f98e4188d2535d752` · depositId `0x2e762c7a87d902ef…` · block `11325474` |
+| Mint 5 QUC on Falcon | **PASS** | dest `rMpmiVGjTVqHKC97FoD7gNBpicH97HSxGZ` · Falcon tx `170298BDFCE33622CDD6B16C8CE8F854B349AA4C1A18B909C2E28935C94861C7` · issuer `rPh77fAAmvbVuMQQP9H9JKtyTFuhRjp3Fk` |
+| Owner1 alone `confirmWithdraw` | **PASS (blocked)** | tx `0x0a189253d7327c7e56ecccfd804fe2b77e3f4d30874a69ad376c6fba430bef13` · confirmations=1 · `processed=false` · no USDC movement |
+| Owner2 `confirmWithdraw` (threshold) | **PASS** | tx `0x759b7ce175a29ec550062da269bd15e57e2d97ac8882004d794f266d8bd4a8bb` · confirmations=2 · **+3 USDC** to recipient · lock 5→2 USDC |
+
+#### Withdraw op (multi-sig)
+
+| Field | Value |
+|-------|--------|
+| withdrawalId | `0x895634c580637339857769a01f2bd0297a84bc50d3fd1a722cc9d26c0a92f539` |
+| opHash | `0x60a592d8321594780c38154a0e9e7f5fcf0fa368e3380770421187d455ea086a` |
+| Amount released | **3 USDC** |
+| Recipient | `0x64BA18002B6E72fE443f3F8a146cE529250Db107` (deposit user) |
+
+#### What this proves for mainnet
+
+- N-of-M constructor + on-chain `required=2`  
+- Deposit event → deposit-relay mint still works on a **new** lock  
+- **Single owner cannot release** collateral  
+- Threshold confirm moves USDC exactly  
+
+#### Explicitly still open for real ETH mainnet
+
+- Deploy **new** lock on chain id **1** with Circle USDC `0xA0b8…eB48`  
+- **New** cold multi-sig owners (do **not** reuse Sepolia test keys / host `owners.json`)  
+- Owner keys **not** on the relay host  
+- Falcon mainnet QUC issuer + RPC  
+- Optional: full QUC burn + memo → withdraw-relay automation under multi-sig (confirm API already proven)
+
+#### Legacy 1-of-1 baseline (unchanged)
+
+| Metric | Value |
+|--------|--------|
+| Service | `qxrp-bridge-relay.service` active on `46.224.0.140` |
+| Mints / releases | 38 / 9 (through 2026-07-21) |
+| Custody | single EOA + key on host — **not** mainnet-shaped |
 
 ## Bugs fixed this rehearsal
 
@@ -171,9 +241,10 @@ On val5 `/root/`:
 - [x] Product amendments (incl. MPTokensV1) enabled on chain  
 - [x] VaultCreate → VaultDeposit → LoanBrokerSet  
 - [x] LoanSet / LoanPay full path (permissionless + AMM HF)  
-- [x] Bridge documented SKIP (no Sepolia env)  
+- [x] Bridge multi-sig 2-of-3 Sepolia e2e (deposit→mint, 1-owner block, 2-owner release)  
 - [ ] Ready for real T0 — **NO** until mainnet-v1 long-epoch pin signed off + wipe throwaway secrets  
 - [ ] Chain wiped; throwaway secrets destroyed  
+- [ ] ETH mainnet multi-sig lock deploy (new owners; Circle USDC) — after T0 bridge go-live plan
 
 
 
@@ -233,6 +304,7 @@ Also available offline (not re-run this pass): ASAN freeze build, full destructi
 ## Next
 
 1. Optional: re-verify ClaimReward + knockdown with hashes appended here  
-2. Sign off mainnet-v1 long-epoch pin  
-3. Wipe rehearsal stack before real T0
+2. Sign off mainnet-v1 long-epoch pin (AccountNames tip building; pin digest when green)  
+3. Wipe rehearsal stack before real T0  
+4. Real ETH bridge: new 2-of-N lock + cold owners (reuse ceremony multi-sig runbook, not Sepolia keys)
 

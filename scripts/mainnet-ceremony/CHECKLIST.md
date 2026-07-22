@@ -98,6 +98,9 @@ Tick boxes as you complete them.
 - [ ] Deploy lend vault + broker on mainnet
 - [ ] `LoanBroker.InterestRate = 5000` (5%) via `set-broker-pool-rate.py`
 - [ ] Bridge-only stables if required
+- [x] Bridge multi-sig model proven on Sepolia (2-of-3) — see `dry-runs/REHEARSAL_RESULTS.md` + `docs/MAINNET_BRIDGE.md`
+- [ ] ETH mainnet lock deploy: OWNERS multi-sig, REQUIRED≥2, Circle USDC `0xA0b8…eB48` (new keys; not Sepolia test owners)
+- [ ] Bridge relays on mainnet Falcon issuer + no owner private keys on relay host
 - [ ] HF monitor live
 
 ### Communications

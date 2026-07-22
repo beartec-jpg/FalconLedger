@@ -127,6 +127,21 @@ python3 scripts/mainnet-genesis-split.py --execute
 2. `set-broker-pool-rate.py --rate 5000`  
 3. One borrow/repay or fail-closed on wrong InterestRate  
 
+### Phase 4b — Bridge multi-sig (mainnet-parity; Sepolia OK)
+
+**Not required on val5.** Run against Sepolia + Falcon testnet (or mainnet when ready).  
+**Record:** `scripts/mainnet-ceremony/dry-runs/REHEARSAL_RESULTS.md` · `docs/MAINNET_BRIDGE.md`
+
+1. Deploy `FalconCollateralLock` with **OWNERS ≥ 2**, **REQUIRED ≥ 2**  
+   (`scripts/deploy-falcon-lock.js`, Circle USDC on ETH mainnet / Sepolia test USDC on test)  
+2. Deposit USDC → confirm `DepositCreated`  
+3. Deposit relay mints QUC 1:1 on Falcon  
+4. **Single owner** `confirmWithdraw` → must **not** release  
+5. **Second owner** `confirmWithdraw` → USDC released to recipient  
+6. Archive addresses + tx hashes; **do not** reuse test owner keys on real mainnet  
+
+**2026-07-22 result:** **PASS** — lock `0x8A300bC6726C633ae350F58380194Ce3008CE295` (2-of-3 Sepolia).
+
 ### Phase 5 — Tear down
 
 1. Stop all containers  
@@ -148,6 +163,7 @@ python3 scripts/mainnet-genesis-split.py --execute
 | Chain wiped after | Yes |
 | Real ceremony secrets never used on rehearsal | Yes |
 | Multi-node consensus stable | Recommended |
+| Bridge multi-sig 2-of-N (Sepolia or mainnet) | Recommended before advertising USDC bridge |
 | Full airdrop freeze + batch pay | Optional for first rehearsal |
 | Public install one-liner | Not part of rehearsal |
 
@@ -159,7 +175,7 @@ python3 scripts/mainnet-genesis-split.py --execute
 |-------|--------------|-------------|
 | **Minimal** | 1 node standalone + split + faucet pay | Prove scripts + balances only |
 | **Standard** | 2–3 vals + split + faucet + wipe | **Recommended before real T0** |
-| **Full** | + portal staging + lend + HF monitor + snapshot API | If you want zero surprises |
+| **Full** | + portal staging + lend + HF monitor + snapshot API + **bridge multi-sig e2e** | If you want zero surprises |
 
 ---
 
@@ -183,7 +199,7 @@ Copy and tick:
 - [ ] Public DNS / Hub push (can `docker save | load` image)  
 - [ ] Real mainnet network id  
 - [ ] Production Vercel mainnet live  
-- [ ] Eth mainnet contract (can mock or skip)  
+- [ ] Eth mainnet contract (Sepolia multi-sig e2e is enough for first rehearsal; real mainnet lock later)  
 - [ ] Airdrop 60-day scoring  
 
 ---
