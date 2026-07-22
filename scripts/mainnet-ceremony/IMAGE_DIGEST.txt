@@ -1,26 +1,24 @@
-# PROTOCOL FREEZE IMAGE — mainnet-v2 (scoring pay) — 2026-07-22
-# Pushed to Docker Hub 2026-07-22 (val5 login scottreynoldsqxrp).
+# PROTOCOL FREEZE IMAGE — mainnet-v2 (scoring pay + PoP + score fix) — 2026-07-22
+# Pushed to Docker Hub 2026-07-22 (val5).
 #
-# git: 1af01dbfb (all bonded pay ∝ score; ActiveSet rank-cut disabled)
-# ancestor freeze names tip: 1789d2fb4
-# tags: qxrp/xrpld:mainnet-v2 , mainnet-v2-scoring-pay , mainnet-v2-1af01dbfb
-# labels: falcon.scoring=all-bonded-pro-rata falcon.activeset=disabled falcon.names=AccountNames
+# git: b007db22d
+#   - ProofOfParticipation Supported::Yes (bond/claim gates)
+#   - all bonded pay ∝ score (no ActiveSet K=32 cut)
+#   - fix: ConsensusKey Blob kept alive in ValidatorScoring (scores write)
+# ancestor: 1af01dbfb scoring pay · 1789d2fb4 AccountNames freeze tip
+#
+# tags: qxrp/xrpld:mainnet-v2 · mainnet-v2-scoring-pay · mainnet-v2-scorefix
+# labels:
+#   falcon.scoring=all-bonded-pro-rata
+#   falcon.activeset=disabled
+#   falcon.names=AccountNames
+#   falcon.pop=ProofOfParticipation-SupportedYes
+#   falcon.scorefix=dangling-ck-blob
 # host: val5 (5.78.142.246)
-# built: 2026-07-22T13:07Z
-# fresh-genesis smoke: PASS 12/12 2026-07-22 (network_id 1099)
-# soak: running on mainnet-v2 — multi-day aging
 #
-# Pull / pin (preferred for T0):
-#   docker pull qxrp/xrpld@sha256:7286556f5bdb6cc8a3abe4864f06ca9a6af4f59c2fba82775793800744aa931e
-#   export QXRP_XRPLD_IMAGE='qxrp/xrpld@sha256:7286556f5bdb6cc8a3abe4864f06ca9a6af4f59c2fba82775793800744aa931e'
-#
-# Tag aliases (same content):
-#   docker pull qxrp/xrpld:mainnet-v2
-#   docker pull qxrp/xrpld:mainnet-v2-scoring-pay
-#   docker pull qxrp/xrpld:mainnet-v2-1af01dbfb
-#
-# Historical mainnet-v1 (ActiveSet pay) digest — do not use for T0 if all-bonded pay required:
-#   qxrp/xrpld@sha256:e5086df99920ca62a6c7c09e65d49decd43ae3a67cf6167aa46419e006fcb31c
+# Pull / pin (T0 preferred):
+#   docker pull qxrp/xrpld@sha256:9362005f1360ad102d0cd76ff53f19ce7548d8149263e50f241489e4b73f3ea5
+#   export QXRP_XRPLD_IMAGE='qxrp/xrpld@sha256:9362005f1360ad102d0cd76ff53f19ce7548d8149263e50f241489e4b73f3ea5'
 #
 # RepoDigest:
-qxrp/xrpld@sha256:7286556f5bdb6cc8a3abe4864f06ca9a6af4f59c2fba82775793800744aa931e
+qxrp/xrpld@sha256:9362005f1360ad102d0cd76ff53f19ce7548d8149263e50f241489e4b73f3ea5

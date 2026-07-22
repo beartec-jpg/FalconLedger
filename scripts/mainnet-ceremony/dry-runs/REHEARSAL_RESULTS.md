@@ -345,14 +345,33 @@ Also available offline (not re-run this pass): ASAN freeze build, full destructi
 **Summary:** **12/12 PASS · 0 FAIL**  
 **Notes:** Rolling upgrade without wipe left empty `complete_ledgers` / null validated ledger — **fresh genesis required**. n=3 cannot numerically prove removal of K=32; proof is code path + labels + binary string + absence of demote logs. Open/rotating UNL remains a **post-genesis amendment** (see `docs/qxrp/OPEN_UNL_AMENDMENT.md`). Stack left **soaking** on mainnet-v2.
 
-**Hub + freeze promote (2026-07-22):**  
-`qxrp/xrpld@sha256:7286556f5bdb6cc8a3abe4864f06ca9a6af4f59c2fba82775793800744aa931e`  
-tags `mainnet-v2` · `mainnet-v2-scoring-pay` · `mainnet-v2-1af01dbfb` — now the **protocol freeze / T0 pin** (supersedes mainnet-v1 for launch).
+**Hub + freeze promote (2026-07-22 scorefix):**  
+`qxrp/xrpld@sha256:9362005f1360ad102d0cd76ff53f19ce7548d8149263e50f241489e4b73f3ea5`  
+tags `mainnet-v2` · `mainnet-v2-scoring-pay` · `mainnet-v2-scorefix` — **T0 pin** (git `b007db22d`).
+
+## Claim / pay e2e — mainnet-v2-fast-epoch scorefix (2026-07-22 ~21:59Z)
+
+**Image:** `mainnet-v2-fast-epoch` @ `85d8e07f25ab` (epoch=256, first emission=2, scorefix)  
+**Net:** private 1098 · parallel stack (soak on 1099 untouched)  
+**Artifact:** `dry-runs/mainnet-v2-claim-e2e-results.json`
+
+| Step | Status | Detail |
+|------|--------|--------|
+| PoP + amendments | **PASS** | enabled at genesis |
+| fund + register + bond ×3 | **PASS** | BondStatus=1 |
+| CompositeScore | **PASS** | ~9496–9500 at seq 514 |
+| emission pool | **PASS** | epoch=2 pool=490e12 drops |
+| **ClaimReward ×3** | **PASS** | tesSUCCESS; ~163e12 drops each |
+| NameSet | **FAIL** | temMALFORMED (smoke encoding only; freeze-pin names e2e already PASS) |
+| no ActiveSet demote | **PASS** | clean |
+
+**Pay path:** **PASS** (29/30; only optional NameSet encoding fail).  
+**Root cause fixed earlier:** dangling `makeSlice(getFieldVL(ConsensusKey))` blocked all scores.
 
 ## Next
 
-1. Multi-day soak on **mainnet-v2** (`SOAK_CHECK.md`) — seq advancing, peers=2, no crash loops  
-2. Fast-epoch ClaimReward e2e on `mainnet-v2-fast-epoch` (rehearsal only; emission first unlock epoch 2 with 256-ledger epochs) — proves pay path before real epoch 8  
-3. Wipe rehearsal stack before real T0; destroy throwaway secrets  
-4. Real ETH mainnet bridge: new 2-of-N lock + cold owners (not Sepolia keys)
+1. Multi-day soak on **scorefix mainnet-v2** (`SOAK_CHECK.md`)  
+2. Wipe rehearsal before real T0; destroy throwaway secrets  
+3. Real ETH mainnet bridge: new 2-of-N lock + cold owners  
+4. Ceremony keys offline
 

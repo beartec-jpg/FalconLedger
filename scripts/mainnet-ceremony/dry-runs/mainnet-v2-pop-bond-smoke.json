@@ -1,0 +1,68 @@
+{
+  "started": "2026-07-22T18:50:55.969587+00:00",
+  "tests": [
+    {
+      "name": "health",
+      "status": "PASS",
+      "detail": "seq=734 peers=2"
+    },
+    {
+      "name": "PoP enabled",
+      "status": "PASS",
+      "detail": "{'enabled': True, 'name': 'ProofOfParticipation', 'supported': True}"
+    },
+    {
+      "name": "fund val1",
+      "status": "PASS",
+      "detail": "tesSUCCESS DD5F4F33CEC38527"
+    },
+    {
+      "name": "fund val2",
+      "status": "PASS",
+      "detail": "tesSUCCESS DCFCD4F01DDD0468"
+    },
+    {
+      "name": "fund val3",
+      "status": "PASS",
+      "detail": "tesSUCCESS 09F5904EB4557654"
+    },
+    {
+      "name": "register val1",
+      "status": "PASS",
+      "detail": "tesSUCCESS 6CD79594E53A97DB"
+    },
+    {
+      "name": "bond val1",
+      "status": "PASS",
+      "detail": "tesSUCCESS BondStatus=1 112DC0B8FADBBD96"
+    },
+    {
+      "name": "register val2",
+      "status": "PASS",
+      "detail": "tesSUCCESS 9485BD02439A6A35"
+    },
+    {
+      "name": "bond val2",
+      "status": "PASS",
+      "detail": "tesSUCCESS BondStatus=1 3CE02D3AB9EEE035"
+    },
+    {
+      "name": "register val3",
+      "status": "PASS",
+      "detail": "tesSUCCESS 04298A5B34E97FAB"
+    },
+    {
+      "name": "bond val3",
+      "status": "PASS",
+      "detail": "tesSUCCESS BondStatus=1 64EF41C8DCAB834B"
+    }
+  ],
+  "network_id": 1099,
+  "image": "mainnet-v2-popfix",
+  "summary": {
+    "PASS": 11,
+    "FAIL": 0
+  },
+  "overall": "PASS",
+  "completed": "2026-07-22T18:52:01.899508+00:00"
+}

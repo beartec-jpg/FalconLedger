@@ -1,0 +1,169 @@
+{
+  "started_at": "2026-07-22T21:34:14.206110+00:00",
+  "image": "qxrp/xrpld:mainnet-v2-fast-epoch",
+  "network_id": 1098,
+  "tests": [
+    {
+      "name": "image labels",
+      "status": "PASS",
+      "detail": "all-bonded-pro-rata|256|2|ProofOfParticipation-SupportedYes"
+    },
+    {
+      "name": "server health",
+      "status": "PASS",
+      "detail": "state=full seq=21 peers=2 proposers=2"
+    },
+    {
+      "name": "PoP enabled",
+      "status": "PASS",
+      "detail": "enabled=True"
+    },
+    {
+      "name": "soak untouched",
+      "status": "PASS",
+      "detail": "qxrp-rehearsal-3 qxrp/xrpld:mainnet-v2 Up About a minute (healthy) | qxrp-rehearsal-2 qxrp/xrpld:mainnet-v2 Up About a minute (healthy) | qxrp-rehearsal-1 qxrp/xrpld:mainnet-v2 Up About a minute (healthy)"
+    },
+    {
+      "name": "seq advancing",
+      "status": "PASS",
+      "detail": "21->22"
+    },
+    {
+      "name": "amendment AccountNames",
+      "status": "PASS",
+      "detail": "enabled=True"
+    },
+    {
+      "name": "amendment AMM",
+      "status": "PASS",
+      "detail": "enabled=True"
+    },
+    {
+      "name": "amendment SingleAssetVault",
+      "status": "PASS",
+      "detail": "enabled=True"
+    },
+    {
+      "name": "amendment LendingProtocol",
+      "status": "PASS",
+      "detail": "enabled=True"
+    },
+    {
+      "name": "amendment MPTokensV1",
+      "status": "PASS",
+      "detail": "enabled=True"
+    },
+    {
+      "name": "fund val1",
+      "status": "PASS",
+      "detail": "tesSUCCESS C54354E5EB7AD802"
+    },
+    {
+      "name": "fund val2",
+      "status": "PASS",
+      "detail": "tesSUCCESS A6186A9284474619"
+    },
+    {
+      "name": "fund val3",
+      "status": "PASS",
+      "detail": "tesSUCCESS A48F55AA222C4EB9"
+    },
+    {
+      "name": "register val1",
+      "status": "PASS",
+      "detail": "tesSUCCESS 38B16B78F1700AD5"
+    },
+    {
+      "name": "bond val1",
+      "status": "PASS",
+      "detail": "tesSUCCESS BondStatus=1 57353281BF449141"
+    },
+    {
+      "name": "register val2",
+      "status": "PASS",
+      "detail": "tesSUCCESS 776B7A67F15E46A2"
+    },
+    {
+      "name": "bond val2",
+      "status": "PASS",
+      "detail": "tesSUCCESS BondStatus=1 D0763A71A6F855C8"
+    },
+    {
+      "name": "register val3",
+      "status": "PASS",
+      "detail": "tesSUCCESS A02ADB37106E0A01"
+    },
+    {
+      "name": "bond val3",
+      "status": "PASS",
+      "detail": "tesSUCCESS BondStatus=1 6C8222A3FF3E1F6B"
+    },
+    {
+      "name": "score val1",
+      "status": "PASS",
+      "detail": "CompositeScore=9496 seq=514"
+    },
+    {
+      "name": "score val2",
+      "status": "PASS",
+      "detail": "CompositeScore=9496 seq=514"
+    },
+    {
+      "name": "score val3",
+      "status": "PASS",
+      "detail": "CompositeScore=9500 seq=514"
+    },
+    {
+      "name": "emission pool",
+      "status": "PASS",
+      "detail": "epoch=2 pool=490000000000000"
+    },
+    {
+      "name": "claim val1",
+      "status": "PASS",
+      "detail": "ep=2 tesSUCCESS BBAE3C1892D9D9BB bal=163314402920081"
+    },
+    {
+      "name": "claim val2",
+      "status": "PASS",
+      "detail": "ep=2 tesSUCCESS 43DA1D6F3B2B597E bal=163314402920081"
+    },
+    {
+      "name": "claim val3",
+      "status": "PASS",
+      "detail": "ep=2 tesSUCCESS 140E9F1653330060 bal=163383194159728"
+    },
+    {
+      "name": "NameSet",
+      "status": "FAIL",
+      "detail": "temMALFORMED: Malformed transaction. 708AD96CCF0AE96E"
+    },
+    {
+      "name": "no ActiveSet demote",
+      "status": "PASS",
+      "detail": "clean"
+    },
+    {
+      "name": "final fast health",
+      "status": "PASS",
+      "detail": "seq=521 peers=2"
+    },
+    {
+      "name": "final soak health",
+      "status": "PASS",
+      "detail": "seq=521 peers=2"
+    }
+  ],
+  "notes": [
+    "PoP Supported::Yes",
+    "epoch=256 first_emission=2",
+    "soak on :6005 untouched"
+  ],
+  "summary": {
+    "PASS": 29,
+    "FAIL": 1,
+    "WARN": 0
+  },
+  "overall": "FAIL",
+  "updated_at": "2026-07-22T21:59:15.647850+00:00"
+}

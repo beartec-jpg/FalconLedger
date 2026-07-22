@@ -1,5 +1,5 @@
 # ═══════════════════════════════════════════════════════════════════════════
-# PROTOCOL FREEZE — SUPERSEDED TO mainnet-v2 2026-07-22
+# PROTOCOL FREEZE — mainnet-v2 scorefix 2026-07-22
 # ═══════════════════════════════════════════════════════════════════════════
 # Do not change consensus / protocol / amendment code against this pin without
 # intentionally cutting a NEW freeze (new build + new digest + re-smoke).
@@ -8,28 +8,21 @@
 #   docker inspect qxrp/xrpld:mainnet-v2 \
 #     --format '{{index .Config.Labels "org.opencontainers.image.revision"}}'
 #   docker inspect qxrp/xrpld:mainnet-v2 \
-#     --format '{{index .Config.Labels "falcon.scoring"}} {{index .Config.Labels "falcon.activeset"}}'
+#     --format '{{index .Config.Labels "falcon.scoring"}} {{index .Config.Labels "falcon.pop"}} {{index .Config.Labels "falcon.scorefix"}}'
 #
-1af01dbfb
-# full: 1af01dbfb (feat(scoring): pay all bonded ∝ score; drop ActiveSet rank cut)
-# base freeze names tip still included: 1789d2fb4 is an ancestor
+b007db22d
+# short: b007db22d
+# includes:
+#   - feat(scoring): pay all bonded ∝ score; drop ActiveSet rank cut (1af01dbfb)
+#   - fix(protocol): ProofOfParticipation Supported::Yes (bb82cba1b)
+#   - fix(scoring): keep ConsensusKey Blob alive for makeSlice (this tip)
+#   - AccountNames + lending/AMM amendments at genesis
 #
-# Includes:
-#   AccountNames, fluid EMA scoring, pay ∝ score for ALL bonded (no K=32 cut),
-#   slash burnXRP, multi-sig bridge code, CID first unlock epoch 8 (long-epoch)
-# Image tags: qxrp/xrpld:mainnet-v2 · mainnet-v2-scoring-pay · mainnet-v2-1af01dbfb
-# Built: 2026-07-22 on val5 · Hub push 2026-07-22
+# Image: qxrp/xrpld@sha256:9362005f1360ad102d0cd76ff53f19ce7548d8149263e50f241489e4b73f3ea5
+# tags: mainnet-v2 · mainnet-v2-scoring-pay · mainnet-v2-scorefix
 #
-# Prior freeze (mainnet-v1 / ActiveSet pay): 1789d2fb4 — kept as historical pin only
+# Emission (long-epoch T0 binary): first unlock epoch 8
+# Fast-epoch claim rehearsal image: mainnet-v2-fast-epoch @ 85d8e07f25ab
+#   (epoch=256, first_emission=2) — NOT for T0
 #
-# Freeze smoke (private net 1099):
-#   mainnet-v1 names: PASS 14/14 (2026-07-22)
-#   mainnet-v2 scoring-pay fresh-genesis: PASS 12/12 (2026-07-22)
-#     see dry-runs/mainnet-v2-scoring-smoke.json
-#
-# Soak: val5 qxrp-rehearsal-{1,2,3} on mainnet-v2 — leave running
-#   (server_info full, seq advancing, peers=2, no crash loops)
-#
-# Emission: long-epoch mainnet binary uses first unlock at epoch 8.
-#   Bonded validators accrue scores from genesis; ClaimReward pays after epoch 8.
-# Fast-epoch claim e2e: build mainnet-v2-fast-epoch (rehearsal only; not T0 pin).
+# Soak: val5 qxrp-rehearsal-{1,2,3} on mainnet-v2 scorefix — leave running

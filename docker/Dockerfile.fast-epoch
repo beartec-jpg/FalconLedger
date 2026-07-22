@@ -50,7 +50,10 @@ COPY . .
 
 RUN --mount=type=cache,target=/root/.conan2,id=qxrp-conan \
     --mount=type=cache,target=/build,id=qxrp-build-fast-epoch \
-    cd /build \
+    conan profile detect --force \
+    && sed -i 's/compiler.cppstd=gnu17/compiler.cppstd=gnu20/' ~/.conan2/profiles/default \
+    && conan remote add --force --index 0 xrplf https://conan.ripplex.io \
+    && cd /build \
     && conan install /src --output-folder=. --build=missing \
        -s build_type=Release \
        -o "xrpl/*:tests=False" \

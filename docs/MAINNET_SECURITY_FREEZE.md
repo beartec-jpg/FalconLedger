@@ -1,10 +1,10 @@
 # Mainnet security freeze notes
 
-**Status:** **PROTOCOL FREEZE — mainnet-v2 (scoring pay) 2026-07-22**  
-**Freeze commit:** `1af01dbfb` (all bonded pay ∝ score; ancestor names tip `1789d2fb4`)  
-**Image:** `qxrp/xrpld@sha256:7286556f5bdb6cc8a3abe4864f06ca9a6af4f59c2fba82775793800744aa931e`  
-  tags: `mainnet-v2` · `mainnet-v2-scoring-pay` · `mainnet-v2-1af01dbfb` (Hub push 2026-07-22)  
-**Smoke:** names (v1) 14/14 + scoring-pay fresh-genesis (v2) 12/12 · soak on **mainnet-v2**  
+**Status:** **PROTOCOL FREEZE — mainnet-v2 scorefix 2026-07-22**  
+**Freeze commit:** `b007db22d` (all bonded pay ∝ score + PoP Supported::Yes + scoring Blob fix)  
+**Image:** `qxrp/xrpld@sha256:9362005f1360ad102d0cd76ff53f19ce7548d8149263e50f241489e4b73f3ea5`  
+  tags: `mainnet-v2` · `mainnet-v2-scoring-pay` · `mainnet-v2-scorefix` (Hub push 2026-07-22)  
+**Smoke:** bond 11/11 · PoP enabled · claim e2e on fast-epoch · soak on scorefix  
 **Emission:** long-epoch first unlock at **epoch 8**; scores accrue from genesis for bonded vals  
 **Last updated:** 2026-07-22  
 **Companion docs:** `MAINNET_GO_LIVE_CHECKLIST.md`, `MAINNET_REHEARSAL.md`, `ops/MAINNET_OPS_RUNBOOK.md`, `scripts/mainnet-ceremony/dry-runs/SOAK_CHECK.md`
@@ -24,6 +24,8 @@ This document records the **security freeze** assumptions and remaining ops gate
 | LP claim denom uses live aggregate floor | ✅ | Prevents post-epoch mint overpay |
 | Relative latency scoring (not flat 5000) | ✅ | `ValidatorScoring` earliest-signer baseline + continuous 10 ms steps |
 | Fluid composite (EMA; pay ∝ score all bonded) | ✅ | independent signals; 35% new / 65% history EMA; **no ActiveSet K=32 rank-cut** (`mainnet-v2`) |
+| ProofOfParticipation Supported::Yes | ✅ | bond/claim/emission gates; genesis `[amendments]` + `[features]` |
+| ValidatorScoring ConsensusKey Blob lifetime | ✅ | `getFieldVL` Blob kept for `makeSlice` (scores write) |
 | AccountNames (NameSet / Unbond / Release) | ✅ | 100 FALCON bond; 1/account; 1-epoch cooldown |
 | Bridge contract multi-sig (N-of-M) | ✅ code · Sepolia e2e | **Redeploy** ETH mainnet lock with `REQUIRED≥2` |
 

@@ -1,15 +1,14 @@
-# mainnet-v2 — scoring pay (all bonded ∝ score), ActiveSet rank-cut disabled
-# Built 2026-07-22 on val5 from scoring tree (rev label 1af01dbfb)
-# Tags: mainnet-v2 · mainnet-v2-scoring-pay · mainnet-v2-1af01dbfb
-# labels: falcon.scoring=all-bonded-pro-rata falcon.activeset=disabled falcon.names=AccountNames
+# mainnet-v2 T0 pin — all bonded pay ∝ score + PoP + scoring Blob fix
+# git b007db22d · Hub 2026-07-22
 #
-# Hub (2026-07-22):
-qxrp/xrpld@sha256:7286556f5bdb6cc8a3abe4864f06ca9a6af4f59c2fba82775793800744aa931e
+qxrp/xrpld@sha256:9362005f1360ad102d0cd76ff53f19ce7548d8149263e50f241489e4b73f3ea5
 #
-# Fresh-genesis smoke (2026-07-22 ~13:36Z UTC) on val5 private network_id=1099:
-#   wipe NuDB/db · compose mainnet-v2 · ips_fixed 172.30.0.2/3/4 · --start
-#   overall PASS 12/12 · 0 FAIL
-# Artifact: dry-runs/mainnet-v2-scoring-smoke.json
+# tags: mainnet-v2 · mainnet-v2-scoring-pay · mainnet-v2-scorefix
+# labels: falcon.scoring=all-bonded-pro-rata falcon.activeset=disabled
+#         falcon.pop=ProofOfParticipation-SupportedYes falcon.scorefix=dangling-ck-blob
 #
-# Soak: val5 qxrp-rehearsal-1/2/3 left on this image
-# Fast-epoch ClaimReward e2e: mainnet-v2-fast-epoch build (rehearsal only)
+# Fast-epoch claim rehearsal (NOT T0):
+# qxrp/xrpld:mainnet-v2-fast-epoch@sha256:85d8e07f25abea32499992a523dba8b6880d12ae18d74735ecd49113bfeb6f68
+#
+# Claim e2e 2026-07-22: ClaimReward ×3 tesSUCCESS · CompositeScore ~9500
+# Artifact: dry-runs/mainnet-v2-claim-e2e-results.json
