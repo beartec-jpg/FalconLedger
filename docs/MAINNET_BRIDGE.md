@@ -18,6 +18,24 @@ Audit + e2e: 2026-07-22
 Contract: `contracts/FalconCollateralLock.sol` (N-of-M multi-sig ready).  
 Deploy helper: `scripts/deploy-falcon-lock.js` (`OWNERS=…`, `REQUIRED=…`).
 
+## Multi-sig Sepolia e2e (2026-07-22) — PASS
+
+Mainnet-shaped run on Sepolia (not the old 1-of-1 lock).
+
+| Item | Value |
+|------|--------|
+| Lock | `0x8A300bC6726C633ae350F58380194Ce3008CE295` |
+| Deploy tx | `0x5b4c4373f8c6c31711f219a2ce84304e7e849175550ddca23311463964264de6` |
+| Custody | **2-of-3** owners (keys on host under `/var/lib/qxrp-bridge/mainnet-parity/`, test only) |
+| Deposit | 5 USDC → `0xd55ffe77828f347ac9418aaae2815a47e1572f33c4cc7f2f98e4188d2535d752` |
+| Mint | 5 QUC → Falcon `rMpmiVGjTVqHKC97FoD7gNBpicH97HSxGZ` tx `170298BDFCE33622…` |
+| 1-of-2 confirm | **blocked** (no USDC out) — `0x0a189253d7327c7e…` |
+| 2-of-3 confirm | **released 3 USDC** — `0x759b7ce175a29ec5…` |
+| Artifacts | host `mainnet-parity/deploy.public.json`, `test_deposit.json`, `test_multisig_withdraw.json` |
+
+**Proved:** multi-sig constructor, deposit event, deposit-relay mint, single-owner cannot withdraw, threshold release moves USDC.  
+**Not re-run this pass:** full QUC burn + memo → withdraw-relay automation (1-of-1 path already had 9 releases historically; multi-sig confirm API is what changed).
+
 ## Mainnet gaps (must close before T0 bridge)
 
 1. **No Ethereum mainnet lock** — `config/usdc-bridge.json` → `ethereum_mainnet.lock_contract = null`.

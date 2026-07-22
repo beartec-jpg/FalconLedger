@@ -52,7 +52,9 @@
 | vault / lend | **PASS** | Full path: AMM (native/IOU) → VaultCreate → VaultDeposit → LoanBrokerSet → **LoanSet** → **LoanPay** (see vault section) |
 | bridge (legacy 1-of-1) | **PASS** (prior) | Sepolia lock `0x2dae…b75C` · 38 mints / 9 releases on host `46.224.0.140` |
 | bridge (multi-sig 2-of-3) | **PASS** (2026-07-22) | Mainnet-parity Sepolia deploy + deposit→mint + dual-confirm release (see Bridge section) |
-| teardown | **PENDING** | Stack still up; wipe before real T0 |
+| freeze pin (mainnet-v1 long-epoch) | **PASS** (2026-07-22) | 14/14 on val5 net 1099 — names + amendments (see Freeze pin section) |
+| AccountNames e2e | **PASS** (2026-07-22) | NameSet / lookup / dup / unbond / too-soon on freeze pin |
+| teardown | **PENDING** | Stack still up on soak; wipe before real T0 |
 
 ## Key tx hashes (from val5 JSON)
 
@@ -243,7 +245,9 @@ On val5 `/root/`:
 - [x] VaultCreate → VaultDeposit → LoanBrokerSet  
 - [x] LoanSet / LoanPay full path (permissionless + AMM HF)  
 - [x] Bridge multi-sig 2-of-3 Sepolia e2e (deposit→mint, 1-owner block, 2-owner release)  
-- [ ] Ready for real T0 — **NO** until mainnet-v1 long-epoch pin signed off + wipe throwaway secrets  
+- [x] mainnet-v1 freeze pin smoke (14/14) — AccountNames + long-epoch genesis  
+- [x] A4 double-sign slash re-proven after burnXRP fix  
+- [ ] Ready for real T0 — **NO** until soak re-check + ops ceremony keys + wipe throwaway secrets  
 - [ ] Chain wiped; throwaway secrets destroyed  
 - [ ] ETH mainnet multi-sig lock deploy (new owners; Circle USDC) — after T0 bridge go-live plan
 
@@ -280,32 +284,49 @@ Also available offline (not re-run this pass): ASAN freeze build, full destructi
 
 
 
-### A4 double-sign slash (2026-07-22)
+### A4 double-sign slash (2026-07-22) — fixed and re-proven
 
-**Harness:** `tools/make_double_sign_evidence.cpp` (local link against `.build` + liboqs) produces two Falcon `STValidation` blobs (same key, same `LedgerSequence`, different `LedgerHash`).
+**Harness:** `tools/make_double_sign_evidence.cpp` (two Falcon `STValidation` blobs: same key, same `LedgerSequence`, different `LedgerHash`).
+
+**First attempt (pre-fix):** `tecINVARIANT_FAILED` — `ValidatorSlash` used fee-split `destroyXRP` and drop-conservation rejected intentional bond burns.
+
+**Root cause / fix (in freeze pin):**
+
+1. Bond burn must use pure burn (`ApplyContext::burnXRP` / raw destroy), not the fee-split path.
+2. Drop-conservation invariants allow fee + bond burn for `ttVALIDATOR_SLASH`.
+
+**Re-prove on image `e2615b362` (carried into freeze tip):** artifact `dry-runs/artifacts/rehearsal-a4-results.json`
 
 | Check | Result |
 |-------|--------|
-| Evidence crypto (preclaim) | **PASS** — engine reached doApply (`tecINVARIANT_FAILED`, not `tecNO_PERMISSION`) |
-| On-ledger slash apply | **FAIL** — `tecINVARIANT_FAILED` hash `8DED82D2A491EF8E…` |
-| Bond after | still BondStatus=1, BondedAmount=1000000000 (tx not applied) |
+| On-ledger slash | **PASS** `tesSUCCESS` hash `652830D39B3E8DEBD4…` |
+| Bond after | BondStatus **1→2** (UNBONDING); BondedAmount **1000→0**; SlashCount=1 |
+| A5 replay | **PASS** `tecDUPLICATE` |
 
-**Root cause found (real bug):**
+## Freeze pin smoke — mainnet-v1 (2026-07-22 ~09:37Z)
 
-1. `ValidatorSlash::doApply` called `ctx_.destroyXRP(slashed)` which is the **fee-split** path (~65% burn + treasury credit), not a pure bond burn.
-2. Even with pure burn, `XRPNotCreated` / `QXRPDropConservation` require `net_drop_change == fee` only, so intentional bond burns always fail once `ltVALIDATOR_BOND` is tracked.
+**Declared freeze:** commit `1789d2fb4` · image `qxrp/xrpld:mainnet-v1` @ local `e5086df99920…`  
+**Host / net:** val5 · private `network_id=1099` · long-epoch (172800)  
+**Artifact:** `dry-runs/mainnet-pin-results.json` · `FREEZE_COMMIT.txt` · `IMAGE_DIGEST.txt` · `docs/MAINNET_SECURITY_FREEZE.md` · soak notes `SOAK_CHECK.md`
 
-**Fix applied in tree (needs image rebuild to re-prove on-chain):**
+| Test | Status | Detail |
+|------|--------|--------|
+| image pin mainnet-v1 | **PASS** | `1789d2fb4` · label `falcon.names=AccountNames` |
+| server health | **PASS** | `full` · peers=2 |
+| AccountNames / AMM / MPTokensV1 / Lending / SAV | **PASS** | enabled at genesis (`--start` + `[amendments]`) |
+| NameSet | **PASS** | `tesSUCCESS` · name claim + 100 FALCON bond |
+| ledger_entry by name | **PASS** | Account match · NameStatus 0→1 |
+| dup name / second name | **PASS** | both `tecDUPLICATE` |
+| NameUnbond | **PASS** | NameStatus=1 releasing |
+| NameRelease too soon | **PASS** | `tecTOO_SOON` (long-epoch cooldown) |
 
-- `ValidatorSlash.cpp`: `view().rawDestroyXRP(slashed)` instead of fee-split `destroyXRP`
-- `InvariantCheck.cpp` + `QXRPDropConservation.cpp`: for `ttVALIDATOR_SLASH`, allow `-drops_ >= fee` (fee + bond burn)
-
-**A5/A6:** still blocked until A4 applies cleanly after rebuild.
+**Summary:** **14/14 PASS · 0 FAIL**  
+**Notes:** RPC `Name` field is hex-encoded VL; full NameRelease cooldown not waited on long-epoch pin (correct `tecTOO_SOON` proves gate). Stack left **soaking** on val5 (`qxrp-rehearsal-1/2/3`).
 
 ## Next
 
-1. Optional: re-verify ClaimReward + knockdown with hashes appended here  
-2. Sign off mainnet-v1 long-epoch pin (AccountNames tip building; pin digest when green)  
-3. Wipe rehearsal stack before real T0  
-4. Real ETH bridge: new 2-of-N lock + cold owners (reuse ceremony multi-sig runbook, not Sepolia keys)
+1. Re-check soak in a few days (`SOAK_CHECK.md`) — seq advancing, peers=2, no crash loops  
+2. Registry push of `mainnet-v1` when ready (replace local id with RepoDigest in `IMAGE_DIGEST.txt`)  
+3. Wipe rehearsal stack before real T0; destroy throwaway secrets  
+4. Real ETH mainnet bridge: new 2-of-N lock + cold owners (not Sepolia keys)
 

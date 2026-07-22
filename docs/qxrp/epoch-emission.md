@@ -16,11 +16,17 @@ genesis account root and incremented by the `RewardEpoch` pseudo-transaction.
 `ledgerSeq % kQXRP_LEDGERS_PER_EPOCH == 0` and the `ProofOfParticipation`
 amendment is active.
 
-## Emission Calculation
+## Emission Calculation (CID)
+
+Mainnet uses **Continuous Inflationary Decline (CID)** — a smooth per-epoch
+rate on remaining treasury, not multi-year halvings. Legacy halving constants
+remain in headers as `[[maybe_unused]]` reference only.
 
 ```
-halvingN     = (epochIndex - 1) / kQXRP_EPOCHS_PER_HALVING   (integer division)
-emissionBps  = max(kQXRP_INITIAL_EMISSION_BPS >> halvingN, kQXRP_MIN_EMISSION_BPS)
+// Bootstrap quiet period
+emissionBps  = (epochIndex < kQXRP_FIRST_EMISSION_EPOCH)
+                 ? 0
+                 : cidEmissionBps(epochIndex)   // linear micro-decline, floor ~3 bps
 epochEmit    = treasuryBalance * emissionBps / kBPS_DENOM
 ```
 
@@ -29,50 +35,54 @@ Constants (see `include/xrpl/protocol/QXRPConstants.h`):
 | Constant | Value | Meaning |
 |---|---|---|
 | `kQXRP_LEDGERS_PER_EPOCH` | 172,800 | ledgers per epoch (~7 days) |
-| `kQXRP_EPOCHS_PER_HALVING` | 208 | epochs before next halving (~4 years) |
-| `kQXRP_INITIAL_EMISSION_BPS` | 50 | starting emission rate (0.50 % of treasury) |
-| `kQXRP_MIN_EMISSION_BPS` | 1 | floor emission rate (0.01 % of treasury) |
+| `kQXRP_FIRST_EMISSION_EPOCH` | 8 | first epoch with non-zero claimable pool |
+| `kQXRP_EPOCHS_PER_YEAR` | 52 | ~weekly epochs |
+| `kQXRP_CID_YEAR1_AVG_BPS` | 1,200 | ~12% of treasury / year (year 1 average) |
+| `kQXRP_CID_YEAR5_AVG_BPS` | 450 | ~4.5% / year (year 5 average) |
+| `kQXRP_CID_YEARLY_FLOOR_BPS` | 150 | ~1.5% / year long-term floor |
+| `kQXRP_CID_EPOCH_FLOOR_BPS` | 3 | per-epoch floor once yearly floor reached |
 | `kQXRP_TREASURY_ALLOCATION` | 196,000,000,000 XRP | treasury at genesis |
 | `kBPS_DENOM` | 10,000 | basis-point denominator |
 
 All arithmetic is 64-bit integer; no floating-point is used anywhere in this path.
 
-## Halving Schedule
+## PoPL split (validators / vault LPs / AMM LPs)
 
-The emission rate halves every 208 epochs (≈ 4 years).  The floor of 1 bps is
-reached at halving 6 (≈ year 24) and held indefinitely.
+Each epoch pool is split by participation:
 
-| Halving | Epoch range | Calendar years | emissionBps | % of treasury/epoch | ~Emission at genesis treasury |
-|---------|-------------|---------------|-------------|---------------------|-------------------------------|
-| 0 | 1 – 208 | 0 – 4 | 50 bps | 0.50 % | 980,000,000 XRP |
-| 1 | 209 – 416 | 4 – 8 | 25 bps | 0.25 % | 490,000,000 XRP |
-| 2 | 417 – 624 | 8 – 12 | 12 bps | 0.12 % | 235,200,000 XRP |
-| 3 | 625 – 832 | 12 – 16 | 6 bps | 0.06 % | 117,600,000 XRP |
-| 4 | 833 – 1040 | 16 – 20 | 3 bps | 0.03 % | 58,800,000 XRP |
-| 5 | 1041 – 1248 | 20 – 24 | 1 bps (floor) | 0.01 % | 19,600,000 XRP |
-| ≥ 6 | 1249+ | 24+ | 1 bps (floor) | 0.01 % | decreasing |
+| Basket | Growth | Cap |
+|--------|--------|-----|
+| Lending vault LPs | +1% emission per distinct vault share holder | 25% (25 providers) |
+| AMM LPs | +1% per distinct AMM LP holder (XRP pairs) | 25% |
+| Validators | Remainder (≥50% when both LP baskets full) | — |
 
-> Note: the "at genesis treasury" column assumes the full 196 B XRP treasury.
-> In practice the treasury shrinks each epoch, so absolute emission decreases
-> continuously — the schedule is a **double decay** (halving × depletion).
+Within each basket, claims are pro-rata by share balance (pull-based).
+
+## CID schedule (shape)
+
+Rate declines every epoch (no intra-year reset). Approximate targets:
+
+| Period | Yearly avg of remaining treasury | Notes |
+|--------|----------------------------------|-------|
+| Year 1 | ~12% | starts higher; declines each epoch |
+| Year 5 | ~4.5% | continued linear decline |
+| Long term | ~1.5% floor | ~3 bps per epoch floor |
+
+> Absolute emission also falls as the treasury balance shrinks each epoch
+> (rate decline × balance decline).
 
 ## Per-Validator Payout
 
-Validators receive a share of `epochEmit` proportional to their composite score:
+Validators receive a share of the **validator basket** (epochEmit after LP
+allocations) proportional to their composite score among the ActiveSet:
 
 ```
-validatorShare = epochEmit × validatorCompositeScore / aggregateCompositeScore
+validatorShare = validatorBasket × validatorCompositeScore / aggregateCompositeScore
 ```
 
-Only validators with `compositeScore ≥ kMIN_COMPOSITE_SCORE_BPS` (500 bps = 5 %)
-are included in `aggregateCompositeScore` and are eligible for rewards.
-
-### Example (halving 0, genesis treasury, 100 equal-score validators)
-
-```
-epochEmit    = 196,000,000,000 XRP × 50 / 10,000 = 980,000,000 XRP
-validatorShare = 980,000,000 / 100 = 9,800,000 XRP/week per validator
-```
+Only validators with non-zero ActiveSet composite and
+`compositeScore ≥ kMIN_COMPOSITE_SCORE_BPS` (500 bps = 5 %) are included in
+`aggregateCompositeScore` and are eligible for rewards.
 
 ### Claiming
 

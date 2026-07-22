@@ -37,12 +37,11 @@ Emission is pulled from the treasury at the end of each reward epoch via
 epochEmissionDrops = treasuryBalance × emissionBps / BPS_DENOM
 ```
 
-where `emissionBps` starts at `kQXRP_INITIAL_EMISSION_BPS` (50 bps = 0.5 %) and
-halves every `kQXRP_EPOCHS_PER_HALVING` (208) epochs.  `emissionBps` is floored
-at `kQXRP_MIN_EMISSION_BPS` (1 bps).
-
-A halving epoch count of 208 epochs × `kQXRP_LEDGERS_PER_EPOCH` (172,800) ×
-3.5 s/ledger ≈ 4.1 years — closely matching the Bitcoin halving cadence.
+where `emissionBps` comes from **CID** (`cidEmissionBps(epochIndex)`): a smooth
+per-epoch decline targeting ~12% of remaining treasury in year 1, ~4.5% by year
+5, and a ~1.5%/year long-term floor (~3 bps per epoch). Epochs before
+`kQXRP_FIRST_EMISSION_EPOCH` (8) schedule zero claimable emission. See
+[epoch-emission.md](epoch-emission.md).
 
 ## Drop Conservation Invariant
 

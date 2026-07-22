@@ -1,6 +1,6 @@
 # Falcon Ledger White Paper
 
-**Version 2.1 — July 2026**
+**Version 2.6 — July 2026**
 
 ---
 
@@ -38,7 +38,8 @@ to be secure in 2026 and in 2046.
 **Fixed supply. 200 billion qXRP. Hard cap. No exceptions.**
 98% of the supply is locked in a protocol treasury with no private key. It is
 released only by on-chain consensus rules — one epoch at a time, according to a
-halving schedule, to the validators who keep the network alive. Validators get
+continuous declining emission schedule (CID), shared between validators and
+lending/AMM liquidity providers under Proof of Participation. Validators get
 paid for doing the work. Fees burn. The supply shrinks. No company can dump on you,
 and no foundation decides who gets a grant.
 
@@ -46,6 +47,10 @@ and no foundation decides who gets a grant.
 launch target is an in-wallet experience — faucet, wallet, and swaps — that lets a
 validator convert qXRP rewards to **USDC** and **USDT** on-chain from day one of
 mainnet, with no centralized exchange in the loop.
+
+**Human names, still self-custody.** Optional on-ledger account names map a
+readable handle (e.g. `alice.bob`) to an `r…` address with a 100 qXRP bond —
+payments always settle to the cryptographic address.
 
 ---
 
@@ -111,9 +116,9 @@ and counterparty risk. The reward only matters if you can spend it.
 - The era of VC-controlled "decentralized" protocols is ending under
   regulatory scrutiny. SEC actions against centralized token issuers are
   accelerating globally.
-- Bitcoin's halving model proved that predictable emission schedules build
-  long-term holder confidence. No equivalent model exists in the XRP
-  ecosystem.
+- Predictable, declining emission schedules (Bitcoin halvings; Falcon's CID
+  continuous decline) build long-term holder confidence. No equivalent model
+  exists in the XRP ecosystem.
 - The validator incentive problem is unsolved in every ledger-based chain
   that does not issue a staking reward. This problem has a known solution:
   pay validators on-chain, deterministically, from a protocol-controlled
@@ -131,11 +136,12 @@ with fundamental upgrades applied to the layers that XRP left broken:
 | Layer        | What Falcon Ledger Changes                                  |
 | ------------ | ----------------------------------------------------------- |
 | Supply       | Protocol treasury replaces company wallet                   |
-| Incentives   | Validators earn rewards every epoch                         |
+| Incentives   | Validators earn rewards every epoch (CID + fluid scoring)   |
 | Cryptography | Falcon-512 as the standard signature scheme for all keys and transactions |
 | Governance   | Bonded validator supermajority on-chain                     |
 | Fees         | Burn + validator split, no dead-end fee destruction         |
 | Liquidity    | Built-in DEX/AMM for in-wallet qXRP↔USDC/USDT swaps         |
+| Identity UX  | Optional Account Names (`alice.bob` → `r…`) with bonded claim |
 
 The consensus model is unchanged. RPCA stays. Finality stays sub-second.
 Fees stay low. The economic and cryptographic layers are replaced entirely.
@@ -221,33 +227,42 @@ only leave the treasury via the `RewardEpoch` pseudo-transaction, which
 is triggered automatically by the protocol at the close of each epoch.
 No human, company, or foundation can authorize a treasury withdrawal.
 
-### 5.3 Emission Schedule
+### 5.3 Emission Schedule (CID)
 
-Treasury emission follows a Bitcoin-style halving schedule.
+Treasury emission uses **Continuous Inflationary Decline (CID)** — a smooth
+per-epoch schedule rather than discrete multi-year halvings.
 
 ```
-halvingN     = (epochIndex - 1) / 208        (integer division)
-emissionBps  = max(50 >> halvingN, 1)        (basis points, floor 1)
+// Per-epoch basis points of remaining treasury (integer math only)
+// Year-1 average ≈ 12% of treasury / year (~52 epochs)
+// Year-5 average ≈ 4.5% / year
+// Long-term floor ≈ 1.5% / year (≈ 3 bps per epoch)
+emissionBps  = cidEmissionBps(epochIndex)   // linear micro-decline per epoch
 epochEmit    = treasuryBalance × emissionBps / 10,000
 ```
 
 Each epoch spans 172,800 ledgers — approximately 7 days at 3.5 seconds
-per ledger. The emission rate halves every 208 epochs, or roughly every
-4 years. The floor is 1 basis point (0.01% of remaining treasury per
-epoch), reached at approximately year 24 and held indefinitely.
+per ledger (~52 epochs per year). Bootstrap: epochs **1–7** schedule **zero**
+claimable emission; the first non-zero pool unlocks at **epoch 8**.
 
-| Halving | Years | Rate          | ~Weekly Emission |
-| ------- | ----- | ------------- | ---------------- |
-| 0       | 0–4   | 0.50%         | 980,000,000 qXRP |
-| 1       | 4–8   | 0.25%         | 490,000,000 qXRP |
-| 2       | 8–12  | 0.12%         | 235,200,000 qXRP |
-| 3       | 12–16 | 0.06%         | 117,600,000 qXRP |
-| 4       | 16–20 | 0.03%         | 58,800,000 qXRP  |
-| 5+      | 20–24 | 0.01% (floor) | decreasing       |
+| Period   | Approx. yearly avg of remaining treasury | Shape |
+| -------- | ---------------------------------------- | ----- |
+| Year 1   | ~12%                                     | starts higher, declines each epoch |
+| Year 5   | ~4.5%                                    | continued linear decline |
+| Long term| ~1.5% floor                              | per-epoch floor ~3 bps |
 
-This is a **double decay**: the rate halves every 4 years, and the
-treasury balance it applies to shrinks continuously. Absolute weekly
-emission decreases every single epoch. Supply is always going down, never up.
+**PoPL split.** Each epoch’s emission is shared by participation:
+
+- **Lending vault LPs** — +1% of the epoch pool per distinct active vault
+  depositor (capped), proportional to vault MPT share within the LP basket.
+- **AMM LPs** — participation-based allocation when AMM LP counting is active.
+- **Validators** — remainder of the epoch pool, proportional to composite score
+  among the ActiveSet (see §6).
+
+Claims are pull-based (`ClaimReward`, `ClaimLPReward`, `ClaimAmmLpReward`) and
+hard-capped to the epoch’s remaining pool balance. Absolute emission declines
+every epoch as both the rate and the treasury balance fall — supply never
+inflates beyond the 200B hard cap.
 
 ### 5.4 Fee Burn
 
@@ -275,39 +290,50 @@ Every epoch, the protocol emits a share of the treasury to qualifying
 validators. The share is proportional to each validator's composite
 performance score. There is no off-chain oracle. There is no human
 judgment. The score is computed deterministically from on-ledger data
-at the close of each epoch.
+every flag ledger (256 ledgers), then used at epoch claim time.
 
 **You run the chain. You earn the chain.**
 
-### 6.2 Composite Score
+### 6.2 Fluid / Smoothed Composite Score
 
-Each validator's share of epoch rewards is determined by their composite
-score:
+Rewards use **independent continuous signals** and a **smoothed composite** —
+not a flat demerit shared by everyone who misses a single threshold.
 
 ```
-compositeScore = (uptime × 40)
-               + (voteAccuracy × 30)
-               + (latencyScore × 15)
-               + (consistency × 10)
-               + (slashMultiplier × 5)
-               ÷ 100
+// 256-ledger window; all values in basis points (0–10_000)
+rawScore = (uptime × 40
+         +  voteAccuracy × 30
+         +  latencyScore × 15
+         +  consistency  × 10) / 100
+
+rawSlashed     = rawScore × slashMultiplier / 10_000
+compositeScore = EMA(rawSlashed, previousComposite)
+               // 35% new window  /  65% history  (kSCORE_EMA_NEW_BPS = 3500)
 ```
 
-All five components are derived entirely from on-chain state. No external
-data source is involved.
+| Signal | Weight | Measurement (per 256-ledger window) |
+| ------ | ------ | ----------------------------------- |
+| **Uptime** | 40% | Presence: any trusted full validation for the sequence / 256 |
+| **Vote accuracy** | 30% | Correct (canonical-hash) votes / votes cast — independent of uptime |
+| **Latency** | 15% | Continuous relative score vs the **earliest correct signer** on each ledger (−1 bps per 10 ms lag; earliest → 10_000) |
+| **Consistency** | 10% | `10_000 − max_absence_streak × 10_000 / 256` — long outages hurt more than scatter |
+| **Slash multiplier** | applied after | Multiplicative; not an additive “fifth weight” in the raw blend |
 
-- **Uptime** (40%): percentage of ledgers closed while the validator was
-  responsive and participating.
-- **Vote accuracy** (30%): fraction of validation votes that matched the
-  consensus outcome.
-- **Latency score** (15%): relative speed of proposal and vote submission.
-- **Consistency** (10%): participation stability across rolling windows,
-  penalizing intermittent operators.
-- **Slash multiplier** (5%): reduced by any prior slashing events.
+**Why smoothing matters.** A one-window dip no longer zeros rewards forever or
+snaps back to perfect in a single step. The EMA blends 35% of the new raw
+composite with 65% of the previous on-bond composite, so recovery after a
+knockdown is gradual and gaming a single window is less effective.
 
-A validator must score at least 5% composite to be included in epoch
-reward distribution. Validators below this threshold receive nothing
-that epoch.
+**ActiveSet(K).** After scoring, bonded validators are ranked by composite
+(descending; account id breaks ties). Only the top **`K = 32`** keep a
+non-zero `sfCompositeScore` and contribute to `sfAggregateCompositeScore` for
+rewards. Others retain diagnostic component scores (uptime, latency, etc.) for
+transparency but are **not reward-eligible** until they re-enter the top 32.
+This keeps emission focused on the live high-quality set without static UNL
+hard-coding of reward weight.
+
+A validator must also clear a minimum composite floor (**5%** / 500 bps) to
+participate in the aggregate used for proportional claims.
 
 ### 6.3 Bonding
 
@@ -342,13 +368,59 @@ no human decides.
 
 Rewards are not automatically pushed to validators. Each validator submits
 a `ClaimReward` transaction for each epoch they are eligible for. The payout
-is drawn directly from the treasury. The per-validator share is computed from
-the fixed emission rate recorded at epoch creation — the order in which
-validators claim does not affect how much they receive.
+is drawn directly from the treasury (hard-capped to remaining epoch pool).
+The per-validator share is computed from the fixed emission rate recorded at
+epoch creation — the order in which validators claim does not affect how much
+they receive. Vault and AMM LPs claim via `ClaimLPReward` / `ClaimAmmLpReward`
+when those paths are allocated.
 
 ---
 
-## 7. On-Chain Governance
+## 7. Account Names (Human Addresses)
+
+Falcon wallets remain **`r…` AccountIDs** under Falcon-512 keys. On top of that,
+the protocol supports optional **Account Names** — a bonded, on-ledger map from
+a human-readable name to an account.
+
+### 7.1 Why names exist
+
+Long base58 addresses are hard to share safely. Names give wallets and portals
+a resolve path (`alice.bob` → owner `r…`) without changing settlement: every
+Payment still targets an AccountID. Names are **not** a separate key system and
+do not replace Falcon signatures.
+
+### 7.2 Rules (protocol)
+
+| Rule | Value |
+| ---- | ----- |
+| Bond | **100 qXRP** locked while the name is held |
+| Ownership | **One** active or releasing name per account |
+| Claim | `NameSet` — name free, account funded, no existing name |
+| Release start | `NameUnbond` — status → releasing; name reserved to owner |
+| Cooldown | **1 epoch** (`kQXRP_LEDGERS_PER_EPOCH` ledgers) after unbond |
+| Finalize | `NameRelease` — bond returned, object deleted, name free |
+| While releasing | Name-routed resolution **rejects**; raw `r…` payments still work |
+| Format | Normalized lowercase ASCII; recommended `label.tld`-style (e.g. `scott.reynolds`) |
+
+Duplicate claims and second names on the same account fail with `tecDUPLICATE`.
+Releasing before the cooldown fails with `tecTOO_SOON`.
+
+### 7.3 Economics and anti-squat
+
+Holding a name has opportunity cost (100 qXRP bond). Unbonding frees the name
+after one epoch so squatters cannot lock handles forever without capital. Bulk
+hoarding still requires many funded accounts — acceptable for v1; no name
+marketplace or multi-name portfolios in the first release.
+
+### 7.4 Amendment and UX
+
+Enabled via the **`AccountNames`** amendment. Wallets: create Falcon key → fund
+→ optional **Claim username** → send to `r…` or resolve name first. Profile
+shows active / releasing status. Full design notes: [NAME_SERVICE.md](NAME_SERVICE.md).
+
+---
+
+## 8. On-Chain Governance
 
 Protocol parameters can be updated by the bonded validator set without a
 hard fork — and without a company in the loop.
@@ -372,7 +444,7 @@ The protocol is not infinitely malleable. The core guarantees are immutable.
 
 ---
 
-## 8. Built-In Liquidity: Faucet, Wallet, and No-Exchange Swaps
+## 9. Built-In Liquidity: Faucet, Wallet, and No-Exchange Swaps
 
 A validator reward only matters if it can be realized. Falcon Ledger inherits
 the XRP Ledger's native decentralized exchange (offers/order books) and AMM,
@@ -395,7 +467,7 @@ and remaining work are tracked in the [Roadmap](../../ROADMAP.md).
 
 ---
 
-## 9. Falcon Ledger vs XRP
+## 10. Falcon Ledger vs XRP
 
 |                              | XRP                           | Falcon Ledger (qXRP)                      |
 | ---------------------------- | ----------------------------- | ----------------------------------------- |
@@ -405,7 +477,9 @@ and remaining work are tracked in the [Roadmap](../../ROADMAP.md).
 | **Escrow / unlock schedule** | Yes — Ripple releases monthly | No — emission only by protocol rules      |
 | **Governance**               | Ripple / XRPLF                | On-chain bonded validator supermajority   |
 | **Ecosystem grants**         | Company/foundation discretion | Protocol emission, no grant gatekeeper    |
-| **Supply curve**             | Unpredictable monthly unlocks | Deterministic halving, continuous burn    |
+| **Supply curve**             | Unpredictable monthly unlocks | CID declining emission + continuous burn  |
+| **Human addresses**          | No protocol names             | Optional Account Names (bonded)           |
+| **Scoring**                  | N/A                           | Fluid EMA + ActiveSet(K=32) on-ledger     |
 | **Company dependency**       | High                          | Zero                                      |
 | **Fee model**                | Burned, no beneficiary        | Split: burned + paid to validators        |
 | **Slashing**                 | No                            | Yes — cryptographic proof on-chain        |
@@ -414,40 +488,43 @@ and remaining work are tracked in the [Roadmap](../../ROADMAP.md).
 
 ---
 
-## 10. Milestones
+## 11. Milestones
 
 ### Completed
 
 - ✅ Direct fork of XRPL reference implementation (replay-protected; testnet network ID 1001)
 - ✅ Falcon-512 transaction signing — all wallets and transactions use Falcon keys (verified on testnet)
-- 🔲 Full Falcon validator consensus fleet upgrade (`validation_falcon_secret`, Falcon hex UNL) — rolling out July 2026
+- ✅ Full Falcon validator consensus fleet — `validation_falcon_secret`, Falcon hex UNL; classical `node_seed` banned
 - ✅ Protocol treasury — deterministic account, no private key, locked by protocol
-- ✅ Epoch emission with halving schedule — first halving confirmed on-chain (50→25 bps)
+- ✅ CID epoch emission — continuous decline, first claimable unlock at epoch 8; PoPL LP participation split
 - ✅ Dynamic fee burn + validator reward split — 40%–70% burn, remainder to validators
 - ✅ Validator registration, bonding, unbonding, and re-bonding
-- ✅ Composite score computation — five-factor, fully on-chain
-- ✅ ClaimReward transaction — per-epoch, pull-based, treasury-sourced (all distribution modes tested)
-- ✅ Double-sign slashing — 100% bond burn + forced unbond, verified on multiple nodes
+- ✅ Fluid composite scoring — independent signals, relative latency, EMA smoothing, ActiveSet(K=32)
+- ✅ ClaimReward / ClaimLPReward / ClaimAmmLpReward — pull-based, pool hard-caps
+- ✅ Double-sign slashing — 100% bond burn + forced unbond (pure burn path; re-proven on rehearsal)
 - ✅ On-chain governance — proposals, voting, supermajority enforcement executed on-chain
+- ✅ Account Names — `NameSet` / `NameUnbond` / `NameRelease`; 100 qXRP bond; freeze-pin smoke PASS
+- ✅ Built-in AMM + SingleAssetVault + LendingProtocol (permissionless borrow path exercised)
+- ✅ USDC bridge multi-sig lock (N-of-M) — Sepolia 2-of-3 e2e; mainnet redeploy pending
 - ✅ Drop conservation invariant — enforced at every transaction
 - ✅ Sustained testnet load — 850k+ payments over 71+ hours, 0 consensus stalls
+- ✅ Mainnet protocol freeze pin — `mainnet-v1` @ `1789d2fb4` private-net smoke 14/14
 
 ### In Progress
 
-- 🔲 Built-in DEX/AMM exercise under the live amendment set (qXRP↔USDC/USDT)
-- 🔲 Faucet + wallet + in-wallet swap experience for mainnet launch
-- 🔲 Latency scoring (currently hard-floored) and absence/invalid-vote slashing enablement
-- 🔲 Genesis validator set configuration and mainnet launch preparation
-- 🔲 Bridge and interoperability layer for cross-chain stablecoins
-- 🔲 Full production audit packages
-- 🔲 Operator tooling and validator onboarding documentation
-- 🔲 Long-horizon reward model simulations and adversarial testing
+- 🔲 Faucet + wallet + in-wallet swap polish for public mainnet launch
+- 🔲 Absence / invalid-vote slashing enablement (defined; `temDISABLED` until detection ready)
+- 🔲 Genesis validator set keys + public mainnet (network id **1026**) ceremony
+- 🔲 ETH mainnet multi-sig lock deploy (new cold owners; Circle USDC)
+- 🔲 Full production audit packages / external review of freeze scope
+- 🔲 Operator one-liner + validator onboarding for public joiners
+- 🔲 Long-horizon reward model simulations and continued adversarial testing
 
 See [ROADMAP.md](../../ROADMAP.md) for the full, status-tracked plan.
 
 ---
 
-## 11. Technical Summary
+## 12. Technical Summary
 
 | Component               | Detail                                               |
 | ----------------------- | ---------------------------------------------------- |
@@ -457,26 +534,30 @@ See [ROADMAP.md](../../ROADMAP.md) for the full, status-tracked plan.
 | Finality                | Sub-second, deterministic                            |
 | Validator signature     | Falcon-512 (NIST PQC standard) — standard, always on |
 | Transaction signature   | Falcon-512 — all wallets and transactions use Falcon  |
+| P2P identity            | Falcon-only (`node_seed` refused)                    |
 | Total supply            | 200,000,000,000 qXRP (hard cap)                      |
 | Treasury                | 196,000,000,000 qXRP (98%), no private key           |
 | Genesis circulating     | 4,000,000,000 qXRP (2%), time-locked                 |
 | Epoch length            | 172,800 ledgers (~7 days)                            |
-| Initial emission rate   | 50 bps per epoch (0.50% of treasury)                 |
-| Halving cadence         | Every 208 epochs (~4 years)                          |
-| Emission floor          | 1 bps per epoch (0.01% of treasury)                  |
+| Emission model          | CID continuous decline; first unlock epoch 8         |
+| Year-1 emission target  | ~12% of treasury / year (declining each epoch)       |
+| Long-term emission floor| ~1.5% of treasury / year (~3 bps/epoch)              |
+| PoPL split              | Validators + vault LPs + AMM LPs (participation)     |
 | Fee burn range          | 40%–70% of every transaction fee                     |
-| Validator reward        | Remaining fee + epoch treasury share                 |
+| Scoring                 | Fluid EMA (35/65) + ActiveSet K=32; relative latency |
 | Minimum bond            | 1,000 qXRP                                           |
 | Unbonding period        | 262,800 ledgers (~30 days)                           |
+| Account name bond       | 100 qXRP; 1 name/account; 1-epoch release cooldown   |
 | Governance threshold    | 67% of aggregate composite score                     |
+| Mainnet network id      | 1026 (ceremony pack)                                 |
 | Slashing — double sign  | 100% bond + forced unbond                            |
 | Slashing — invalid vote | 50% bond (defined, currently disabled)               |
 | Slashing — absence      | 25% bond (3+ epochs; defined, currently disabled)    |
-| Liquidity               | Built-in DEX order books + AMM for qXRP↔USDC/USDT    |
+| Liquidity               | Built-in DEX order books + AMM + lending vaults      |
 
 ---
 
-## 12. The Bet
+## 13. The Bet
 
 Ripple bet that speed was enough.
 

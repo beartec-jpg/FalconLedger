@@ -17,11 +17,11 @@ writes `scripts/mainnet-ceremony/dry-runs/REHEARSAL_RESULTS.md`.
 
 | Item | Target | Status cue |
 |------|--------|------------|
-| Binary includes launch features | epoch-8, emissions split, ClaimAmmLpReward, pool InterestRate | `89fb7196a` or later |
-| Image available on rehearsal hosts | `qxrp/xrpld:lending-v6` (or digest) | `docker run … xrpld --version` shows commit |
+| Binary includes launch features | CID emission (first unlock epoch 8), PoPL LP split, ClaimAmmLpReward, fluid ActiveSet scoring, AccountNames, multi-sig bridge code | freeze tip `1789d2fb4` or later |
+| Image available on rehearsal hosts | `qxrp/xrpld:mainnet-v1` (or digest) | `docker inspect` revision + `falcon.names=AccountNames` |
 | Same image on every rehearsal node | no mixed tags | all operators pull same tag/digest |
 
-**Today (build host):** `lending-v6` @ `89fb7196a` exists locally — load or push so all rehearsal machines can use it.
+**Freeze pin (2026-07-22):** `qxrp/xrpld:mainnet-v1` @ `1789d2fb4` · local id `e5086df99920…` — smoke **14/14 PASS** on private net 1099; see `scripts/mainnet-ceremony/IMAGE_DIGEST.txt` and `dry-runs/REHEARSAL_RESULTS.md`.
 
 ### 2. Machines
 
@@ -176,7 +176,7 @@ Copy and tick:
 
 ### Ready when
 
-- [ ] Image `lending-v6` (or newer) on all rehearsal hosts; commit hash checked  
+- [x] Image `mainnet-v1` freeze pin on rehearsal hosts; commit hash checked (`1789d2fb4`)  
 - [ ] 2–3 hosts (or 1 for minimal) free and wipeable  
 - [ ] Throwaway GENESIS / AIRDROP / FAUCET / DEV keys generated  
 - [ ] Throwaway validator keys generated  

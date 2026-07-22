@@ -44,7 +44,7 @@ Epoch length follows the network pin:
 
 ---
 
-## On-ledger objects (proposed)
+## On-ledger objects
 
 ### `ltACCOUNT_NAME` (singleton per name)
 
@@ -65,7 +65,7 @@ Epoch length follows the network pin:
 
 ---
 
-## Transactions (proposed)
+## Transactions
 
 ### `NameSet` (claim / register)
 
@@ -83,17 +83,11 @@ Epoch length follows the network pin:
 - Name stays reserved to owner until cooldown ends (no one else can `NameSet` it yet).  
 - **Name-routed payments reject** while releasing.
 
-### `NameRelease` (or automatic at epoch boundary)
+### `NameRelease` (pull model — implemented)
 
-Two options (pick one at implement time):
-
-**A. Pull (simpler to audit):** Owner (or anyone) submits `NameRelease` when  
-`view.seq() >= UnbondingStartLedger + kQXRP_LEDGERS_PER_EPOCH`.  
-Then: return bond to owner, delete name object (name free).
-
-**B. Push:** At epoch boundary in `applyRewardEpoch` (or sibling), finalize all names whose cooldown elapsed.
-
-Recommend **A** for v1 (explicit, testable).
+Owner (or anyone with the name) submits `NameRelease` when  
+`view.seq() >= UnbondingStartLedger + kNAME_UNBOND_LEDGERS` (one epoch).  
+Then: return bond to owner, delete name object (name free). Early release → `tecTOO_SOON`.
 
 ---
 
@@ -143,14 +137,15 @@ t0 + 1 epoch       NameRelease allowed
 
 ---
 
-## Implementation order (when coded)
+## Implementation status
 
-1. Constants: `kNAME_BOND_DROPS = 100'000'000`, status enums.  
-2. Keylet + SLE format + amendment flag if desired (`featureAccountNames`).  
-3. `NameSet` / `NameUnbond` / `NameRelease` transactors.  
-4. RPC: `account_name` / `ledger_entry` by name; portal resolve API.  
-5. Portal claim/release/send-by-name.  
-6. Rehearsal e2e: claim → pay by name → unbond → reject pay → wait epoch → release → reclaim.
+| Piece | Status |
+|-------|--------|
+| Constants, keylet, `ltACCOUNT_NAME`, amendment `AccountNames` | **Done** (freeze pin) |
+| `NameSet` / `NameUnbond` / `NameRelease` | **Done** — smoke PASS on mainnet-v1 |
+| RPC `ledger_entry` by `account_name` | **Done** |
+| Portal claim / release / send-by-name | **Pending** product UX |
+| Full long-epoch NameRelease cooldown e2e | Deferred (long wait); `tecTOO_SOON` proven |
 
 ---
 
