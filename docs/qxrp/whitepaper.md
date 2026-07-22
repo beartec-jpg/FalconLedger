@@ -257,7 +257,7 @@ claimable emission; the first non-zero pool unlocks at **epoch 8**.
   depositor (capped), proportional to vault MPT share within the LP basket.
 - **AMM LPs** — participation-based allocation when AMM LP counting is active.
 - **Validators** — remainder of the epoch pool, proportional to composite score
-  among the ActiveSet (see §6).
+  among bonded validators by composite score (see §6).
 
 Claims are pull-based (`ClaimReward`, `ClaimLPReward`, `ClaimAmmLpReward`) and
 hard-capped to the epoch’s remaining pool balance. Absolute emission declines
@@ -324,16 +324,19 @@ snaps back to perfect in a single step. The EMA blends 35% of the new raw
 composite with 65% of the previous on-bond composite, so recovery after a
 knockdown is gradual and gaming a single window is less effective.
 
-**ActiveSet(K).** After scoring, bonded validators are ranked by composite
-(descending; account id breaks ties). Only the top **`K = 32`** keep a
-non-zero `sfCompositeScore` and contribute to `sfAggregateCompositeScore` for
-rewards. Others retain diagnostic component scores (uptime, latency, etc.) for
-transparency but are **not reward-eligible** until they re-enter the top 32.
-This keeps emission focused on the live high-quality set without static UNL
-hard-coding of reward weight.
+**Pay ∝ score (all bonded).** Every bonded validator is scored from observed
+full validations — including joiners not yet on the bootstrap UNL (untrusted
+validations are relayed by default). Composite is **not** wiped by a top‑K
+rank cut. Epoch rewards are:
 
-A validator must also clear a minimum composite floor (**5%** / 500 bps) to
-participate in the aggregate used for proportional claims.
+```
+share = validatorPot × composite / sum(all composites)
+```
+
+for each claimer with composite ≥ **5%** (500 bps). Better operators earn more;
+mediocre operators still earn; idle keys score near zero. **UNL membership is
+separate** (who closes ledgers). Bootstrap UNL is operator-published; a future
+amendment can move trust to a score-based rotating set.
 
 ### 6.3 Bonding
 
@@ -479,7 +482,7 @@ and remaining work are tracked in the [Roadmap](../../ROADMAP.md).
 | **Ecosystem grants**         | Company/foundation discretion | Protocol emission, no grant gatekeeper    |
 | **Supply curve**             | Unpredictable monthly unlocks | CID declining emission + continuous burn  |
 | **Human addresses**          | No protocol names             | Optional Account Names (bonded)           |
-| **Scoring**                  | N/A                           | Fluid EMA + ActiveSet(K=32) on-ledger     |
+| **Scoring**                  | N/A                           | Fluid EMA; pay ∝ score (all bonded)       |
 | **Company dependency**       | High                          | Zero                                      |
 | **Fee model**                | Burned, no beneficiary        | Split: burned + paid to validators        |
 | **Slashing**                 | No                            | Yes — cryptographic proof on-chain        |
@@ -499,7 +502,7 @@ and remaining work are tracked in the [Roadmap](../../ROADMAP.md).
 - ✅ CID epoch emission — continuous decline, first claimable unlock at epoch 8; PoPL LP participation split
 - ✅ Dynamic fee burn + validator reward split — 40%–70% burn, remainder to validators
 - ✅ Validator registration, bonding, unbonding, and re-bonding
-- ✅ Fluid composite scoring — independent signals, relative latency, EMA smoothing, ActiveSet(K=32)
+- ✅ Fluid composite scoring — independent signals, relative latency, EMA smoothing; pay ∝ score for all bonded
 - ✅ ClaimReward / ClaimLPReward / ClaimAmmLpReward — pull-based, pool hard-caps
 - ✅ Double-sign slashing — 100% bond burn + forced unbond (pure burn path; re-proven on rehearsal)
 - ✅ On-chain governance — proposals, voting, supermajority enforcement executed on-chain
@@ -545,7 +548,7 @@ Public test summary: [TEST_AND_VERIFICATION.md](TEST_AND_VERIFICATION.md) · [MA
 | Long-term emission floor| ~1.5% of treasury / year (~3 bps/epoch)              |
 | PoPL split              | Validators + vault LPs + AMM LPs (participation)     |
 | Fee burn range          | 40%–70% of every transaction fee                     |
-| Scoring                 | Fluid EMA (35/65) + ActiveSet K=32; relative latency |
+| Scoring                 | Fluid EMA (35/65); pay ∝ score all bonded; relative latency |
 | Minimum bond            | 1,000 qXRP                                           |
 | Unbonding period        | 262,800 ledgers (~30 days)                           |
 | Account name bond       | 100 qXRP; 1 name/account; 1-epoch release cooldown   |

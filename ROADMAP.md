@@ -59,7 +59,8 @@ protocol foundation for the freeze pin (`qxrp/xrpld:mainnet-v1` @ `1789d2fb4`).
 - [x] `ValidatorRegister`, `ValidatorBond`, `UnbondValidator`, `ReleaseBond` transactions.
 - [x] **Fluid / smoothed scoring:** independent uptime, vote accuracy, relative latency (vs earliest correct signer), consistency (max absence streak); slash multiplier applied after.
 - [x] **EMA composite** (35% new window / 65% history) so recovery is gradual, not a flat demerit snap.
-- [x] **ActiveSet(K=32):** top-K by composite keep reward weight; others clear composite but retain diagnostics.
+- [x] **Pay ∝ score for all bonded** — ActiveSet rank-cut removed; composites kept; joiners scored from full (incl. untrusted) validations when observed.
+- [ ] **Open / rotating UNL** (future amendment) — bootstrap UNL stays operator-controlled until network is large enough.
 - [x] Re-scored every flag interval (256 ledgers).
 - [x] `ClaimReward` / `ClaimLPReward` / `ClaimAmmLpReward` — pull-based, epoch pool hard-caps.
 - [x] `ValidatorSlash` — double-sign (100% bond + forced unbond) enforced; pure burn path re-proven on rehearsal.

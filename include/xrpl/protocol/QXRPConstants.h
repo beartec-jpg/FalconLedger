@@ -237,13 +237,13 @@ static_assert(kSCORE_EMA_NEW_BPS <= kBPS_DENOM, "EMA new weight must be <= 100%"
 /// continuous (not a single lump for "late"). Floor at 0.
 constexpr std::uint32_t kLATENCY_PENALTY_BPS_PER_10MS = 1;
 
-// ─── Active set (score-ranked proposers / reward-eligible cap) ───────────────
-
-/// Top-K bonded validators by composite score remain reward-eligible
-/// (sfCompositeScore kept). Others keep component metrics for transparency
-/// but composite is cleared so they do not dilute the active set pool.
-/// K must be >= the intended mainnet UNL size; raise only via protocol upgrade.
-constexpr std::uint32_t kQXRP_ACTIVE_SET_K = 32;
+// ─── Active set (legacy constant; rank-cut DISABLED for rewards) ─────────────
+//
+// Historically top-K composites were kept and others cleared for pay. That
+// blocked joiners outside the top 32. Rewards are now pure pro-rata over all
+// bonded composites (ClaimReward still enforces kMIN_COMPOSITE_SCORE_BPS).
+// Constant retained so old references / docs compile; scoring ignores it.
+[[maybe_unused]] constexpr std::uint32_t kQXRP_ACTIVE_SET_K = 32;
 
 // ─── Minimum composite score to claim rewards ────────────────────────────────
 

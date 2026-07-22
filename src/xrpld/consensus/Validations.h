@@ -1042,6 +1042,47 @@ public:
         return res;
     }
 
+    /** Get *all* full validations for a ledger sequence (trusted or not).
+
+        Used by PoP scoring so bonded joiners not yet on the UNL can still
+        earn uptime / vote-accuracy credit when their validations are seen
+        (requires RELAY_UNTRUSTED_VALIDATIONS, default on).
+    */
+    std::vector<WrappedValidationType>
+    getFullForSequence(Seq const& seq)
+    {
+        std::vector<WrappedValidationType> res;
+        std::scoped_lock const lock{mutex_};
+        auto it = bySequence_.find(seq);
+        if (it == bySequence_.end())
+            return res;
+        bySequence_.touch(it);
+        res.reserve(it->second.size());
+        for (auto const& [_, v] : it->second)
+        {
+            if (v.full())
+                res.emplace_back(v.unwrap());
+        }
+        return res;
+    }
+
+    /** Get all full validations for a specific ledger hash+seq (any trust). */
+    std::vector<WrappedValidationType>
+    getFullForLedger(ID const& ledgerID, Seq const& seq)
+    {
+        std::vector<WrappedValidationType> res;
+        std::scoped_lock const lock{mutex_};
+        byLedger(
+            lock,
+            ledgerID,
+            [&](std::size_t numValidations) { res.reserve(numValidations); },
+            [&](NodeID const&, Validation const& v) {
+                if (v.full() && v.seq() == seq)
+                    res.emplace_back(v.unwrap());
+            });
+        return res;
+    }
+
     /** Returns fees reported by trusted full validators in the given ledger
 
         @param ledgerID The identifier of ledger of interest

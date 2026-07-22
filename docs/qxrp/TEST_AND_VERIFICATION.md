@@ -15,7 +15,7 @@ For protocol design, see the [White Paper](whitepaper.md). For account names, se
 |------|--------|--------|
 | Falcon-512 accounts & consensus | **Verified** | Falcon-native signing; classical P2P `node_seed` disabled |
 | CID emission + PoPL LP split | **Verified** | Continuous decline schedule; first claimable unlock at epoch 8 |
-| Fluid scoring + ActiveSet(K=32) | **Verified** | EMA-smoothed composite; relative latency; top-32 reward set |
+| Fluid scoring + pay ∝ score (all bonded) | **In tree** | EMA composite; no ActiveSet rank-cut; joiners scored when vals seen |
 | AMM + vault + lending path | **Verified** | Create pool → vault → broker → borrow → repay |
 | USDC bridge multi-sig (test EVM) | **Verified** | N-of-M lock; single owner cannot release; threshold does |
 | Account Names | **Verified** | Claim, lookup, duplicate reject, unbond, early-release gate |
@@ -60,7 +60,7 @@ Validator reward weight is computed fully on-ledger from a rolling window (flag 
 Then:
 
 1. **EMA smooth** (~35% new window / ~65% history) so recovery after a dip is gradual.  
-2. **ActiveSet(K = 32)** — only the top 32 composites keep reward weight; others retain diagnostics but are not reward-eligible until they re-enter the set.
+2. **Pay ∝ score** — all bonded keep composite; share = pot × score / sum(scores); min floor at claim (500 bps). No top‑K wipe.
 
 Double-sign slashing (100% bond + forced unbond) is enforced with a pure bond-burn path. Absence and invalid-vote slash codes remain defined but disabled until detection is production-ready.
 
@@ -154,7 +154,7 @@ Private-network smoke on this pin covered health, product amendments at genesis,
 
 > Falcon Ledger freeze pin `mainnet-v1` (`1789d2fb4`) is on Docker Hub — Falcon-only crypto, CID emission, fluid ActiveSet scoring, Account Names, and Sepolia multi-sig bridge e2e verified. Public mainnet still offline until go-live.
 
-> We don’t pay validators with a flat demerit score. Composite is EMA-smoothed; only the top 32 (ActiveSet) share epoch rewards.
+> We don’t pay validators with a flat demerit score. Composite is EMA-smoothed; every bonded validator shares epoch rewards in proportion to score.
 
 > Human names on Falcon: bond 100 qXRP, one name per account, one-epoch release cooldown — payments still settle to `r…`.
 

@@ -13,7 +13,8 @@ A short, shareable snapshot of progress toward public mainnet. Operator runbooks
 | Falcon-512 for accounts, consensus, P2P | Done |
 | Fixed 200B supply + protocol treasury | Done |
 | CID emission (first unlock epoch 8) + PoPL LP split | Done |
-| Fluid scoring + ActiveSet(K=32) | Done |
+| Fluid scoring; pay ∝ score all bonded (no K=32 cut) | In tree — needs new image / smoke |
+| Open/rotating UNL | Future amendment — bootstrap UNL until then |
 | Claim paths with epoch pool hard-caps | Done |
 | Double-sign slash (pure bond burn) | Done |
 | Account Names amendment | Done (smoke on freeze pin) |

@@ -33,7 +33,7 @@ The goal is a network where security, decentralization, and participation incent
 Falcon Ledger keeps everything that makes the XRP Ledger fast and replaces the parts that left holders and validators exposed:
 
 - **Post-quantum signatures as standard, all the time.** Falcon (NIST PQC standard) is the signature scheme for validators and transactions from genesis — not a future retrofit. XRPL validators sign with classical ed25519/secp256k1 that Shor's algorithm will eventually break.
-- **Validators get paid.** Running an XRPL validator earns nothing. Falcon Ledger pays validators every epoch from a protocol-controlled treasury, proportional to **fluid on-ledger scoring** (EMA-smoothed composite + ActiveSet of top 32).
+- **Validators get paid.** Running an XRPL validator earns nothing. Falcon Ledger pays validators every epoch from a protocol-controlled treasury, proportional to **fluid on-ledger scoring** (EMA-smoothed composite — all bonded, pay ∝ score).
 - **No company control over the ecosystem.** There is no company holding tens of billions of tokens, no monthly escrow unlocks, and no foundation that can dump on holders. 98% of supply sits in a protocol treasury with no private key.
 - **No company-controlled grants.** Emissions and incentives are released only by on-chain consensus rules (CID declining schedule + PoPL LP split), not by a foundation's discretionary grant program.
 - **Protocol-controlled rewards.** Reward emission follows a continuous declining schedule enforced by the protocol — no human, company, or foundation can authorize a treasury withdrawal.
@@ -45,7 +45,7 @@ Falcon Ledger keeps everything that makes the XRP Ledger fast and replaces the p
 ## Key Differentiators
 
 - Post-quantum security with Falcon as the standard, always-on signature type for validators, transactions, and P2P identity.
-- Proof-of-Participation rewards with **fluid scoring**: independent uptime / vote / latency / consistency signals, EMA-smoothed composite, ActiveSet(K=32).
+- Proof-of-Participation rewards with **fluid scoring**: independent uptime / vote / latency / consistency signals, EMA-smoothed composite, **pay ∝ score for all bonded** (joiners included when validations are seen).
 - Fixed total supply of 200 billion qXRP; **CID** continuous emission decline (first unlock at epoch 8).
 - Minimal genesis allocation, with the protocol-controlled treasury holding the bulk of supply.
 - Dynamic fee splitting that burns part of the fee and routes part to validators.
@@ -66,7 +66,7 @@ Falcon Ledger uses a fixed supply and a treasury-first emission design. The toke
 | Emission schedule          | Continuous decline (CID) | First claimable pool at epoch 8; ~1.5%/yr floor |
 | Long-tail emission horizon | Multi-decade taper       | Rate and treasury both decline each epoch     |
 | Base fee split             |        40% to 70% burned | Dynamic from treasury fill + fee volume       |
-| Base fee remainder         | Remainder to validators  | ActiveSet-qualified, score-proportional       |
+| Base fee remainder         | Remainder to validators  | Bonded score-proportional (min composite floor) |
 
 ### Genesis Allocation Targets
 
@@ -87,8 +87,8 @@ re-scored every flag ledger):
 - **Latency** — continuous relative score vs the earliest correct signer (−1 bps / 10 ms lag).
 - **Consistency** — penalizes max consecutive absence streak (outages hurt more than scatter).
 - **Slash multiplier** — applied after the weighted blend; then **EMA** with prior composite (35% new / 65% history).
-- **ActiveSet(K=32)** — only top-32 composites contribute to epoch reward weight.
-- Bond status — must be bonded to be scored for rewards.
+- **All bonded** validators with a composite can share epoch rewards ∝ score (min floor applies at claim).
+- Bond status — must be bonded; consensus UNL is separate (bootstrap list until open-UNL amendment).
 
 No off-chain oracles or manual intervention.
 
@@ -141,7 +141,7 @@ Falcon Ledger keeps the XRP Ledger consensus model and layers new economic and c
 | Cryptography | Falcon signature scheme for all keys and transactions                    |
 | Genesis      | Create protocol treasury and initial distribution objects                |
 | Fees         | Apply dynamic base-fee burn and validator reward split                   |
-| Rewards      | CID emission + fluid EMA scoring + ActiveSet reward weight               |
+| Rewards      | CID emission + fluid EMA scoring; pay ∝ composite for all bonded         |
 | Bonding      | Validator bond locking for rewards and voting weight                     |
 | Slashing     | Penalize provable misbehavior (double-sign live; others defined)         |
 | Governance   | Bounded, automated parameter updates by bonded validators                |

@@ -4,16 +4,17 @@
 // Phase 7 – Validator Reputation Scoring
 //
 // applyValidatorScoring() runs every flag interval (seq % kFLAG_LEDGER_INTERVAL == 0).
-// It measures a 256-ledger window from RCLValidations, then for each trusted UNL key:
-//   1. Looks up ltVALIDATOR_BOND via calcValidatorBondID(pubKey.slice())
-//   2. Falls back to legacy bond/UNL pairing when consensus key != UNL key
+// It measures a 256-ledger window from RCLValidations, then for each *bonded*
+// validator (ltVALIDATOR_BOND + sfConsensusKey), not only the UNL:
+//   1. Maps bond ConsensusKey → NodeID
+//   2. Counts full validations (trusted or untrusted) for uptime / accuracy
 //   3. Computes *independent* continuous signals:
 //        uptime (presence), vote accuracy (correct/cast), latency (vs earliest),
 //        consistency (max absence streak)
 //   4. rawScore × slashMultiplier, then EMA-blend with previous composite
-//   5. ActiveSet(K): top-K composites kept; others cleared (components retained)
-//   6. Writes scoring fields to ltVALIDATOR_BOND
-//   7. Sets sfAggregateCompositeScore on ltREWARD_EPOCH from the active set
+//   5. Writes scoring fields to ltVALIDATOR_BOND (no ActiveSet rank cut)
+//   6. Sets sfAggregateCompositeScore = sum of all composites (pay ∝ score)
+// UNL remains consensus trust only; open/rotating UNL is a future amendment.
 
 #pragma once
 

@@ -90,8 +90,10 @@ additive term. Enforced by `static_assert` that all five constants sum to 100.
 **Cadence:** re-scored every `kFLAG_LEDGER_INTERVAL` (256) ledgers so recovery
 after a fix is incremental, not once-per-epoch only.
 
-**ActiveSet(K):** after scoring, bonded validators are ranked by composite
-(descending; account id tie-break). Top `kQXRP_ACTIVE_SET_K` (32) keep
-`sfCompositeScore` and contribute to `sfAggregateCompositeScore`. Others keep
-component scores for transparency but composite is cleared (not reward-eligible
-until they rank in the top K again).
+**Pay model (no ActiveSet rank cut):** every **bonded** validator with a
+`sfConsensusKey` is scored from observed full validations (UNL or not —
+requires untrusted validation relay, default on). Composites are **not**
+cleared for rank. `sfAggregateCompositeScore` is the sum of all composites.
+`ClaimReward` share = `pot × composite / aggregate` for scores ≥
+`kMIN_COMPOSITE_SCORE_BPS` (500). Consensus trust (UNL) is independent;
+open/rotating UNL is a future amendment.

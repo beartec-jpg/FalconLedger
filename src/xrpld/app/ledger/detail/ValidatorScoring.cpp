@@ -8,7 +8,8 @@
 //   - Continuous latency (bps vs earliest signer, 10 ms steps)
 //   - Consistency from max absence streak (outages hurt more than scatter)
 //   - EMA of composite so recovery is gradual, not a fixed flat demerit
-//   - ActiveSet(K): top-K by composite keep reward weight; others clear composite
+//   - All bonded validators scored (not only UNL); pay ∝ composite / aggregate
+//   - ActiveSet rank-cut REMOVED: no top-K wipe of composite for rewards
 
 #include <xrpld/app/ledger/ValidatorScoring.h>
 
@@ -41,18 +42,6 @@
 namespace xrpl {
 
 namespace {
-
-std::shared_ptr<SLE const>
-findValidatorBond(ReadView const& view, PublicKey const& pubKey)
-{
-    // Bonds are keyed by calcValidatorBondID(sfConsensusKey) which must be
-    // the same bytes as the UNL validation public key (not the wallet master).
-    if (auto sle = view.read(keylet::validatorBond(calcValidatorBondID(pubKey.slice()))))
-        return sle;
-    if (auto sle = view.read(keylet::validatorBond(calcAccountID(pubKey))))
-        return sle;
-    return nullptr;
-}
 
 struct ScoringTarget
 {
@@ -207,60 +196,42 @@ scoreBond(
                    << " slashMult=" << slashMult;
 }
 
-/** Keep only top-K composites for the active set; clear the rest. */
+/** Sum composites for ClaimReward / governance (no rank cut).
+
+    Formerly "ActiveSet(K)": top-K kept composite, others cleared. That blocked
+    pay for bonded joiners outside the top 32. Pay is now pure pro-rata:
+
+        share = pot × composite / aggregate
+
+    among bonded validators with a non-zero composite (ClaimReward still
+    enforces kMIN_COMPOSITE_SCORE_BPS). UNL membership is independent — used
+    for consensus trust only (bootstrap / future open-UNL amendment).
+*/
 void
-applyActiveSet(
+sumAggregateComposites(
     std::vector<ScoringTarget>& targets,
-    OpenView& view,
     std::uint32_t& aggregateScore,
     beast::Journal j)
 {
     aggregateScore = 0;
-    if (targets.empty())
-        return;
-
-    // Sort by composite desc, then account for deterministic ties (no shared flat rank).
-    std::sort(targets.begin(), targets.end(), [](ScoringTarget const& a, ScoringTarget const& b) {
-        auto const ca = a.bond->isFieldPresent(sfCompositeScore)
-            ? a.bond->getFieldU32(sfCompositeScore)
-            : 0u;
-        auto const cb = b.bond->isFieldPresent(sfCompositeScore)
-            ? b.bond->getFieldU32(sfCompositeScore)
-            : 0u;
-        if (ca != cb)
-            return ca > cb;
-        return a.bond->getAccountID(sfAccount) < b.bond->getAccountID(sfAccount);
-    });
-
-    auto const keep = std::min<std::size_t>(kQXRP_ACTIVE_SET_K, targets.size());
-    for (std::size_t i = 0; i < targets.size(); ++i)
+    std::uint32_t counted = 0;
+    for (auto const& t : targets)
     {
-        auto& sleBond = targets[i].bond;
-        if (i < keep)
-        {
-            auto const c = sleBond->isFieldPresent(sfCompositeScore)
-                ? sleBond->getFieldU32(sfCompositeScore)
-                : 0u;
-            if (c <= std::numeric_limits<std::uint32_t>::max() - aggregateScore)
-                aggregateScore += c;
-            else
-                aggregateScore = std::numeric_limits<std::uint32_t>::max();
+        if (!t.bond->isFieldPresent(sfCompositeScore))
             continue;
-        }
-
-        // Outside ActiveSet(K): keep diagnostic component scores, drop composite.
-        if (sleBond->isFieldPresent(sfCompositeScore))
-        {
-            JLOG(j.info()) << "qXRP ActiveSet: demote account="
-                           << sleBond->getAccountID(sfAccount)
-                           << " rank=" << (i + 1) << " (K=" << kQXRP_ACTIVE_SET_K << ")";
-            sleBond->makeFieldAbsent(sfCompositeScore);
-            view.rawReplace(sleBond);
-        }
+        auto const c = t.bond->getFieldU32(sfCompositeScore);
+        if (c == 0)
+            continue;
+        if (c <= std::numeric_limits<std::uint32_t>::max() - aggregateScore)
+            aggregateScore += c;
+        else
+            aggregateScore = std::numeric_limits<std::uint32_t>::max();
+        ++counted;
     }
 
-    JLOG(j.info()) << "qXRP ActiveSet: kept=" << keep << " of " << targets.size()
-                   << " aggregateCompositeScore=" << aggregateScore;
+    JLOG(j.info()) << "qXRP ValidatorScoring: aggregateCompositeScore="
+                   << aggregateScore << " from " << counted << " of "
+                   << targets.size() << " bonded (no ActiveSet rank cut)";
 }
 
 }  // namespace
@@ -307,15 +278,44 @@ applyValidatorScoring(
         return;
     }
 
-    auto const unlKeys = app.getValidators().getTrustedMasterKeys();
-
+    // ── All bonded validators (not only UNL) ─────────────────────────────
+    // Consensus trust remains UNL. PoP scoring/pay includes every bonded key
+    // whose full validations are observed (untrusted vals relayed by default).
+    std::vector<ScoringTarget> targets;
     hash_map<NodeID, WindowStats> stats;
-    stats.reserve(unlKeys.size());
-    for (auto const& k : unlKeys)
+
+    for (auto const& sleConst : view.sles)
     {
-        auto& s = stats[calcNodeID(k)];
-        s.present.assign(kFLAG_LEDGER_INTERVAL, 0);
+        if (sleConst->getType() != ltVALIDATOR_BOND)
+            continue;
+        if (sleConst->getFieldU32(sfBondStatus) != kBOND_STATUS_BONDED)
+            continue;
+        if (!sleConst->isFieldPresent(sfConsensusKey))
+            continue;
+
+        auto const ck = makeSlice(sleConst->getFieldVL(sfConsensusKey));
+        // Falcon node keys (0xFB/0xFC) — use isValidNodeKey, not publicKeyType.
+        if (!isValidNodeKey(ck))
+        {
+            JLOG(j.warn()) << "qXRP ValidatorScoring: invalid ConsensusKey on bond "
+                           << sleConst->getAccountID(sfAccount);
+            continue;
+        }
+        PublicKey const pubKey{ck};
+        auto const nodeID = calcNodeID(pubKey);
+
+        targets.push_back({
+            std::const_pointer_cast<SLE>(sleConst),
+            nodeID,
+        });
+        auto& s = stats[nodeID];
+        if (s.present.empty())
+            s.present.assign(kFLAG_LEDGER_INTERVAL, 0);
     }
+
+    // Also score UNL keys that are bonded but might use legacy key layout
+    // (ConsensusKey matches UNL master) — already covered if bond has key.
+    // UNL-only (no bond) are intentionally not paid.
 
     std::uint32_t totalValsFound = 0;
     for (std::uint32_t i = 0; i < kFLAG_LEDGER_INTERVAL; ++i)
@@ -323,19 +323,17 @@ applyValidatorScoring(
         auto const ancestorHash = ledgerAncestors[numAncestors - 1 - i];
         auto const ancestorSeq = static_cast<LedgerIndex>(seq - 2 - i);
 
-        // Any trusted full validation at this sequence (uptime / vote cast).
-        auto const anyVals = validations.getTrustedForSequence(ancestorSeq);
-        // Canonical-hash validations (correct vote + latency baseline).
+        // All full validations (trusted + untrusted) for presence / accuracy.
+        auto const anyVals = validations.getFullForSequence(ancestorSeq);
         auto const correctVals =
-            validations.getTrustedForLedger(ancestorHash, ancestorSeq);
+            validations.getFullForLedger(ancestorHash, ancestorSeq);
         totalValsFound += correctVals.size();
 
+        // Latency baseline: earliest full correct signer for this ledger
+        // (any trust level) so joiners are compared fairly to the pack.
         std::optional<NetClock::time_point> earliest;
         for (auto const& v : correctVals)
         {
-            auto const nid = v->getNodeID();
-            if (!stats.count(nid))
-                continue;
             auto const t = v->getSignTime();
             if (!earliest || t < *earliest)
                 earliest = t;
@@ -385,99 +383,15 @@ applyValidatorScoring(
         }
     }
     JLOG(j.info()) << "qXRP ValidatorScoring diag: seq=" << seq
+                   << " bondedTargets=" << targets.size()
                    << " statsSize=" << stats.size()
-                   << " totalCorrectAcross256=" << totalValsFound;
-
-    // ── Map bonded validators → UNL NodeID and score ──
-
-    hash_set<uint256> scoredBondKeys;
-    std::vector<ScoringTarget> targets;
-    targets.reserve(unlKeys.size());
-
-    std::vector<std::shared_ptr<SLE const>> legacyBonds;
-    std::vector<PublicKey> legacyUnl;
-
-    for (auto const& pubKey : unlKeys)
-    {
-        auto sleConst = findValidatorBond(view, pubKey);
-        if (!sleConst)
-        {
-            JLOG(j.info()) << "qXRP ValidatorScoring diag: no bond for UNL key "
-                           << toBase58(TokenType::NodePublic, pubKey);
-            legacyUnl.push_back(pubKey);
-            continue;
-        }
-
-        if (sleConst->getFieldU32(sfBondStatus) != kBOND_STATUS_BONDED)
-        {
-            JLOG(j.info()) << "qXRP ValidatorScoring diag: bond "
-                           << sleConst->getAccountID(sfAccount)
-                           << " status=" << sleConst->getFieldU32(sfBondStatus)
-                           << " (not bonded)";
-            continue;
-        }
-
-        auto const bondKey = sleConst->key();
-        if (scoredBondKeys.count(bondKey))
-            continue;
-
-        scoredBondKeys.insert(bondKey);
-        targets.push_back({
-            std::const_pointer_cast<SLE>(sleConst),
-            calcNodeID(pubKey),
-        });
-    }
-
-    for (auto const& sleConst : view.sles)
-    {
-        if (sleConst->getType() != ltVALIDATOR_BOND)
-            continue;
-        if (sleConst->getFieldU32(sfBondStatus) != kBOND_STATUS_BONDED)
-            continue;
-        if (scoredBondKeys.count(sleConst->key()))
-            continue;
-        legacyBonds.push_back(sleConst);
-    }
-
-    if (!legacyBonds.empty() && !legacyUnl.empty())
-    {
-        std::sort(
-            legacyBonds.begin(),
-            legacyBonds.end(),
-            [](auto const& a, auto const& b) {
-                return a->getAccountID(sfAccount) < b->getAccountID(sfAccount);
-            });
-        std::sort(
-            legacyUnl.begin(),
-            legacyUnl.end(),
-            [](PublicKey const& a, PublicKey const& b) {
-                return toBase58(TokenType::NodePublic, a) <
-                    toBase58(TokenType::NodePublic, b);
-            });
-
-        auto const n = std::min(legacyBonds.size(), legacyUnl.size());
-        JLOG(j.warn()) << "qXRP ValidatorScoring: legacy bond/UNL pairing for "
-                       << n << " validators (re-bond with validation_public_key_hex "
-                       << "as ConsensusKey to remove this fallback)";
-
-        for (std::size_t i = 0; i < n; ++i)
-        {
-            auto const& sleConst = legacyBonds[i];
-            if (scoredBondKeys.count(sleConst->key()))
-                continue;
-            scoredBondKeys.insert(sleConst->key());
-            targets.push_back({
-                std::const_pointer_cast<SLE>(sleConst),
-                calcNodeID(legacyUnl[i]),
-            });
-        }
-    }
+                   << " totalFullCorrectAcross256=" << totalValsFound;
 
     for (auto& target : targets)
         scoreBond(target, stats, seq, view, j);
 
     std::uint32_t aggregateScore = 0;
-    applyActiveSet(targets, view, aggregateScore, j);
+    sumAggregateComposites(targets, aggregateScore, j);
 
     if (auto sleEpoch = std::const_pointer_cast<SLE>(view.read(keylet::rewardEpoch())))
     {
