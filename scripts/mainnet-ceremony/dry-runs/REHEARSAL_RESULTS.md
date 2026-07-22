@@ -10,8 +10,9 @@
 |------|-----|-----------------|
 | **Rehearsal (running)** | `qxrp/xrpld:mainnet-rehearsal-fast-epoch` | `a29be2921e72` (= `…-e12fd7417`) — RewardEpoch LPAllocationBps fix + scoring |
 | Source commit (fast-epoch build) | `/root/fast-epoch-SOURCE_COMMIT.txt` | `91f7668d46adb3af426393ac7a543bcef80b9fb1` |
-| **Launch pin (untouched on this stack)** | `qxrp/xrpld:mainnet-v1` | `a5a84908f88d` / earlier tip `1ea8dc0baac8` (`2eef57ea1` scoring-final label) |
-| Labels (intent) | epoch=256, first_emission=2 | scoring=fluid-activeset-k |
+| **Launch pin (names — NEW)** | `qxrp/xrpld:mainnet-v1` | `e5086df99920` · tip **`1789d2fb4`** · labels `falcon.names=AccountNames` · built 2026-07-22T08:39Z on val5 |
+| Prior launch pin (pre-names) | `…-2eef57ea1` / `…-e12fd7417` | scoring-final only — **superseded** if names required at T0 |
+| Labels (intent) | epoch=172800 default | AccountNames + fluid-activeset-k |
 
 ## Live chain snapshot (21:27Z)
 

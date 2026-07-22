@@ -1,4 +1,10 @@
-# Protocol freeze tip for image build (scoring final + compile fix).
+# Protocol freeze tip for image build (AccountNames + multi-sig bridge docs in tree).
+# Binary built from this source tip (names Blob fix included).
 # Verify: docker inspect $IMAGE --format '{{index .Config.Labels "org.opencontainers.image.revision"}}'
+# Also: docker inspect $IMAGE --format '{{index .Config.Labels "falcon.names"}}'
 # Also: docker run --rm --entrypoint xrpld $IMAGE --version
-2eef57ea19df46434a4735ff8d749976e695821e
+1789d2fb4865964d69a3005285293e6845235eb8
+# short: 1789d2fb4
+# features: AccountNames, ProofOfParticipation, fluid ActiveSet scoring, slash burnXRP
+# image: qxrp/xrpld:mainnet-v1 , qxrp/xrpld:mainnet-v1-1789d2fb4
+# date: 2026-07-22T08:39:00Z

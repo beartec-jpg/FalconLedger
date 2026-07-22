@@ -1,8 +1,9 @@
-# Auto-recorded after val5 mainnet-v1 build (not yet pushed to registry).
-# git source tip (scoring + STValidation fix): 2eef57ea19df46434a4735ff8d749976e695821e
-# image tags: qxrp/xrpld:mainnet-v1 , qxrp/xrpld:mainnet-v1-2eef57ea1
-# labels: falcon.final=true falcon.scoring=fluid-activeset-k
-# date: 2026-07-21T17:34:43Z
+# Auto-recorded after val5 mainnet-v1 build (names pin). Not yet pushed to registry.
+# git source tip: 1789d2fb4865964d69a3005285293e6845235eb8
+# labels: falcon.names=AccountNames falcon.final=true falcon.freeze.commit=1789d2fb4…
+# tags: qxrp/xrpld:mainnet-v1 , qxrp/xrpld:mainnet-v1-1789d2fb4
+# host: val5 (5.78.142.246)
+# date: 2026-07-22T08:39:00Z
 #
 # Local image id (push to Hub, then replace with RepoDigest):
-qxrp/xrpld:mainnet-v1@local-1ea8dc0baac85b9acc7be657a67879c1247f514e1b77ea1264cca208a17a1e38
+qxrp/xrpld:mainnet-v1@local-e5086df99920ca62a6c7c09e65d49decd43ae3a67cf6167aa46419e006fcb31c
