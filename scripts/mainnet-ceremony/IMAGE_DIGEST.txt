@@ -1,9 +1,12 @@
-# Auto-recorded after val5 mainnet-v1 build (names pin). Not yet pushed to registry.
-# git source tip: 1789d2fb4865964d69a3005285293e6845235eb8
-# labels: falcon.names=AccountNames falcon.final=true falcon.freeze.commit=1789d2fb4…
-# tags: qxrp/xrpld:mainnet-v1 , qxrp/xrpld:mainnet-v1-1789d2fb4
-# host: val5 (5.78.142.246)
-# date: 2026-07-22T08:39:00Z
+# PROTOCOL FREEZE IMAGE — 2026-07-22
+# Not yet pushed to a registry (local id only). After push, replace with RepoDigest.
 #
-# Local image id (push to Hub, then replace with RepoDigest):
+# git: 1789d2fb4865964d69a3005285293e6845235eb8
+# tags: qxrp/xrpld:mainnet-v1 , qxrp/xrpld:mainnet-v1-1789d2fb4
+# labels: falcon.names=AccountNames falcon.freeze.commit=1789d2fb4…
+# host: val5 (5.78.142.246)
+# built: 2026-07-22T08:39:00Z
+# freeze smoke: PASS 2026-07-22 (network_id 1099)
+#
+# Local image id:
 qxrp/xrpld:mainnet-v1@local-e5086df99920ca62a6c7c09e65d49decd43ae3a67cf6167aa46419e006fcb31c

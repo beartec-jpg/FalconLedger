@@ -1,8 +1,11 @@
 # Mainnet security freeze notes
 
-**Status:** Protocol security hard-gates for launch  
-**Last updated:** 2026-07-21  
-**Companion docs:** `MAINNET_GO_LIVE_CHECKLIST.md`, `MAINNET_REHEARSAL.md`, `ops/MAINNET_OPS_RUNBOOK.md`
+**Status:** **PROTOCOL FREEZE DECLARED 2026-07-22**  
+**Freeze commit:** `1789d2fb4865964d69a3005285293e6845235eb8` (`1789d2fb4`)  
+**Image:** `qxrp/xrpld:mainnet-v1` @ local `e5086df99920…` (see `scripts/mainnet-ceremony/IMAGE_DIGEST.txt`)  
+**Smoke:** PASS on private net 1099 (val5) · soak left running  
+**Last updated:** 2026-07-22  
+**Companion docs:** `MAINNET_GO_LIVE_CHECKLIST.md`, `MAINNET_REHEARSAL.md`, `ops/MAINNET_OPS_RUNBOOK.md`, `scripts/mainnet-ceremony/dry-runs/SOAK_CHECK.md`
 
 This document records the **security freeze** assumptions and remaining ops gates before a public mainnet bootstrap. It addresses audit items H-02 (assurance) and H-03 (ops/ceremony).
 

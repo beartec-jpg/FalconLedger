@@ -1,10 +1,24 @@
-# Protocol freeze tip for image build (AccountNames + multi-sig bridge docs in tree).
-# Binary built from this source tip (names Blob fix included).
-# Verify: docker inspect $IMAGE --format '{{index .Config.Labels "org.opencontainers.image.revision"}}'
-# Also: docker inspect $IMAGE --format '{{index .Config.Labels "falcon.names"}}'
-# Also: docker run --rm --entrypoint xrpld $IMAGE --version
+# ═══════════════════════════════════════════════════════════════════════════
+# PROTOCOL FREEZE — DECLARED 2026-07-22
+# ═══════════════════════════════════════════════════════════════════════════
+# Do not change consensus / protocol / amendment code against this pin without
+# intentionally cutting a NEW freeze (new build + new digest + re-smoke).
+#
+# Verify:
+#   docker inspect qxrp/xrpld:mainnet-v1 \
+#     --format '{{index .Config.Labels "org.opencontainers.image.revision"}}'
+#   docker inspect qxrp/xrpld:mainnet-v1 \
+#     --format '{{index .Config.Labels "falcon.names"}}'
+#
 1789d2fb4865964d69a3005285293e6845235eb8
 # short: 1789d2fb4
-# features: AccountNames, ProofOfParticipation, fluid ActiveSet scoring, slash burnXRP
-# image: qxrp/xrpld:mainnet-v1 , qxrp/xrpld:mainnet-v1-1789d2fb4
-# date: 2026-07-22T08:39:00Z
+#
+# Includes: AccountNames, fluid ActiveSet scoring, slash burnXRP, multi-sig bridge code
+# Image tags: qxrp/xrpld:mainnet-v1 , qxrp/xrpld:mainnet-v1-1789d2fb4
+# Built: 2026-07-22T08:39:00Z on val5
+#
+# Freeze smoke (private net 1099): PASS 2026-07-22 — see dry-runs/mainnet-pin-results
+#   health, amendments at genesis, NameSet/lookup/dup/unbond/too-soon
+#
+# Soak: leave val5 qxrp-rehearsal-{1,2,3} running; re-check in a few days
+#   (server_info full, seq advancing, peers=2, no crash loops)

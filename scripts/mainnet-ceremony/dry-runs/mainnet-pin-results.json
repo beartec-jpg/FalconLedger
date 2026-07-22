@@ -1,0 +1,85 @@
+{
+  "pin": "mainnet-v1",
+  "rev": "1789d2fb4865964d69a3005285293e6845235eb8",
+  "image": "qxrp/xrpld:mainnet-v1",
+  "network_id": 1099,
+  "host": "5.78.142.246",
+  "completed_at": "2026-07-22T09:37:40.460019+00:00",
+  "summary": {
+    "PASS": 14,
+    "FAIL": 0,
+    "total": 14
+  },
+  "tests": [
+    {
+      "name": "image pin mainnet-v1",
+      "status": "PASS",
+      "detail": "1789d2fb4 AccountNames label"
+    },
+    {
+      "name": "server health",
+      "status": "PASS",
+      "detail": "full peers=2"
+    },
+    {
+      "name": "AccountNames enabled",
+      "status": "PASS"
+    },
+    {
+      "name": "AMM enabled",
+      "status": "PASS"
+    },
+    {
+      "name": "MPTokensV1 enabled",
+      "status": "PASS"
+    },
+    {
+      "name": "LendingProtocol enabled",
+      "status": "PASS"
+    },
+    {
+      "name": "SingleAssetVault enabled",
+      "status": "PASS"
+    },
+    {
+      "name": "NameSet",
+      "status": "PASS",
+      "detail": "tesSUCCESS 69BDCD059A4831AC... name=ub.1784713028"
+    },
+    {
+      "name": "ledger_entry by name",
+      "status": "PASS",
+      "detail": "Account matches NameStatus=0 then 1"
+    },
+    {
+      "name": "dup name reject",
+      "status": "PASS",
+      "detail": "tecDUPLICATE"
+    },
+    {
+      "name": "second name reject",
+      "status": "PASS",
+      "detail": "tecDUPLICATE"
+    },
+    {
+      "name": "NameUnbond",
+      "status": "PASS",
+      "detail": "tesSUCCESS D861947A73B755C9..."
+    },
+    {
+      "name": "status releasing",
+      "status": "PASS",
+      "detail": "NameStatus=1"
+    },
+    {
+      "name": "NameRelease too soon",
+      "status": "PASS",
+      "detail": "tecTOO_SOON (mainnet epoch 172800)"
+    }
+  ],
+  "notes": [
+    "Fresh genesis with --start + [amendments] HASH name entries required for enable-at-genesis",
+    "RPC Name field must be hex-encoded VL",
+    "Full unbond cooldown not waited (long-epoch pin)"
+  ]
+}
