@@ -17,6 +17,7 @@
 #include <xrpl/protocol/STLedgerEntry.h>
 #include <xrpl/protocol/STTx.h>
 #include <xrpl/protocol/SystemParameters.h>
+#include <xrpl/protocol/TxFormats.h>
 #include <xrpl/protocol/XRPAmount.h>
 
 namespace xrpl {
@@ -102,6 +103,22 @@ QXRPDropConservation::finalize(
     // The magnitude of the net decrease must equal the fee actually charged.
     // If they differ the transaction consumed or produced drops without a
     // corresponding fee debit.
+    //
+    // Exception: ValidatorSlash intentionally burns BondedAmount (rawDestroyXRP)
+    // beyond the tx fee. visitEntry sees bond decrease + fee debit, so
+    // -drops_ == fee + slashed. Require at least the fee and never creation.
+    if (tx.getTxnType() == ttVALIDATOR_SLASH)
+    {
+        if (-drops_ < fee.drops())
+        {
+            JLOG(j.fatal())
+                << "qXRP invariant failed: ValidatorSlash net drop change "
+                << drops_ << " is less than fee " << fee.drops();
+            return false;
+        }
+        return true;
+    }
+
     if (-drops_ != fee.drops())
     {
         JLOG(j.fatal())

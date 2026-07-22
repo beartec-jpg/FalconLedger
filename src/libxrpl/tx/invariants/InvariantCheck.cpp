@@ -186,6 +186,18 @@ XRPNotCreated::finalize(
     }
 
     // The negative of the net change should be equal to actual fee charged.
+    // ValidatorSlash also burns BondedAmount (see QXRPDropConservation).
+    if (tx.getTxnType() == ttVALIDATOR_SLASH)
+    {
+        if (-drops_ < fee.drops())
+        {
+            JLOG(j.fatal()) << "Invariant failed: ValidatorSlash XRP net change of " << drops_
+                            << " is less than fee " << fee.drops();
+            return false;
+        }
+        return true;
+    }
+
     if (-drops_ != fee.drops())
     {
         JLOG(j.fatal()) << "Invariant failed: XRP net change of " << drops_ << " doesn't match fee "
