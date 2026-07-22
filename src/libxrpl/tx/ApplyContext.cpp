@@ -159,6 +159,16 @@ ApplyContext::checkInvariants(TER const result, XRPAmount const fee)
 }
 
 void
+ApplyContext::burnXRP(XRPAmount const& amount)
+{
+    if (amount <= beast::kZERO)
+        return;
+    // Full destroy — no fee-split / treasury credit (see destroyXRP).
+    // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
+    view_->rawDestroyXRP(amount);
+}
+
+void
 ApplyContext::destroyXRP(XRPAmount const& fee)
 {
     if (fee <= beast::kZERO)

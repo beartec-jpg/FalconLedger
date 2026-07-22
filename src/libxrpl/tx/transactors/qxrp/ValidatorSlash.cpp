@@ -206,13 +206,13 @@ ValidatorSlash::doApply()
 
     // Slashed portion is burned (not paid to submitter) — no grief-for-profit.
     //
-    // IMPORTANT: use rawDestroyXRP, NOT ApplyContext::destroyXRP.
+    // IMPORTANT: use burnXRP, NOT destroyXRP.
     // destroyXRP implements the *fee-split* path (burn BPS + treasury credit).
     // Slash burns must destroy the full slashed amount; routing through the fee
     // splitter would credit the treasury ~35–45% of the bond and fail
     // XRPNotCreated / QXRPDropConservation (net change != fee).
     if (slashedDrops > 0)
-        ctx_.view().rawDestroyXRP(XRPAmount{slashedDrops});
+        ctx_.burnXRP(XRPAmount{slashedDrops});
 
     if (remainderDrops > 0)
     {
