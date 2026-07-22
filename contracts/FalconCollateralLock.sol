@@ -157,13 +157,14 @@ contract FalconCollateralLock {
     }
 
     /// @notice Confirm a withdraw op. Executes automatically at threshold.
+    /// public (not external) so required==1 withdraw() alias can call it in-contract.
     function confirmWithdraw(
         uint256 amount,
         address recipient,
         bytes32 withdrawalId,
         string calldata falconAccount,
         string calldata falconTxHash
-    ) external onlyOwner {
+    ) public onlyOwner {
         require(amount > 0, "amount required");
         require(recipient != address(0), "zero recipient");
         require(!processedWithdrawals[withdrawalId], "already processed");
@@ -187,7 +188,8 @@ contract FalconCollateralLock {
     }
 
     /// @notice Confirm a deposit release. Executes automatically at threshold.
-    function confirmRelease(bytes32 depositId, address recipient) external onlyOwner {
+    /// public so required==1 release() alias can call it in-contract.
+    function confirmRelease(bytes32 depositId, address recipient) public onlyOwner {
         DepositRecord storage record = deposits[depositId];
         require(record.amount > 0, "unknown deposit");
         require(!record.released, "already released");

@@ -1,6 +1,7 @@
 # Mainnet ETH → Falcon USDC bridge
 
-Status: **Sepolia proven · Ethereum mainnet not deployed** (audit 2026-07-22)
+Status: **Sepolia multi-sig (mainnet-parity) PASS** · Ethereum mainnet not deployed  
+Audit + e2e: 2026-07-22
 
 ## Live testnet (reference)
 

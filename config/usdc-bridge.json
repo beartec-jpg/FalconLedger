@@ -14,7 +14,10 @@
     "explorer_url": "https://sepolia.etherscan.io",
     "usdc_token": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
     "lock_contract": "0x2dae31Cbf2E3a418d617081985661fCD0117b75C",
-    "usdc_decimals": 6
+    "lock_contract_legacy_1of1": "0x2dae31Cbf2E3a418d617081985661fCD0117b75C",
+    "lock_contract_multisig_2of3": "0x8A300bC6726C633ae350F58380194Ce3008CE295",
+    "usdc_decimals": 6,
+    "multisig_e2e_pass_at": "2026-07-22T08:23:39Z"
   },
   "ethereum_mainnet": {
     "chain_id": 1,
