@@ -59,11 +59,45 @@ Repo ships only **templates** (examples). You create the real files locally.
 
 1. Build/push image → write `IMAGE_DIGEST.txt`
 2. Choose network id → `NETWORK_ID.txt`
-3. Generate wallets + validator keys → `wallets/` + `validators/secrets/`
+3. **Generate ceremony keys (password-encrypted JSON)** — see below
 4. Fill `portal.env.mainnet` from the example (still `MAINNET_LIVE=false`)
 5. Apply Neon schema; deploy portal with live=false
 6. Dry-run genesis split → save output under `dry-runs/`
 7. Walk `CHECKLIST.md` Phase 0
+
+### Generate ceremony keys (encrypted downloadable JSON)
+
+Same idea as wallet backup: pick a strong password on the server → secrets are
+generated via freeze-image RPC → **only an encrypted JSON** is written → you
+`scp` it off → optionally delete from the server (or leave only the `.enc.json`).
+
+On a host with `qxrp/xrpld:mainnet-v1` and a container admin RPC (e.g. rehearsal):
+
+```bash
+# On server (interactive password prompt — min 12 chars, 3 character classes)
+python3 scripts/ops/ceremony-keygen.py \
+  --container qxrp-rehearsal-1 \
+  --validators 5 \
+  --network-id 1026
+
+# Download from your laptop
+scp root@<server>:/root/mainnet-ceremony-artifacts/ceremony-*/falcon-ceremony-backup.enc.json ./
+scp root@<server>:/root/mainnet-ceremony-artifacts/ceremony-*/ADDRESSES.public.json ./
+
+# Decrypt only when needed at T0 (writes mode 0600)
+python3 scripts/ops/ceremony-key-decrypt.py falcon-ceremony-backup.enc.json -o ceremony-plain.json
+```
+
+| File | Contents |
+|------|----------|
+| `falcon-ceremony-backup.enc.json` | **AES-256-GCM** ciphertext (PBKDF2 210k) — GENESIS/AIRDROP/FAUCET/DEV secrets + validator secrets |
+| `ADDRESSES.public.json` | Addresses + validator **public** keys only |
+| `unl-public.txt` | UNL pubkey list |
+
+**After download:** keep encrypted file offline (USB + password manager). Either
+leave only `.enc.json` on the server or `shred`/`rm` the whole ceremony dir.
+**Never commit** the enc or plain JSON to git.
+
 
 ### Launch day (T0)
 

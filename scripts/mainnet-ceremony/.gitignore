@@ -4,3 +4,7 @@ portal.env.mainnet
 IMAGE_DIGEST.txt
 validators/secrets/**
 !validators/secrets/.gitkeep
+*.enc.json
+*ceremony-plain*
+ceremony-plain.json
+falcon-ceremony-backup*
