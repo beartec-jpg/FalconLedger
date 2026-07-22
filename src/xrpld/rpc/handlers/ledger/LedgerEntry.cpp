@@ -21,6 +21,7 @@
 #include <xrpl/protocol/STXChainBridge.h>
 #include <xrpl/protocol/UintTypes.h>
 #include <xrpl/protocol/jss.h>
+#include <xrpl/tx/transactors/qxrp/AccountNameHelpers.h>
 
 #include <grpcpp/support/status.h>
 #include <org/xrpl/rpc/v1/get_ledger_entry.pb.h>
@@ -865,6 +866,51 @@ parseValidatorBond(
 auto const parseRewardEpoch = fixed(keylet::rewardEpoch());
 
 auto const parseGovernanceParams = fixed(keylet::governanceParams());
+
+static Expected<uint256, json::Value>
+parseAccountName(
+    json::Value const& params,
+    json::StaticString const fieldName,
+    [[maybe_unused]] unsigned const apiVersion)
+{
+    // Accept raw object index, a plain name string, or { "name": "alice.bob" }.
+    if (params.isString())
+    {
+        auto const s = params.asString();
+        // Hex object id
+        if (s.size() == 64)
+        {
+            if (auto const id = LedgerEntryHelpers::parse<uint256>(params))
+                return *id;
+        }
+        auto const name = account_names::normalizeName(makeSlice(s));
+        if (!name)
+        {
+            return LedgerEntryHelpers::invalidFieldError(
+                "malformedName", fieldName, "account name");
+        }
+        return keylet::accountName(makeSlice(*name)).key;
+    }
+
+    if (!params.isObject())
+    {
+        return parseObjectID(params, fieldName);
+    }
+
+    if (!params.isMember(jss::name) || !params[jss::name].isString())
+    {
+        return LedgerEntryHelpers::missingFieldError(jss::name);
+    }
+
+    auto const s = params[jss::name].asString();
+    auto const name = account_names::normalizeName(makeSlice(s));
+    if (!name)
+    {
+        return LedgerEntryHelpers::invalidFieldError(
+            "malformedName", jss::name, "account name");
+    }
+    return keylet::accountName(makeSlice(*name)).key;
+}
 
 static Expected<uint256, json::Value>
 parseGovernanceProposal(

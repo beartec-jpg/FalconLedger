@@ -139,6 +139,7 @@ TYPED_SFIELD(sfVotedFor,                 UINT32,    90) // cumulative compositeS
 TYPED_SFIELD(sfVotedAgainst,             UINT32,    91) // cumulative compositeScore voting no
 TYPED_SFIELD(sfLPAllocationBps,          UINT32,    92) // PoPL: vault-LP fraction of epoch emission
 TYPED_SFIELD(sfAmmLPAllocationBps,       UINT32,    93) // PoPL: AMM-LP fraction of epoch emission
+TYPED_SFIELD(sfNameStatus,               UINT32,    94) // AccountName: 0=active 1=releasing
 
 // 64-bit integers (common)
 TYPED_SFIELD(sfIndexNext,                UINT64,     1)
@@ -237,6 +238,7 @@ TYPED_SFIELD(sfLoanID,                   UINT256,   38)
 // qXRP: 256-bit fields (40-49 reserved for qXRP)
 TYPED_SFIELD(sfValidatorBondID,          UINT256,   40) // keylet index of ltVALIDATOR_BOND
 TYPED_SFIELD(sfProposalID,               UINT256,   41) // keylet index of ltGOVERNANCE_PROPOSAL
+TYPED_SFIELD(sfAccountName,              UINT256,   42) // reverse pointer: account root → ltACCOUNT_NAME key
 
 // number (common)
 TYPED_SFIELD(sfNumber,                   NUMBER,     1)
@@ -348,6 +350,7 @@ TYPED_SFIELD(sfSlashEvidence1,           VL,        32) // first diverging signa
 TYPED_SFIELD(sfSlashEvidence2,           VL,        33) // second diverging signature blob
 TYPED_SFIELD(sfVoterList,                VL,        34) // packed AccountIDs that voted on proposal
 TYPED_SFIELD(sfConsensusKey,             VL,        35) // classical secp256k1/ed25519 node key for scoring lookup
+TYPED_SFIELD(sfName,                     VL,        36) // normalized account name (AccountNames)
 
 // account (common)
 TYPED_SFIELD(sfAccount,                  ACCOUNT,    1)

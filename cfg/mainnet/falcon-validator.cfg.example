@@ -55,6 +55,7 @@ validators.txt
 
 [features]
 ProofOfParticipation
+AccountNames
 SingleAssetVault
 LendingProtocol
 

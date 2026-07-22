@@ -139,6 +139,9 @@ XRPNotCreated::visitEntry(
             case ltVALIDATOR_BOND:
                 drops_ -= (*before)[sfBondedAmount].xrp().drops();
                 break;
+            case ltACCOUNT_NAME:
+                drops_ -= (*before)[sfBondedAmount].xrp().drops();
+                break;
             default:
                 break;
         }
@@ -160,6 +163,10 @@ XRPNotCreated::visitEntry(
                     drops_ += (*after)[sfAmount].xrp().drops();
                 break;
             case ltVALIDATOR_BOND:
+                if (!isDelete)
+                    drops_ += (*after)[sfBondedAmount].xrp().drops();
+                break;
+            case ltACCOUNT_NAME:
                 if (!isDelete)
                     drops_ += (*after)[sfBondedAmount].xrp().drops();
                 break;

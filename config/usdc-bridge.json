@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "status": "testnet",
   "description": "EVM USDC → Falcon QUC bridge. Lock contract is N-of-M multi-sig (mainnet REQUIRED>=2). Deposit relay mints QUC; withdraw relay confirms multi-sig release.",
   "custody": {
@@ -16,22 +16,61 @@
     "lock_contract": "0x2dae31Cbf2E3a418d617081985661fCD0117b75C",
     "usdc_decimals": 6
   },
+  "ethereum_mainnet": {
+    "chain_id": 1,
+    "chain_name": "Ethereum",
+    "rpc_url": "https://ethereum-rpc.publicnode.com",
+    "explorer_url": "https://etherscan.io",
+    "usdc_token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    "lock_contract": null,
+    "usdc_decimals": 6,
+    "deploy_status": "not_deployed",
+    "deploy_notes": [
+      "Use scripts/deploy-falcon-lock.js with RPC_URL=mainnet, USDC_TOKEN=0xA0b8…eB48",
+      "OWNERS must be multi-sig set; REQUIRED >= 2 (enforced by custody.mainnet_min_required)",
+      "Do not reuse Sepolia lock address or Sepolia owner keys on mainnet",
+      "After deploy: set lock_contract, flip status to mainnet when Falcon mainnet is live",
+      "Relays need ETH_MAINNET_RPC_URL / ETH_MAINNET_LOCK_CONTRACT env (not SEPOLIA_*)"
+    ]
+  },
   "falcon": {
     "network_id": 1001,
     "rpc_url": "http://46.224.0.140:6005",
     "token_symbol": "USDC",
     "token_currency": "QUC",
-    "token_issuer": "rfftKWuA7Dk7PF1YrH8NA7262oY3tejhqt"
+    "token_issuer": "rfftKWuA7Dk7PF1YrH8NA7262oY3tejhqt",
+    "mainnet_notes": "On Falcon mainnet: new network_id, new QUC issuer from mainnet stables deploy, new RPC endpoints."
   },
   "relay": {
     "script": "scripts/bridge-deposit-relay.py",
     "state_file": "/var/lib/qxrp-bridge/relay_state.json",
-    "poll_interval_seconds": 30
+    "poll_interval_seconds": 30,
+    "mainnet_gaps": [
+      "Script is Sepolia-hardcoded (env SEPOLIA_RPC_URL / lock from sepolia block)",
+      "Need ETH_RPC_URL + LOCK_CONTRACT abstraction for chain_id=1",
+      "Issuer key custody: testnet single-signer; mainnet needs cold/HSM or multi-party mint policy",
+      "Services currently inactive on 46.224.0.140 (systemd inactive)"
+    ]
   },
   "withdraw_relay": {
     "script": "scripts/bridge-withdraw-relay.py",
     "state_file": "/var/lib/qxrp-bridge/withdraw_state.json",
     "poll_interval_seconds": 30,
-    "memo_type": "sepolia-withdraw"
-  }
+    "memo_type": "sepolia-withdraw",
+    "mainnet_gaps": [
+      "memo_type still sepolia-withdraw — use eth-withdraw or chain-agnostic memo for mainnet",
+      "release requires multi-sig confirmations from OWNERS (REQUIRED>=2)",
+      "Owner private keys must never live on the relay host for mainnet"
+    ]
+  },
+  "mainnet_checklist": [
+    "1. Deploy FalconCollateralLock on Ethereum mainnet (OWNERS N-of-M, REQUIRED>=2)",
+    "2. Verify USDC (0xA0b8…eB48) allowance path and decimals=6",
+    "3. Deploy mainnet QUC issuer + stables on Falcon mainnet (not testnet issuer)",
+    "4. Generalize deposit/withdraw relays for chain_id selection",
+    "5. Multi-sig runbook for withdraw release (no single EOA on host)",
+    "6. Point portal bridge UI at mainnet lock + Falcon mainnet RPC",
+    "7. Dry-run small deposit/withdraw before public launch",
+    "8. Document freeze of bridge issuer keys and owner set"
+  ]
 }

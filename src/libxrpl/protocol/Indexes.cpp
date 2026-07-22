@@ -91,6 +91,7 @@ enum class LedgerNameSpace : std::uint16_t {
     GovernanceParams    = 0xB2,  // singleton governance param store
     GovernanceProposal  = 0xB3,  // per-proposal governance object
     PopLpState          = 0xB4,  // per-account LP claim tracker
+    AccountName         = 0xB5,  // human-readable account name object
 
     // No longer used or supported. Left here to reserve the space to avoid accidental reuse.
     Contract [[deprecated]] = 'c',
@@ -620,6 +621,12 @@ Keylet
 popLpState(AccountID const& account, uint256 const& vaultID) noexcept
 {
     return {ltPOP_LP_STATE, indexHash(LedgerNameSpace::PopLpState, account, vaultID)};
+}
+
+Keylet
+accountName(Slice name) noexcept
+{
+    return {ltACCOUNT_NAME, indexHash(LedgerNameSpace::AccountName, name)};
 }
 
 }  // namespace keylet

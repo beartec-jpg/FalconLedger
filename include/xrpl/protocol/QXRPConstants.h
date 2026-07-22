@@ -178,11 +178,30 @@ constexpr std::int64_t kQXRP_MIN_BOND_DROPS = 1'000 * kDROPS_PER_XRP.drops();
 /// released (~30 days at 3.5 s/ledger).
 constexpr std::uint32_t kUNBONDING_LOCK_LEDGERS = 262'800;
 
+// ─── Account name service ────────────────────────────────────────────────────
+
+/// Bond locked while holding a name (100 FALCON).
+constexpr std::int64_t kNAME_BOND_DROPS = 100 * kDROPS_PER_XRP.drops();
+
+/// Name length bounds (normalized form).
+constexpr std::size_t kNAME_MIN_LEN = 3;
+constexpr std::size_t kNAME_MAX_LEN = 32;
+
+/// Cooldown after NameUnbond before NameRelease may return the bond.
+/// One full network epoch (mainnet 172_800; fast-epoch rehearsal uses
+/// kQXRP_LEDGERS_PER_EPOCH override).
+constexpr std::uint32_t kNAME_UNBOND_LEDGERS = kQXRP_LEDGERS_PER_EPOCH;
+
 // ─── Validator bond status codes ─────────────────────────────────────────────
 
 constexpr std::uint8_t kBOND_STATUS_REGISTERED = 0;
 constexpr std::uint8_t kBOND_STATUS_BONDED      = 1;
 constexpr std::uint8_t kBOND_STATUS_UNBONDING   = 2;
+
+// ─── Account name status codes ───────────────────────────────────────────────
+
+constexpr std::uint8_t kNAME_STATUS_ACTIVE    = 0;
+constexpr std::uint8_t kNAME_STATUS_RELEASING = 1;
 
 // ─── Composite score weights (must sum to 100) ───────────────────────────────
 //

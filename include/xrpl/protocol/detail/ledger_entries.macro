@@ -150,6 +150,7 @@ LEDGER_ENTRY(ltACCOUNT_ROOT, 0x0061, AccountRoot, account, ({
     {sfAMMID,                SoeOptional}, // pseudo-account designator
     {sfVaultID,              SoeOptional}, // pseudo-account designator
     {sfLoanBrokerID,         SoeOptional}, // pseudo-account designator
+    {sfAccountName,          SoeOptional}, // reverse pointer to ltACCOUNT_NAME key
 }))
 
 /** A ledger object which contains a list of object identifiers.
@@ -697,6 +698,23 @@ LEDGER_ENTRY_DUPLICATE(ltGOVERNANCE_PROPOSAL, 0x0094, GovernanceProposal, govern
     {sfVotedFor,             SoeDefault},   // accumulated composite-score weight (yes)
     {sfVotedAgainst,         SoeDefault},   // accumulated composite-score weight (no)
     {sfVoterList,            SoeDefault},   // packed 20-byte AccountIDs that already voted
+    {sfOwnerNode,            SoeRequired},
+    {sfPreviousTxnID,        SoeRequired},
+    {sfPreviousTxnLgrSeq,    SoeRequired},
+}))
+
+/** qXRP AccountNames: human-readable name bound to an account with a 100 FALCON
+    bond.  Keyed by hash of the normalized name.  One active/releasing name per
+    account (reverse pointer sfAccountName on account root).
+
+    \sa keylet::accountName
+ */
+LEDGER_ENTRY(ltACCOUNT_NAME, 0x0096, AccountName, account_name, ({
+    {sfName,                 SoeRequired},  // normalized lowercase name
+    {sfAccount,              SoeRequired},  // owner r-address
+    {sfBondedAmount,         SoeRequired},  // 100 FALCON while active/releasing
+    {sfNameStatus,           SoeRequired},  // 0=active 1=releasing
+    {sfUnbondingStartLedger, SoeDefault},   // set when status = releasing
     {sfOwnerNode,            SoeRequired},
     {sfPreviousTxnID,        SoeRequired},
     {sfPreviousTxnLgrSeq,    SoeRequired},

@@ -50,6 +50,10 @@ QXRPDropConservation::visitEntry(
                 // the conservation check: account_delta + bond_delta == -fee.
                 drops_ -= (*before)[sfBondedAmount].xrp().drops();
                 break;
+            case ltACCOUNT_NAME:
+                // Name bond locked on NameSet / returned on NameRelease.
+                drops_ -= (*before)[sfBondedAmount].xrp().drops();
+                break;
             default:
                 break;
         }
@@ -72,6 +76,10 @@ QXRPDropConservation::visitEntry(
                     drops_ += (*after)[sfAmount].xrp().drops();
                 break;
             case ltVALIDATOR_BOND:
+                if (!isDelete)
+                    drops_ += (*after)[sfBondedAmount].xrp().drops();
+                break;
+            case ltACCOUNT_NAME:
                 if (!isDelete)
                     drops_ += (*after)[sfBondedAmount].xrp().drops();
                 break;

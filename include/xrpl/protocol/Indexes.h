@@ -1,5 +1,6 @@
 #pragma once
 
+#include <xrpl/basics/Slice.h>
 #include <xrpl/basics/base_uint.h>
 #include <xrpl/protocol/Book.h>
 #include <xrpl/protocol/Keylet.h>
@@ -382,6 +383,16 @@ inline Keylet
 popLpState(uint256 const& key) noexcept
 {
     return {ltPOP_LP_STATE, key};
+}
+
+/** Account name object keyed by the hash of the normalized name bytes. */
+Keylet
+accountName(Slice name) noexcept;
+
+inline Keylet
+accountName(uint256 const& key) noexcept
+{
+    return {ltACCOUNT_NAME, key};
 }
 
 }  // namespace keylet
