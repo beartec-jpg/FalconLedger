@@ -1,21 +1,26 @@
-# PROTOCOL FREEZE IMAGE — 2026-07-22
-# Pushed to Docker Hub 2026-07-22 (after docker login on val5).
+# PROTOCOL FREEZE IMAGE — mainnet-v2 (scoring pay) — 2026-07-22
+# Pushed to Docker Hub 2026-07-22 (val5 login scottreynoldsqxrp).
 #
-# git: 1789d2fb4865964d69a3005285293e6845235eb8
-# tags: qxrp/xrpld:mainnet-v1 , qxrp/xrpld:mainnet-v1-1789d2fb4
-# labels: falcon.names=AccountNames falcon.freeze.commit=1789d2fb4…
+# git: 1af01dbfb (all bonded pay ∝ score; ActiveSet rank-cut disabled)
+# ancestor freeze names tip: 1789d2fb4
+# tags: qxrp/xrpld:mainnet-v2 , mainnet-v2-scoring-pay , mainnet-v2-1af01dbfb
+# labels: falcon.scoring=all-bonded-pro-rata falcon.activeset=disabled falcon.names=AccountNames
 # host: val5 (5.78.142.246)
-# built: 2026-07-22T08:39:00Z
-# freeze smoke: PASS 2026-07-22 (network_id 1099) 14/14
-# soak: PASS_EARLY 2026-07-22T10:09Z — multi-day still running
+# built: 2026-07-22T13:07Z
+# fresh-genesis smoke: PASS 12/12 2026-07-22 (network_id 1099)
+# soak: running on mainnet-v2 — multi-day aging
 #
-# Pull / pin (preferred):
-#   docker pull qxrp/xrpld@sha256:e5086df99920ca62a6c7c09e65d49decd43ae3a67cf6167aa46419e006fcb31c
-#   export QXRP_XRPLD_IMAGE='qxrp/xrpld@sha256:e5086df99920ca62a6c7c09e65d49decd43ae3a67cf6167aa46419e006fcb31c'
+# Pull / pin (preferred for T0):
+#   docker pull qxrp/xrpld@sha256:7286556f5bdb6cc8a3abe4864f06ca9a6af4f59c2fba82775793800744aa931e
+#   export QXRP_XRPLD_IMAGE='qxrp/xrpld@sha256:7286556f5bdb6cc8a3abe4864f06ca9a6af4f59c2fba82775793800744aa931e'
 #
 # Tag aliases (same content):
-#   docker pull qxrp/xrpld:mainnet-v1
-#   docker pull qxrp/xrpld:mainnet-v1-1789d2fb4
+#   docker pull qxrp/xrpld:mainnet-v2
+#   docker pull qxrp/xrpld:mainnet-v2-scoring-pay
+#   docker pull qxrp/xrpld:mainnet-v2-1af01dbfb
+#
+# Historical mainnet-v1 (ActiveSet pay) digest — do not use for T0 if all-bonded pay required:
+#   qxrp/xrpld@sha256:e5086df99920ca62a6c7c09e65d49decd43ae3a67cf6167aa46419e006fcb31c
 #
 # RepoDigest:
-qxrp/xrpld@sha256:e5086df99920ca62a6c7c09e65d49decd43ae3a67cf6167aa46419e006fcb31c
+qxrp/xrpld@sha256:7286556f5bdb6cc8a3abe4864f06ca9a6af4f59c2fba82775793800744aa931e

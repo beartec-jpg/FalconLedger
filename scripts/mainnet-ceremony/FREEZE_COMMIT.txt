@@ -1,24 +1,35 @@
 # ═══════════════════════════════════════════════════════════════════════════
-# PROTOCOL FREEZE — DECLARED 2026-07-22
+# PROTOCOL FREEZE — SUPERSEDED TO mainnet-v2 2026-07-22
 # ═══════════════════════════════════════════════════════════════════════════
 # Do not change consensus / protocol / amendment code against this pin without
 # intentionally cutting a NEW freeze (new build + new digest + re-smoke).
 #
 # Verify:
-#   docker inspect qxrp/xrpld:mainnet-v1 \
+#   docker inspect qxrp/xrpld:mainnet-v2 \
 #     --format '{{index .Config.Labels "org.opencontainers.image.revision"}}'
-#   docker inspect qxrp/xrpld:mainnet-v1 \
-#     --format '{{index .Config.Labels "falcon.names"}}'
+#   docker inspect qxrp/xrpld:mainnet-v2 \
+#     --format '{{index .Config.Labels "falcon.scoring"}} {{index .Config.Labels "falcon.activeset"}}'
 #
-1789d2fb4865964d69a3005285293e6845235eb8
-# short: 1789d2fb4
+1af01dbfb
+# full: 1af01dbfb (feat(scoring): pay all bonded ∝ score; drop ActiveSet rank cut)
+# base freeze names tip still included: 1789d2fb4 is an ancestor
 #
-# Includes: AccountNames, fluid ActiveSet scoring, slash burnXRP, multi-sig bridge code
-# Image tags: qxrp/xrpld:mainnet-v1 , qxrp/xrpld:mainnet-v1-1789d2fb4
-# Built: 2026-07-22T08:39:00Z on val5
+# Includes:
+#   AccountNames, fluid EMA scoring, pay ∝ score for ALL bonded (no K=32 cut),
+#   slash burnXRP, multi-sig bridge code, CID first unlock epoch 8 (long-epoch)
+# Image tags: qxrp/xrpld:mainnet-v2 · mainnet-v2-scoring-pay · mainnet-v2-1af01dbfb
+# Built: 2026-07-22 on val5 · Hub push 2026-07-22
 #
-# Freeze smoke (private net 1099): PASS 2026-07-22 — see dry-runs/mainnet-pin-results
-#   health, amendments at genesis, NameSet/lookup/dup/unbond/too-soon
+# Prior freeze (mainnet-v1 / ActiveSet pay): 1789d2fb4 — kept as historical pin only
 #
-# Soak: leave val5 qxrp-rehearsal-{1,2,3} running; re-check in a few days
+# Freeze smoke (private net 1099):
+#   mainnet-v1 names: PASS 14/14 (2026-07-22)
+#   mainnet-v2 scoring-pay fresh-genesis: PASS 12/12 (2026-07-22)
+#     see dry-runs/mainnet-v2-scoring-smoke.json
+#
+# Soak: val5 qxrp-rehearsal-{1,2,3} on mainnet-v2 — leave running
 #   (server_info full, seq advancing, peers=2, no crash loops)
+#
+# Emission: long-epoch mainnet binary uses first unlock at epoch 8.
+#   Bonded validators accrue scores from genesis; ClaimReward pays after epoch 8.
+# Fast-epoch claim e2e: build mainnet-v2-fast-epoch (rehearsal only; not T0 pin).

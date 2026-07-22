@@ -345,11 +345,14 @@ Also available offline (not re-run this pass): ASAN freeze build, full destructi
 **Summary:** **12/12 PASS · 0 FAIL**  
 **Notes:** Rolling upgrade without wipe left empty `complete_ledgers` / null validated ledger — **fresh genesis required**. n=3 cannot numerically prove removal of K=32; proof is code path + labels + binary string + absence of demote logs. Open/rotating UNL remains a **post-genesis amendment** (see `docs/qxrp/OPEN_UNL_AMENDMENT.md`). Stack left **soaking** on mainnet-v2.
 
+**Hub + freeze promote (2026-07-22):**  
+`qxrp/xrpld@sha256:7286556f5bdb6cc8a3abe4864f06ca9a6af4f59c2fba82775793800744aa931e`  
+tags `mainnet-v2` · `mainnet-v2-scoring-pay` · `mainnet-v2-1af01dbfb` — now the **protocol freeze / T0 pin** (supersedes mainnet-v1 for launch).
+
 ## Next
 
 1. Multi-day soak on **mainnet-v2** (`SOAK_CHECK.md`) — seq advancing, peers=2, no crash loops  
-2. Optional Hub push of `mainnet-v2` (replace local id with RepoDigest in `IMAGE_DIGEST_mainnet-v2.txt`)  
-3. Prefer **mainnet-v2** over mainnet-v1 for T0 if all-bonded pay ∝ score is required at launch  
-4. Wipe rehearsal stack before real T0; destroy throwaway secrets  
-5. Real ETH mainnet bridge: new 2-of-N lock + cold owners (not Sepolia keys)
+2. Fast-epoch ClaimReward e2e on `mainnet-v2-fast-epoch` (rehearsal only; emission first unlock epoch 2 with 256-ledger epochs) — proves pay path before real epoch 8  
+3. Wipe rehearsal stack before real T0; destroy throwaway secrets  
+4. Real ETH mainnet bridge: new 2-of-N lock + cold owners (not Sepolia keys)
 

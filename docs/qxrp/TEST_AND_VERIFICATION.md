@@ -19,7 +19,7 @@ For protocol design, see the [White Paper](whitepaper.md). For account names, se
 | AMM + vault + lending path | **Verified** | Create pool → vault → broker → borrow → repay |
 | USDC bridge multi-sig (test EVM) | **Verified** | N-of-M lock; single owner cannot release; threshold does |
 | Account Names | **Verified** | Claim, lookup, duplicate reject, unbond, early-release gate |
-| Protocol freeze image | **Pinned** | Public Hub tag + content digest (see below) |
+| Protocol freeze image | **Pinned** | Hub `mainnet-v2` @ `sha256:7286556f5bdb…` (all-bonded pay) |
 | Public mainnet go-live | **Not yet** | Soak, ceremony ops, and production RPC still ahead of T0 |
 
 ---

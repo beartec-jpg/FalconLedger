@@ -1,14 +1,15 @@
 # mainnet-v2 — scoring pay (all bonded ∝ score), ActiveSet rank-cut disabled
 # Built 2026-07-22 on val5 from scoring tree (rev label 1af01dbfb)
-# Tags: qxrp/xrpld:mainnet-v2 , qxrp/xrpld:mainnet-v2-scoring-pay
+# Tags: mainnet-v2 · mainnet-v2-scoring-pay · mainnet-v2-1af01dbfb
 # labels: falcon.scoring=all-bonded-pro-rata falcon.activeset=disabled falcon.names=AccountNames
 #
-# Local image id (Hub push optional; not required for rehearsal smoke):
-qxrp/xrpld:mainnet-v2@local-7286556f5bdb6cc8a3abe4864f06ca9a6af4f59c2fba82775793800744aa931e
+# Hub (2026-07-22):
+qxrp/xrpld@sha256:7286556f5bdb6cc8a3abe4864f06ca9a6af4f59c2fba82775793800744aa931e
 #
 # Fresh-genesis smoke (2026-07-22 ~13:36Z UTC) on val5 private network_id=1099:
 #   wipe NuDB/db · compose mainnet-v2 · ips_fixed 172.30.0.2/3/4 · --start
 #   overall PASS 12/12 · 0 FAIL
-#   full · peers=2 · proposers=2 · seq advancing · AccountNames enabled
-#   binary contains "no ActiveSet rank cut" · no ActiveSet demote logs
 # Artifact: dry-runs/mainnet-v2-scoring-smoke.json
+#
+# Soak: val5 qxrp-rehearsal-1/2/3 left on this image
+# Fast-epoch ClaimReward e2e: mainnet-v2-fast-epoch build (rehearsal only)

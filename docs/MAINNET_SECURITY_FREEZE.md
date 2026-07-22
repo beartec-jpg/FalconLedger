@@ -1,10 +1,11 @@
 # Mainnet security freeze notes
 
-**Status:** **PROTOCOL FREEZE DECLARED 2026-07-22**  
-**Freeze commit:** `1789d2fb4865964d69a3005285293e6845235eb8` (`1789d2fb4`)  
-**Image:** `qxrp/xrpld@sha256:e5086df99920ca62a6c7c09e65d49decd43ae3a67cf6167aa46419e006fcb31c`  
-  tags: `mainnet-v1` · `mainnet-v1-1789d2fb4` (Hub push 2026-07-22)  
-**Smoke:** PASS on private net 1099 (val5) · soak left running  
+**Status:** **PROTOCOL FREEZE — mainnet-v2 (scoring pay) 2026-07-22**  
+**Freeze commit:** `1af01dbfb` (all bonded pay ∝ score; ancestor names tip `1789d2fb4`)  
+**Image:** `qxrp/xrpld@sha256:7286556f5bdb6cc8a3abe4864f06ca9a6af4f59c2fba82775793800744aa931e`  
+  tags: `mainnet-v2` · `mainnet-v2-scoring-pay` · `mainnet-v2-1af01dbfb` (Hub push 2026-07-22)  
+**Smoke:** names (v1) 14/14 + scoring-pay fresh-genesis (v2) 12/12 · soak on **mainnet-v2**  
+**Emission:** long-epoch first unlock at **epoch 8**; scores accrue from genesis for bonded vals  
 **Last updated:** 2026-07-22  
 **Companion docs:** `MAINNET_GO_LIVE_CHECKLIST.md`, `MAINNET_REHEARSAL.md`, `ops/MAINNET_OPS_RUNBOOK.md`, `scripts/mainnet-ceremony/dry-runs/SOAK_CHECK.md`
 
@@ -33,20 +34,25 @@ If any of the above is missing from `xrpld --version` git commit, **do not launc
 ## 2. Image pin (H-03)
 
 ```bash
-# Build from freeze commit
-docker build -t qxrp/xrpld:mainnet-v1 -f docker/Dockerfile .
-docker push qxrp/xrpld:mainnet-v1
-DIGEST=$(docker inspect qxrp/xrpld:mainnet-v1 --format '{{index .RepoDigests 0}}')
+# Build from freeze commit (scoring pay)
+docker build -t qxrp/xrpld:mainnet-v2 -f docker/Dockerfile \
+  --label falcon.scoring=all-bonded-pro-rata \
+  --label falcon.activeset=disabled \
+  --label falcon.names=AccountNames \
+  --label org.opencontainers.image.revision=1af01dbfb .
+docker push qxrp/xrpld:mainnet-v2
+DIGEST=$(docker inspect qxrp/xrpld:mainnet-v2 --format '{{index .RepoDigests 0}}')
 echo "$DIGEST" > scripts/mainnet-ceremony/IMAGE_DIGEST.txt
 ```
 
 **All** validators, full-history nodes, and install one-liners must use:
 
 ```bash
-export QXRP_XRPLD_IMAGE='qxrp/xrpld@sha256:…'   # from IMAGE_DIGEST.txt
+export QXRP_XRPLD_IMAGE='qxrp/xrpld@sha256:7286556f5bdb6cc8a3abe4864f06ca9a6af4f59c2fba82775793800744aa931e'
 ```
 
-Installer / compose defaults use `qxrp/xrpld:lending-v5` for testnet continuity; **mainnet must override with the digest**.
+Installer / compose defaults use `qxrp/xrpld:lending-v5` for testnet continuity; **mainnet must override with the digest**.  
+Historical `mainnet-v1` remains on Hub but is **not** the T0 pin (ActiveSet pay).
 
 Never roll a mixed fleet (two digests in the UNL set).
 

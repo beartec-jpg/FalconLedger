@@ -20,13 +20,12 @@ A short, shareable snapshot of progress toward public mainnet. Operator runbooks
 | Account Names amendment | Done (smoke on freeze pin + mainnet-v2) |
 | AMM + lending stack (vault / broker / loan) | Exercised on test & private nets |
 | Bridge multi-sig model (N-of-M) | Code + Sepolia e2e proven |
-| Freeze image on Docker Hub | `qxrp/xrpld:mainnet-v1` @ `1789d2fb4` |
-| Scoring-pay image (recommended T0) | `qxrp/xrpld:mainnet-v2` @ local `7286556f5bdb…` (Hub optional) |
+| Freeze / T0 image on Docker Hub | **`mainnet-v2`** @ `1af01dbfb` (all bonded pay ∝ score) |
+| Prior names-only freeze | `mainnet-v1` @ `1789d2fb4` — historical only |
 
-**Image pin (public freeze):**  
-`qxrp/xrpld@sha256:e5086df99920ca62a6c7c09e65d49decd43ae3a67cf6167aa46419e006fcb31c`  
-**Scoring-pay pin (local, smoke-proven):**  
-`qxrp/xrpld:mainnet-v2` · `sha256:7286556f5bdb6cc8a3abe4864f06ca9a6af4f59c2fba82775793800744aa931e`
+**Image pin (public freeze / T0):**  
+`qxrp/xrpld@sha256:7286556f5bdb6cc8a3abe4864f06ca9a6af4f59c2fba82775793800744aa931e`  
+Tags: `mainnet-v2` · `mainnet-v2-scoring-pay` · `mainnet-v2-1af01dbfb`
 
 **Mainnet network id (planned):** `1026`  
 **Testnet network id (live):** `1001`
