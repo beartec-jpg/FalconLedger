@@ -1,14 +1,20 @@
 {
-  "status": "PARTIAL",
-  "crypto_verify": "PASS",
-  "apply": "tecINVARIANT_FAILED",
-  "hash": "8DED82D2A491EF8E930F48777F575ED80F9503E2AE1C26712CD54D702C475E42",
-  "root_cause": "destroyXRP fee-split + drop conservation invariant rejects bond burn",
-  "fix_in_tree": [
-    "ValidatorSlash.cpp rawDestroyXRP",
-    "XRPNotCreated + QXRPDropConservation allow slash burn beyond fee"
-  ],
-  "needs": "rebuild mainnet-rehearsal-fast-epoch and re-submit slash",
-  "bond_id": "rP2pWyHVDFiGGhqZank6DdB3a4g4N4DhmS",
-  "target_still_bonded": true
+  "image_commit": "e2615b362",
+  "A4": "tesSUCCESS",
+  "A4_hash": "652830D39B3E8DEBD4D4C6B52F7812969D92C14BD6F47A0141E7764697A86EC1",
+  "bond_before": {
+    "BondStatus": 1,
+    "BondedAmount": "1000000000",
+    "SlashCount": null,
+    "SlashMultiplier": 10000,
+    "UnbondingStartLedger": null
+  },
+  "bond_after": {
+    "BondStatus": 2,
+    "BondedAmount": "0",
+    "SlashCount": 1,
+    "SlashMultiplier": 9000,
+    "UnbondingStartLedger": 60
+  },
+  "A5": "tecDUPLICATE"
 }

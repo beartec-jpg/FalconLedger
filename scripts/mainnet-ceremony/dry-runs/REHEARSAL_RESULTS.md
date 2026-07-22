@@ -191,7 +191,7 @@ Artifact: `dry-runs/artifacts/rehearsal-adversarial-results.json` (+ val5 `/root
 | A1 | Garbage slash evidence | **PASS** | `temMALFORMED` |
 | A2 | Slash ABSENCE (offense 2) | **PASS** | `temDISABLED` |
 | A3 | Slash INVALID_VOTE (offense 3) | **PASS** | `temDISABLED` |
-| A4 | Valid Falcon double-sign slash | **PARTIAL** | crypto PASS; invariant FAIL (bug fixed in tree, rebuild needed) |
+| A4 | Valid Falcon double-sign slash | **PASS** | tesSUCCESS hash `652830D3…`; BondStatus 1→2 UNBONDING; bond burned 1000→0; image e2615b362 |
 | A5 | Replay same slash | **DEFERRED** | depends on A4 |
 | A6 | Slash wrong target | **DEFERRED** | depends on A4 |
 | B5 | ClaimReward no bond | **PASS** | requires ConsensusKey / not tesSUCCESS |
