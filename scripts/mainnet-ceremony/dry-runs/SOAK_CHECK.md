@@ -8,7 +8,25 @@
 
 Leave the chain **idle but online**. Goal: still healthy later — not to stress-test throughput.
 
-## Check in a couple of days
+## Check results
+
+### 2026-07-22T10:09Z (first re-check after pin) — **PASS_EARLY**
+
+| Field | Value |
+|-------|--------|
+| containers | all 3 **Up (healthy)** · `mainnet-v1` |
+| server_state | `full` |
+| seq | **742** (complete 5–742; advancing) |
+| peers / proposers | **2** / 2 |
+| uptime | **~0.6 h** (pin redeploy window — not multi-day yet) |
+| image | `e5086df99920` · rev `1789d2fb4` · AccountNames |
+
+Artifact: `dry-runs/soak-check-2026-07-22.json`  
+On host: `/root/mainnet-ceremony-artifacts/soak-check-2026-07-22.json`
+
+**Verdict:** healthy now; re-check again after **≥24–48 h** for multi-day soak credit.
+
+### Next re-check (operator)
 
 ```bash
 ssh val5
@@ -24,10 +42,20 @@ print('uptime_hours', round((i.get('uptime') or 0)/3600, 1))
 "
 ```
 
-**Good:** `full` (or proposing), seq **higher** than when you froze, peers **2**, containers **Up (healthy)** for days.  
+**Good:** `full` (or proposing), seq **higher** than last check, peers **2**, containers **Up (healthy)** for days.  
 **Bad:** restart loops, seq stuck, peers 0, OOM kills.
 
 Optional: one manual Payment from genesis to a test wallet — proves txs still apply. Not required.
+
+## Image distribution
+
+| Path | Status |
+|------|--------|
+| Docker Hub `docker push qxrp/xrpld:mainnet-v1` | **Blocked** 2026-07-22 — `insufficient_scope` / no Hub login on val5 |
+| Offline tarball on val5 | **Ready** — `/root/mainnet-ceremony-artifacts/qxrp-xrpld-mainnet-v1-1789d2fb4.tar.gz` (~62M gzip) |
+| Load on another host | `gunzip -c …tar.gz \| docker load` then tag verify `1789d2fb4` |
+
+After successful Hub push, replace local id in `IMAGE_DIGEST.txt` with `RepoDigests`.
 
 ## Tx simulator?
 

@@ -1,0 +1,16 @@
+{
+  "checked_at": "2026-07-22T10:09:20.005837+00:00",
+  "host": "5.78.142.246",
+  "image": "qxrp/xrpld:mainnet-v1",
+  "image_id": "e5086df99920",
+  "rev": "1789d2fb4",
+  "server_state": "full",
+  "seq": 742,
+  "peers": 2,
+  "uptime_hours": 0.63,
+  "complete_ledgers": "5-742",
+  "containers": "qxrp-rehearsal-1/2/3 healthy mainnet-v1",
+  "verdict": "PASS_EARLY",
+  "note": "Healthy full/peers=2; multi-day soak still running. Hub push denied (no auth). Offline tarball ready.",
+  "offline_tarball": "/root/mainnet-ceremony-artifacts/qxrp-xrpld-mainnet-v1-1789d2fb4.tar.gz"
+}
