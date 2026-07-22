@@ -45,7 +45,7 @@ Sustained testnet load has previously been reported at **850k+ payments** over m
 
 ---
 
-## 3. Fluid scoring & ActiveSet
+## 3. Fluid scoring & pay ∝ score
 
 Validator reward weight is computed fully on-ledger from a rolling window (flag interval / 256 ledgers):
 
@@ -152,7 +152,7 @@ Private-network smoke on this pin covered health, product amendments at genesis,
 
 ## Suggested one-liners (community / X)
 
-> Falcon Ledger freeze pin `mainnet-v1` (`1789d2fb4`) is on Docker Hub — Falcon-only crypto, CID emission, fluid ActiveSet scoring, Account Names, and Sepolia multi-sig bridge e2e verified. Public mainnet still offline until go-live.
+> Falcon Ledger — Falcon-only crypto, CID emission, fluid scoring with **all bonded validators paid ∝ score**, Account Names, and Sepolia multi-sig bridge e2e. Public mainnet still offline until go-live.
 
 > We don’t pay validators with a flat demerit score. Composite is EMA-smoothed; every bonded validator shares epoch rewards in proportion to score.
 

@@ -149,15 +149,15 @@ The launch experience that removes the need for any centralized exchange:
 - [ ] Wipe rehearsal throwaway secrets before real T0.
 
 **Definition of done for launch:** at mainnet genesis, a validator can be funded by
-the faucet, earn qXRP rewards under fluid ActiveSet scoring, optionally claim a
-human name, and swap rewards to USDC/USDT in-wallet — with no centralized exchange
-anywhere in the loop.
+the faucet, earn qXRP rewards under fluid scoring (**all bonded paid ∝ score**),
+optionally claim a human name, and swap rewards to USDC/USDT in-wallet — with no
+centralized exchange anywhere in the loop.
 
 ---
 
 ## Long Term
 
-- [ ] Performance-weighted validator influence replacing static trust assumptions (beyond ActiveSet reward weight).
+- [ ] Open/rotating UNL amendment (top ~33%, ~10% seat rotate) after bootstrap.
 - [ ] Expanded on-chain governance over additional bounded protocol parameters.
 - [ ] Name marketplace / transfer (non-goal for v1).
 - [ ] Adversarial testing and continuous reward-model simulation.
@@ -172,7 +172,7 @@ anywhere in the loop.
 | Validator pay             | None                          | Paid every epoch from protocol treasury     |
 | Company control of supply | High (escrow unlocks)         | None — treasury has no private key          |
 | Ecosystem grants          | Company/foundation discretion | Protocol emission, no grant gatekeeper      |
-| Reward distribution       | N/A                           | Fluid EMA scoring + ActiveSet(K=32)         |
+| Reward distribution       | N/A                           | Fluid EMA; all bonded paid ∝ score          |
 | Human addresses           | None                          | Optional Account Names (100 qXRP bond)      |
 | Governance                | Company-gated amendments      | On-chain bonded supermajority               |
 | Economic security         | None                          | Bonding + slashing with cryptographic proof |

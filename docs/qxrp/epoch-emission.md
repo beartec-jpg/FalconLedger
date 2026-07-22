@@ -74,15 +74,16 @@ Rate declines every epoch (no intra-year reset). Approximate targets:
 ## Per-Validator Payout
 
 Validators receive a share of the **validator basket** (epochEmit after LP
-allocations) proportional to their composite score among the ActiveSet:
+allocations) proportional to composite score among **all bonded** validators
+that have a score (no top-K ActiveSet cut):
 
 ```
 validatorShare = validatorBasket × validatorCompositeScore / aggregateCompositeScore
 ```
 
-Only validators with non-zero ActiveSet composite and
-`compositeScore ≥ kMIN_COMPOSITE_SCORE_BPS` (500 bps = 5 %) are included in
-`aggregateCompositeScore` and are eligible for rewards.
+`aggregateCompositeScore` is the sum of composites on bonded validators.
+`ClaimReward` requires `compositeScore ≥ kMIN_COMPOSITE_SCORE_BPS` (500 bps = 5 %).
+UNL membership is independent of pay (bootstrap trust list until open-UNL amendment).
 
 ### Claiming
 

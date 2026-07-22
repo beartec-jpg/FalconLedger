@@ -164,7 +164,7 @@ A detailed, status-tracked roadmap lives in [ROADMAP.md](ROADMAP.md). In summary
 
 ### Long Term
 
-- Performance-weighted influence beyond ActiveSet reward weight.
+- Open/rotating UNL amendment (bootstrap UNL until network is large enough).
 - Expand on-chain governance for additional bounded parameters.
 - Long-horizon emission simulations and continuous adversarial testing.
 - Name transfer / marketplace (explicitly non-goal for v1).
@@ -177,7 +177,7 @@ A detailed, status-tracked roadmap lives in [ROADMAP.md](ROADMAP.md). In summary
 - [Public docs index](docs/qxrp/PUBLIC_DOCS_INDEX.md) — what to share on X / blog.
 - [Roadmap](ROADMAP.md) — what's accomplished and the path to mainnet.
 - [Account Names](docs/qxrp/NAME_SERVICE.md) — bonded human handles (`NameSet` / unbond / release).
-- [Validator Lifecycle](docs/qxrp/validator-lifecycle.md) — bonding, fluid scoring, ActiveSet.
+- [Validator Lifecycle](docs/qxrp/validator-lifecycle.md) — bonding, fluid scoring, pay ∝ score.
 - [Supply Model](docs/qxrp/supply-model.md), [Epoch Emission](docs/qxrp/epoch-emission.md), [Fee Split](docs/qxrp/fee-split.md), [Governance](docs/qxrp/governance.md).
 - [Mainnet security freeze](docs/MAINNET_SECURITY_FREEZE.md) · [Dress rehearsal](docs/MAINNET_REHEARSAL.md) · [Bridge](docs/MAINNET_BRIDGE.md) (ops — not for public dump).
 
