@@ -36,7 +36,7 @@ Sustained testnet load has previously been reported at **850k+ payments** over m
 
 ## 2. Economics — emission & fees
 
-- **Fixed supply:** 200B qXRP hard cap; 98% protocol treasury (no private key).
+- **Fixed supply:** 200B qXRP hard cap; 98% protocol treasury (no private key); public 2% bootstrap (2B airdrop / 1B faucet / 1B builder).
 - **CID emission:** Continuous Inflationary Decline (smooth per-epoch rate on remaining treasury), not multi-year discrete halvings.
 - **Bootstrap:** Epochs before **epoch 8** schedule zero claimable emission; first unlock at epoch 8.
 - **PoPL split:** Epoch pools shared among validators and participating vault / AMM liquidity providers.

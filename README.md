@@ -6,7 +6,7 @@
 
 ![Falcon Ledger Coin](docs/qxrp/Screenshot_20260524-223407.png)
 
-_Falcon Ledger — Quantum-Resistant. Validator-Rewarding. No Company. No Escrow. No Dumps._
+_Falcon Ledger — Quantum-Resistant. Validator-Rewarding. 98% Protocol Treasury. Honest Bootstrap._
 
 </div>
 
@@ -26,7 +26,7 @@ Falcon Ledger is designed to combine three properties that usually conflict:
 2. Strong post-quantum cryptography, with Falcon as the standard signature scheme for all keys and transactions.
 3. Sustainable tokenomics that reward reliable validators instead of relying on large premine allocations.
 
-The goal is a network where security, decentralization, and participation incentives reinforce each other on-chain — with **no company in control** of supply, governance, or grants.
+The goal is a network where security, decentralization, and participation incentives reinforce each other on-chain — with **bulk supply controlled by protocol rules**, not a company escrow of tens of billions of tokens.
 
 ## Why Falcon Ledger Over the XRP Ledger
 
@@ -34,11 +34,12 @@ Falcon Ledger keeps everything that makes the XRP Ledger fast and replaces the p
 
 - **Post-quantum signatures as standard, all the time.** Falcon (NIST PQC standard) is the signature scheme for validators and transactions from genesis — not a future retrofit. XRPL validators sign with classical ed25519/secp256k1 that Shor's algorithm will eventually break.
 - **Validators get paid.** Running an XRPL validator earns nothing. Falcon Ledger pays validators every epoch from a protocol-controlled treasury, proportional to **fluid on-ledger scoring** (EMA-smoothed composite — all bonded, pay ∝ score).
-- **No company control over the ecosystem.** There is no company holding tens of billions of tokens, no monthly escrow unlocks, and no foundation that can dump on holders. 98% of supply sits in a protocol treasury with no private key.
-- **No company-controlled grants.** Emissions and incentives are released only by on-chain consensus rules (CID declining schedule + PoPL LP split), not by a foundation's discretionary grant program.
-- **Protocol-controlled rewards.** Reward emission follows a continuous declining schedule enforced by the protocol — no human, company, or foundation can authorize a treasury withdrawal.
+- **No company escrow of bulk supply.** There is no Ripple-style holding of tens of billions of tokens and no monthly company escrow unlocks. **98% of supply** sits in a **protocol treasury with no private key** — only epoch emission rules can release it.
+- **Honest 2% bootstrap (not hidden premine).** The remaining **4B (2%)** is a **public genesis split**: **2B community airdrop**, **1B free faucet**, **1B builder pot** (pay for work + contributors who code, audit, or grow the network). Those wallets are **founder-controlled by design** — skin in the game, not multi-sig with untrusted third parties who could collude and steal the launch float.
+- **No foundation discretionary grants from the treasury.** Ongoing emissions go by **on-chain consensus rules** (CID + PoPL LP split) to validators and LPs who participate — not a foundation picking grant winners from the 98%.
+- **Protocol-controlled rewards.** Reward emission follows a continuous declining schedule enforced by the protocol — no human can authorize a treasury withdrawal.
 - **Fees fund the network instead of vanishing.** Each fee is split: part is burned (deflationary) and part is routed to active validators.
-- **On-chain governance.** Bonded validators propose and ratify bounded parameter changes on-chain via supermajority, with no off-chain company gatekeeping.
+- **On-chain governance.** Bonded validators propose and ratify bounded parameter changes on-chain via supermajority, without a company amendment gatekeeper.
 - **Economic security via bonding and slashing.** Validators lock a bond and lose it for provable misbehavior — skin in the game that XRPL has no equivalent for.
 - **Optional human account names.** Claim a bonded name (e.g. `alice.bob`) that resolves to your `r…` address — 100 qXRP bond, one name per account, one-epoch release cooldown.
 
@@ -68,14 +69,16 @@ Falcon Ledger uses a fixed supply and a treasury-first emission design. The toke
 | Base fee split             |        40% to 70% burned | Dynamic from treasury fill + fee volume       |
 | Base fee remainder         | Remainder to validators  | Bonded score-proportional (min composite floor) |
 
-### Genesis Allocation Targets
+### Genesis 2% Bootstrap (public split of the 4B)
 
-| Category            |                Target share | Purpose                                                 |
-| ------------------- | --------------------------: | ------------------------------------------------------- |
-| Liquidity bootstrap | Small portion of the 2% cap | Exchange listings and initial market depth              |
-| Core development    | Small portion of the 2% cap | Engineering, audits, infrastructure                     |
-| Emergency reserve   | Small portion of the 2% cap | Time-locked, multi-sig controlled reserve               |
-| Reward treasury     |      At least 98% of supply | Emitted only by protocol rules to qualifying validators |
+| Bucket | qXRP | % of total supply | Purpose |
+| ------ | ---: | ----------------: | ------- |
+| **Community airdrop** | 2,000,000,000 | 1.0% | Mainnet contributors / community distribution |
+| **Mainnet faucet** | 1,000,000,000 | 0.5% | Free claims for onboarding, fees, and testing |
+| **Builder pot** | 1,000,000,000 | 0.5% | Payment for core work + helpers (code, audits, outreach) |
+| **Protocol treasury** | 196,000,000,000 | 98.0% | Emitted only by on-chain epoch rules |
+
+**Custody of the 2%:** airdrop, faucet, and builder wallets are held by the **project founder** (single-operator cold/offline keys). That is intentional: the builder has skin in the game and will not hand multi-sig control of launch float to third parties who could collude. The **98% treasury** remains keyless and protocol-only. Addresses and balances are publishable at ceremony so the split is auditable on-chain.
 
 ### Reward Eligibility Signals
 

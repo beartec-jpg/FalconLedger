@@ -1,6 +1,6 @@
 # Falcon Ledger White Paper
 
-**Version 2.6 — July 2026**
+**Version 2.7 — July 2026**
 
 ---
 
@@ -8,7 +8,7 @@
 
 ![Falcon Ledger](https://q-xrp-faucet.vercel.app/icon-512.png)
 
-_Falcon Ledger — Quantum-Resistant. Validator-Rewarding. No Company. No Escrow. No Dumps._
+_Falcon Ledger — Quantum-Resistant. Validator-Rewarding. 98% Protocol Treasury. Honest Bootstrap._
 
 </div>
 
@@ -36,12 +36,27 @@ Falcon keys, every transaction is signed and verified with Falcon. This chain is
 to be secure in 2026 and in 2046.
 
 **Fixed supply. 200 billion qXRP. Hard cap. No exceptions.**
-98% of the supply is locked in a protocol treasury with no private key. It is
-released only by on-chain consensus rules — one epoch at a time, according to a
-continuous declining emission schedule (CID), shared between validators and
+**98%** of the supply is locked in a **protocol treasury with no private key**.
+It is released only by on-chain consensus rules — one epoch at a time, according
+to a continuous declining emission schedule (CID), shared between validators and
 lending/AMM liquidity providers under Proof of Participation. Validators get
-paid for doing the work. Fees burn. The supply shrinks. No company can dump on you,
-and no foundation decides who gets a grant.
+paid for doing the work. Fees burn. The supply shrinks. There is **no
+company-style escrow of tens of billions** and **no monthly foundation unlock**
+of the bulk supply.
+
+**Honest 2% bootstrap.** The remaining **4B (2%)** is a **public, fixed launch
+float** — not a hidden premine and not a discretionary treasury grant program:
+
+| Bucket | qXRP | Share of total | Role |
+| ------ | ---: | -------------: | ---- |
+| Community airdrop | 2,000,000,000 | 1.0% | Community / mainnet contributors |
+| Mainnet faucet | 1,000,000,000 | 0.5% | Free claims for onboarding |
+| Builder pot | 1,000,000,000 | 0.5% | Pay for core work + helpers (code, audits, outreach) |
+
+Those three wallets are **founder-controlled by design**. The builder has skin in
+the game and will not hand multi-sig control of the launch float to untrusted
+third parties who could collude and seize it. That is **custody of a known 2%**,
+not “company control of half the chain.” The **98% treasury remains keyless**.
 
 **No exchange required.** Falcon Ledger ships with a built-in DEX and AMM. The
 launch target is an in-wallet experience — faucet, wallet, and swaps — that lets a
@@ -207,25 +222,44 @@ is Falcon-native for every security-critical path including P2P handshakes.
 
 The total supply is set at genesis and enforced by a compile-time
 invariant. There is no mechanism in the protocol to create additional
-supply. There is no team allocation that vests over time. There is no
-foundation reserve that can be spent at will.
+supply beyond the fixed 200B. There is no company escrow of tens of
+billions with monthly unlocks. Ongoing network incentives after launch
+come from the **keyless protocol treasury** under CID + PoPL rules.
 
 ### 5.2 Genesis Allocation
 
 | Account             |            qXRP | Share | Purpose                                           |
 | ------------------- | --------------: | ----: | ------------------------------------------------- |
-| Genesis circulating |   4,000,000,000 |    2% | Exchange listings, development, emergency reserve |
+| Genesis circulating |   4,000,000,000 |    2% | Public bootstrap (airdrop + faucet + builder)     |
 | Protocol treasury   | 196,000,000,000 |   98% | Emitted only by on-chain epoch rules              |
 
-The genesis circulating allocation is capped at 2% of total supply.
-It is subdivided into time-locked tranches for liquidity bootstrap,
-core development, and an emergency multisig reserve. No single entity
-controls it outright.
+#### 5.2.1 Split of the 2% (4B) at ceremony
+
+After genesis, the circulating 4B is partitioned into **three published wallets**:
+
+| Wallet | qXRP | % of total | Purpose |
+| ------ | ---: | ---------: | ------- |
+| **AIRDROP** | 2,000,000,000 | 1.0% | Community airdrop / mainnet contribution rewards |
+| **FAUCET** | 1,000,000,000 | 0.5% | Free claim faucet for onboarding (rate-limited) |
+| **DEV / BUILDER** | 1,000,000,000 | 0.5% | Payment for core engineering + contributors who code, audit, or help grow the network |
+
+**Builder pot.** Building a chain is real work. The 1B builder allocation is
+**compensation for that work** and for people who help (development, audits,
+outreach). It is **not** a silent “foundation discretionary grant machine”
+funded from the 98% treasury.
+
+**Custody (intentional single-operator control).** Airdrop, faucet, and builder
+keys are held by the **project founder** under cold/offline practices. This is
+deliberate: multi-sig with untrusted co-signers creates a collusion and theft
+risk over the launch float the builder is accountable for. Founder custody of a
+**known, capped 2%** is transparent skin-in-the-game; it is **not** the same as
+a company controlling ~40% of supply via escrow. Ceremony addresses should be
+published so anyone can audit the split on-chain.
 
 The treasury holds 98% of the supply. It has no private key. Funds can
 only leave the treasury via the `RewardEpoch` pseudo-transaction, which
 is triggered automatically by the protocol at the close of each epoch.
-No human, company, or foundation can authorize a treasury withdrawal.
+No human can authorize a treasury withdrawal.
 
 ### 5.3 Emission Schedule (CID)
 
@@ -474,16 +508,17 @@ and remaining work are tracked in the [Roadmap](../../ROADMAP.md).
 
 |                              | XRP                           | Falcon Ledger (qXRP)                      |
 | ---------------------------- | ----------------------------- | ----------------------------------------- |
-| **Supply control**           | Ripple holds ~40B tokens      | Protocol treasury, no private key         |
+| **Supply control**           | Ripple holds ~40B tokens      | 98% keyless treasury; 2% public bootstrap |
+| **Genesis float**            | Company / founders dominate   | 2B airdrop + 1B faucet + 1B builder       |
 | **Validator rewards**        | None                          | Paid every epoch, on-chain                |
 | **Quantum resistance**       | No — ed25519 only             | Yes — Falcon-512 for all keys and transactions |
-| **Escrow / unlock schedule** | Yes — Ripple releases monthly | No — emission only by protocol rules      |
+| **Escrow / unlock schedule** | Yes — Ripple releases monthly | No company escrow of bulk supply          |
 | **Governance**               | Ripple / XRPLF                | On-chain bonded validator supermajority   |
-| **Ecosystem grants**         | Company/foundation discretion | Protocol emission, no grant gatekeeper    |
+| **Ecosystem funding**        | Company/foundation discretion | Protocol emission + disclosed builder pot |
 | **Supply curve**             | Unpredictable monthly unlocks | CID declining emission + continuous burn  |
 | **Human addresses**          | No protocol names             | Optional Account Names (bonded)           |
 | **Scoring**                  | N/A                           | Fluid EMA; pay ∝ score (all bonded)       |
-| **Company dependency**       | High                          | Zero                                      |
+| **Bulk-supply company escrow** | High                        | None on the 98% treasury                  |
 | **Fee model**                | Burned, no beneficiary        | Split: burned + paid to validators        |
 | **Slashing**                 | No                            | Yes — cryptographic proof on-chain        |
 | **Migration to PQ crypto**   | Not planned                   | Not needed — Falcon-only from genesis     |
@@ -541,7 +576,7 @@ Public test summary: [TEST_AND_VERIFICATION.md](TEST_AND_VERIFICATION.md) · [MA
 | P2P identity            | Falcon-only (`node_seed` refused)                    |
 | Total supply            | 200,000,000,000 qXRP (hard cap)                      |
 | Treasury                | 196,000,000,000 qXRP (98%), no private key           |
-| Genesis circulating     | 4,000,000,000 qXRP (2%), time-locked                 |
+| Genesis circulating     | 4,000,000,000 qXRP (2%): 2B airdrop / 1B faucet / 1B builder |
 | Epoch length            | 172,800 ledgers (~7 days)                            |
 | Emission model          | CID continuous decline; first unlock epoch 8         |
 | Year-1 emission target  | ~12% of treasury / year (declining each epoch)       |
@@ -571,12 +606,12 @@ on-chain governance is just a fast way to get rugged.
 
 Falcon Ledger makes a different bet: that the chain worth building on for the
 next 50 years is the one where the math is unbreakable, the supply is fixed,
-the validators are paid, no single entity can move the market with a monthly
-unlock — and where you can sell what you earn on the same network, with no
-exchange in the way.
+the validators are paid, **bulk supply is not a company escrow with monthly
+unlocks**, the launch float is a **small, public 2% bootstrap** — and where you
+can sell what you earn on the same network, with no exchange in the way.
 
-**Same speed. Better economics. Quantum proof. No company. No escrow. No dumps.
-No exchange required.**
+**Same speed. Better economics. Quantum proof. 98% protocol treasury. Honest 2%
+bootstrap. No exchange required.**
 
 ---
 

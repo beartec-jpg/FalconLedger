@@ -21,12 +21,30 @@ At ledger 1 two accounts are created:
 The compile-time `static_assert` in `QXRPConstants.h` ensures these two values sum
 exactly to `kINITIAL_XRP`.
 
+### Public split of the 2% (ceremony)
+
+The 4B circulating allocation is partitioned into three wallets after genesis
+(ops scripts; not hard-coded as separate genesis accounts):
+
+| Wallet | qXRP | % of total supply | Purpose |
+|--------|-----:|------------------:|---------|
+| **AIRDROP** | 2,000,000,000 | 1.0% | Community airdrop / mainnet contributors |
+| **FAUCET** | 1,000,000,000 | 0.5% | Free claim faucet (rate-limited) |
+| **DEV / BUILDER** | 1,000,000,000 | 0.5% | Pay for core work + helpers (code, audits, outreach) |
+
+**Custody:** these three wallets are **founder-controlled** (single-operator cold
+keys) by design. The builder has skin in the game and will not place the launch
+float under multi-sig with untrusted co-signers who could collude. That is
+honest custody of a **capped 2% bootstrap** — not company escrow of bulk supply.
+Publish ceremony addresses so the split is auditable.
+
 ## Treasury Account
 
 The treasury is a deterministic account derived from the well-known seed
 `kQXRP_TREASURY_SEED`. The seed is public by design — no private key controls
 the account. Funds may only leave the treasury via the `RewardEpoch` ledger-close
 pseudo-transaction, which is governed by the `ProofOfParticipation` amendment.
+The 98% treasury is independent of airdrop / faucet / builder keys.
 
 ## Emission Schedule
 

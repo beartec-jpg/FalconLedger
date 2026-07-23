@@ -28,7 +28,9 @@ Treasury remains **98%** unless you change code. Your airdrop/faucet/dev split s
 | **Protocol treasury** | 98.0% | **196,000,000,000** | On-chain, keyless |
 | **Total** | 100% | **200B** | |
 
-That is a **fair, clean split**: half of launch float to community via airdrop, a quarter each to faucet and development, majority locked in protocol rules. Recommend **time-locked or multi-sig** for the 0.5% dev wallet (not a hot key).
+That is a **fair, clean, public split**: half of launch float to community via airdrop, a quarter each to faucet and builder, majority locked in protocol rules.
+
+**Custody (founder-controlled by design):** AIRDROP / FAUCET / DEV keys stay with the **project founder** under cold/offline practices. Multi-sig with untrusted third parties is **not** required and is **not** the plan — collusion risk on the launch float is worse than single-operator accountability with skin in the game. Prefer **offline cold storage** for DEV and AIRDROP; warm/hot only for FAUCET operational refill amounts. Publish addresses at ceremony.
 
 ---
 
@@ -148,12 +150,12 @@ if (epochNum < kQXRP_FIRST_EMISSION_EPOCH)  // = 8
 
 | Pros | Watch-outs |
 |------|------------|
-| Aligns with existing 2% genesis / 98% treasury story | Dev 0.5% should be multi-sig + public schedule |
+| Aligns with existing 2% genesis / 98% treasury story | Founder holds 2% keys — disclose addresses, don't overclaim “zero human control” |
 | Large community airdrop (2B) without touching treasury | Sybil can drain fairness if points are farmable |
 | Faucet 1B is enough for years of onboarding if drip is modest | Faucet ≠ airdrop; keep separate wallets |
-| No “foundation whale” beyond transparent 0.5% | Publish vesting if any dev unlock over time |
+| Transparent 0.5% builder pot = pay for work + helpers | Keep DEV cold; don't mix with faucet hot key |
 
-**Recommendation:** keep **treasury 98% untouched** for emissions; only **partition the 4B genesis** into three cold-to-hot wallets as above.
+**Recommendation:** keep **treasury 98% untouched** for emissions; only **partition the 4B genesis** into three wallets as above. **Founder custody** of those three wallets is intentional (skin in the game; no multi-sig collusion with random co-signers).
 
 ---
 
@@ -166,7 +168,7 @@ if (epochNum < kQXRP_FIRST_EMISSION_EPOCH)  // = 8
 | `GENESIS` | Protocol genesis account (temporary) | 4B then drained to sub-wallets |
 | `AIRDROP` | Community claim / batch release | 2B |
 | `FAUCET` | Mainnet faucet hot/warm | 1B (or 1B cold + refill hot) |
-| `DEV` | Development / infrastructure | 1B (multi-sig preferred) |
+| `DEV` | Builder pot (pay for work + contributors) | 1B (founder cold key; not multi-sig with untrusted parties) |
 | `TREASURY` | Keyless protocol account | 196B (automatic) |
 
 ### 4.2 Release scripts (to build)

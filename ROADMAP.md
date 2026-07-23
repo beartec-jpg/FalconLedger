@@ -21,9 +21,10 @@ and [scripts/mainnet-ceremony/dry-runs/REHEARSAL_RESULTS.md](scripts/mainnet-cer
 ## North Star
 
 > A new validator can spin up a Falcon Ledger node, get funded by a faucet, earn
-> qXRP rewards every epoch from a protocol-controlled treasury (no company, no
-> grants), claim an optional human **account name**, and swap those rewards to
-> USDC/USDT inside their wallet — without ever touching a centralized exchange.
+> qXRP rewards every epoch from a **keyless protocol treasury** (not company
+> escrow unlocks), claim an optional human **account name**, and swap those
+> rewards to USDC/USDT inside their wallet — without ever touching a centralized
+> exchange.
 
 ---
 
@@ -40,11 +41,12 @@ protocol foundation for the freeze pin (`qxrp/xrpld:mainnet-v1` @ `1789d2fb4`).
 - [x] All wallets created with Falcon key pairs; all transactions signed and verified with Falcon.
 - [x] Falcon-only P2P identity — classical `node_seed` refused at config load.
 
-### Supply & treasury — no company control
+### Supply & treasury — protocol bulk + honest bootstrap
 
 - [x] Fixed 200B qXRP supply, hard-capped at genesis.
-- [x] 2% genesis circulating (4B) / 98% protocol treasury (196B), treasury has no private key.
-- [x] Treasury emits only via the protocol's `RewardEpoch` rules — no human/company withdrawal.
+- [x] 2% genesis circulating (4B) / 98% protocol treasury (196B); treasury has **no private key**.
+- [x] Treasury emits only via the protocol's `RewardEpoch` rules — no human treasury withdrawal.
+- [x] **Public 2% split (ceremony):** **2B airdrop** · **1B faucet** · **1B builder pot** (pay for work + contributors). Founder-controlled keys by design — not multi-sig with untrusted third parties.
 
 ### Emission & fees — protocol-controlled rewards
 
@@ -78,7 +80,7 @@ protocol foundation for the freeze pin (`qxrp/xrpld:mainnet-v1` @ `1789d2fb4`).
 - [x] SingleAssetVault + LendingProtocol + LendingCollateral + LendingPermissionless exercised (Vault → Broker → LoanSet → LoanPay).
 - [x] USDC bridge multi-sig lock contract (N-of-M) — Sepolia **2-of-3 e2e PASS**; ETH mainnet redeploy still open.
 
-### Governance — on-chain, no company gatekeeper
+### Governance — on-chain bonded supermajority
 
 - [x] `GovernanceProposal` / `GovernanceVote` with composite-score-weighted voting.
 - [x] 67% supermajority enforced; a burn-BPS change executed on-chain end-to-end.
@@ -170,8 +172,9 @@ centralized exchange anywhere in the loop.
 | ------------------------- | ----------------------------- | ------------------------------------------- |
 | Post-quantum signatures   | None                          | Falcon-512 standard, always on              |
 | Validator pay             | None                          | Paid every epoch from protocol treasury     |
-| Company control of supply | High (escrow unlocks)         | None — treasury has no private key          |
-| Ecosystem grants          | Company/foundation discretion | Protocol emission, no grant gatekeeper      |
+| Bulk supply control       | High (escrow + ops wallets)   | 98% keyless treasury; 2% public bootstrap   |
+| Genesis float             | Company / founders dominate   | 2B airdrop + 1B faucet + 1B builder (public)|
+| Ecosystem grants          | Company/foundation discretion | Ongoing pay via protocol emission to work   |
 | Reward distribution       | N/A                           | Fluid EMA; all bonded paid ∝ score          |
 | Human addresses           | None                          | Optional Account Names (100 qXRP bond)      |
 | Governance                | Company-gated amendments      | On-chain bonded supermajority               |
