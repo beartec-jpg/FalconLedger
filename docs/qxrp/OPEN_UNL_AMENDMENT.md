@@ -2,6 +2,7 @@
 
 **Status:** Planned post-genesis amendment · **not** at mainnet T0  
 **Pay model (genesis):** already separate — all bonded validators paid ∝ composite score  
+**Bootstrap policy:** [UNL_CHARTER.md](UNL_CHARTER.md)  
 
 ## Why two phases
 

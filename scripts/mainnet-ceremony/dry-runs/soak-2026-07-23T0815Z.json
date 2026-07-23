@@ -1,0 +1,50 @@
+{
+  "captured_at": "2026-07-23T08:15:36Z",
+  "check": "PASS_EARLY",
+  "soak_phase": "mainnet-v2-scorefix",
+  "host": "val5",
+  "rpc": "http://5.78.142.246:6005",
+  "network_id": 1099,
+  "note": "Private rehearsal net — not public mainnet 1026",
+  "image": {
+    "tag": "qxrp/xrpld:mainnet-v2",
+    "digest": "qxrp/xrpld@sha256:9362005f1360ad102d0cd76ff53f19ce7548d8149263e50f241489e4b73f3ea5",
+    "revision": "b007db22d",
+    "labels": {
+      "falcon.scoring": "all-bonded-pro-rata",
+      "falcon.scorefix": "dangling-ck-blob"
+    }
+  },
+  "containers": [
+    "qxrp-rehearsal-1",
+    "qxrp-rehearsal-2",
+    "qxrp-rehearsal-3"
+  ],
+  "also_running_not_soak_credit": [
+    "qxrp-fast-v2-1",
+    "qxrp-fast-v2-2",
+    "qxrp-fast-v2-3"
+  ],
+  "server_info": {
+    "server_state": "full",
+    "validated_seq": 12842,
+    "complete_ledgers": "12292-12842",
+    "peers": 2,
+    "proposers": 2,
+    "uptime_s": 38574,
+    "uptime_h": 10.71,
+    "build_version": "3.2.0-b0",
+    "io_latency_ms": 1,
+    "validation_quorum": 3,
+    "peer_disconnects": "0",
+    "load_factor": 1
+  },
+  "criteria": {
+    "no_crash_loops": true,
+    "peers_ge_2": true,
+    "seq_advancing": true,
+    "multi_day_48h": false,
+    "multi_day_7d": false
+  },
+  "verdict": "Healthy on freeze pin; continue soak until >=48h continuous for readiness credit. Do not wipe until soak window complete + archive."
+}

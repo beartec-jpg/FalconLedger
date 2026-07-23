@@ -47,13 +47,14 @@ Tags: `mainnet-v2` · `mainnet-v2-scoring-pay` · `mainnet-v2-scorefix`
 
 ## Still ahead of public T0
 
-1. Multi-day freeze-pin **soak** (stability aging)  
+1. Multi-day freeze-pin **soak** (stability aging) — **in progress** on `mainnet-v2` scorefix (~10 h+ as of 2026-07-23; need ≥48 h)  
 2. Launch-day ceremony (genesis split, UNL bring-up, public RPC/DNS)  
 3. ETH **mainnet** multi-sig lock + cold owners (new keys; not testnet)  
 4. Fund mainnet faucet from ceremony FAUCET bucket; set portal secrets only then  
 5. Optional external review of freeze scope (slash, claims, scoring, bridge custody)  
 6. Flip `NEXT_PUBLIC_MAINNET_LIVE` only after consensus + split are green  
 
+**Docs honesty (review score uplift):** [slash-model.md](slash-model.md) · [UNL_CHARTER.md](UNL_CHARTER.md) · [GOVERNANCE_SURFACE.md](GOVERNANCE_SURFACE.md) · year-1 tables in [epoch-emission.md](epoch-emission.md). Internal track: `docs/MAINNET_SCORE_UPLIFT_PLAN.md`.
 ---
 
 ## What “ready” means here

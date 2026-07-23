@@ -1,11 +1,13 @@
 # qXRP On-Chain Governance
 
+> **Full inventory** of on-chain vs freeze vs UNL vs portal change control:  
+> [GOVERNANCE_SURFACE.md](GOVERNANCE_SURFACE.md)
+
 ## Overview
 
 Governance allows the bonded validator set to update protocol parameters on-chain
 without a hard fork.  The initial governable parameter is `sfCurrentBurnBps`
 (the fee-split burn fraction).
-
 ## Amendment Gate
 
 All governance transactions require the `ProofOfParticipation` amendment to be

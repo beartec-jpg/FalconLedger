@@ -20,7 +20,9 @@ For protocol design, see the [White Paper](whitepaper.md). For account names, se
 | USDC bridge multi-sig (test EVM) | **Verified** | N-of-M lock; single owner cannot release; threshold does |
 | Account Names | **Verified** | Claim, lookup, duplicate reject, unbond, early-release gate |
 | Protocol freeze image | **Pinned** | Hub `mainnet-v2` @ `sha256:9362005f1360…` (all-bonded pay + PoP + score fix) |
-| Public mainnet go-live | **Not yet** | Soak, ceremony ops, and production RPC still ahead of T0 |
+| Public mainnet go-live | **Not yet** | Soak aging, ceremony ops, and production RPC still ahead of T0 |
+| ClaimReward (fast-epoch e2e) | **PASS** | Private fast-epoch image; long-epoch unlock still epoch 8 |
+| Freeze soak (mainnet-v2) | **PASS_EARLY** | Private net 1099; multi-day window in progress |
 
 ---
 

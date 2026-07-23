@@ -50,14 +50,13 @@ echo "$DIGEST" > scripts/mainnet-ceremony/IMAGE_DIGEST.txt
 **All** validators, full-history nodes, and install one-liners must use:
 
 ```bash
-export QXRP_XRPLD_IMAGE='qxrp/xrpld@sha256:7286556f5bdb6cc8a3abe4864f06ca9a6af4f59c2fba82775793800744aa931e'
+export QXRP_XRPLD_IMAGE='qxrp/xrpld@sha256:9362005f1360ad102d0cd76ff53f19ce7548d8149263e50f241489e4b73f3ea5'
 ```
 
 Installer / compose defaults use `qxrp/xrpld:lending-v5` for testnet continuity; **mainnet must override with the digest**.  
 Historical `mainnet-v1` remains on Hub but is **not** the T0 pin (ActiveSet pay).
 
 Never roll a mixed fleet (two digests in the UNL set).
-
 ---
 
 ## 3. Ceremony / ops gates
@@ -76,9 +75,9 @@ Scaffold in repo: `scripts/mainnet-ceremony/` + `bash scripts/ops/prepare-mainne
 | DNS / RPC publish list | ✅ template | `DNS_RPC.md` |
 | Genesis + AIRDROP / FAUCET / DEV **keys** | ❌ offline human | Falcon `wallet_propose` on freeze image |
 | UNL public keys finalized | ❌ offline human | `validators/unl-public.txt` |
-| Image built + **digest** on Hub | ✅ `qxrp/xrpld@sha256:e5086df99920…` | `IMAGE_DIGEST.txt` |
+| Image built + **digest** on Hub | ✅ `qxrp/xrpld@sha256:9362005f1360…` | `IMAGE_DIGEST.txt` |
 | Live `--dry-run` vs real balances | ❌ needs chain | after rehearsal / T0 |
-| Private dress rehearsal + wipe | ⚠️ smoke **PASS** · soak left up · **wipe still due** before T0 | `MAINNET_REHEARSAL.md` · `REHEARSAL_RESULTS.md` |
+| Private dress rehearsal + wipe | ⚠️ smoke **PASS** · claim e2e **PASS** · soak **PASS_EARLY** (~10 h+) · **wipe still due** before T0 | `MAINNET_REHEARSAL.md` · `REHEARSAL_RESULTS.md` · `dry-runs/SOAK_CHECK.md` |
 | Neon provisioned + schema applied | ❌ ops cloud | runbook §1 |
 | Portal env `LIVE=false` deployed | ❌ Vercel/host | `portal.env.mainnet` |
 | DNS pointed at live RPC | ❌ T0 only | `DNS_RPC.md` |
@@ -151,5 +150,9 @@ Recommend a third-party review focused on:
 
 See **`docs/PROTOCOL_READINESS_7_5_PLAN.md`** (items 1–12): image pin, soak,
 adversarial checklist, ASAN, design deferrals, external audit scope.
+
+Score-uplift track (economic security + readiness honesty):  
+**`docs/MAINNET_SCORE_UPLIFT_PLAN.md`** · eco docs under `docs/qxrp/`  
+(`slash-model.md`, `UNL_CHARTER.md`, `GOVERNANCE_SURFACE.md`, emission tables).
 
 *Update this file when the freeze commit SHA and image digest are final.*

@@ -41,6 +41,9 @@
 
 ## Slashing
 
+> **Launch honesty:** only DOUBLE_SIGN is enabled. Full matrix and rationale:  
+> [slash-model.md](slash-model.md)
+
 ### Offense Codes
 
 | Code | Name | Slash % | Constant |
@@ -48,7 +51,6 @@
 | 1 | Double-sign | 100 % | `kSLASH_DOUBLE_SIGN_BPS` |
 | 2 | Sustained absence (3+ epochs) | 25 % | `kSLASH_ABSENCE_BPS` |
 | 3 | Proven invalid vote | 50 % | `kSLASH_INVALID_VOTE_BPS` |
-
 ### ValidatorSlash
 - Submits a `ValidatorSlash` transaction with **cryptographic proof** of the offense.
 - **DOUBLE_SIGN only** (offense code 1): two Falcon-signed `STValidation` blobs,

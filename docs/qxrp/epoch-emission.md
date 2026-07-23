@@ -71,6 +71,49 @@ Rate declines every epoch (no intra-year reset). Approximate targets:
 > Absolute emission also falls as the treasury balance shrinks each epoch
 > (rate decline × balance decline).
 
+## Year-1 reference table (code-faithful)
+
+Computed with `cidEmissionBps(epoch)` from `include/xrpl/tx/PoPLEmission.h`
+and `kQXRP_FIRST_EMISSION_EPOCH = 8`. Starting treasury **196B** qXRP
+(`kQXRP_TREASURY_ALLOCATION`). Integer math only (`treasury × bps / 10_000`).
+
+| Epoch | Role | `cidEmissionBps` | Example emit (qXRP) | Treasury after |
+|------:|------|-----------------:|--------------------:|---------------:|
+| 1–7 | Bootstrap quiet | 0 | 0 | 196,000,000,000 |
+| 8 | First unlock | 24 | 470,400,000 | 195,529,600,000 |
+| 9 | | 24 | 469,271,040 | 195,060,328,960 |
+| 10 | | 24 | 468,144,789 | 194,592,184,171 |
+| 12 | | 24 | 465,900,391 | 193,659,262,538 |
+| 20 | | 24 | 457,029,884 | 189,972,088,596 |
+| 33 | mid year-1 | 23 | 425,027,763 | 184,369,652,165 |
+| 46 | | 22 | 394,994,078 | 179,147,768,885 |
+| 59 | end year-1 (~ep 8+51) | 21 | 366,728,279 | 174,265,785,778 |
+
+**Year-1 totals (epochs 8–59, continuous compound on remaining):**
+
+| Metric | Value |
+|--------|------:|
+| Sum of per-epoch bps | ~1,174 |
+| Total emitted (example path) | ~21.73B qXRP |
+| Fraction of starting treasury | ~11.1% |
+
+Rates alone would sum near the 1,200 bps year-1 average target; absolute
+emission is slightly lower because each epoch's base is the *remaining*
+treasury (rate × balance decline).
+
+### Long-horizon rate samples
+
+| Epoch | ~calendar year from genesis | `cidEmissionBps` |
+|------:|----------------------------:|-----------------:|
+| 1 | (quiet if before first unlock) | 25 (unused while quiet) |
+| 8 | first unlock | 24 |
+| 52 | ~1 y | 21 |
+| 100 | ~2 y | 18 |
+| 200 | ~4 y | 11 |
+| 364 | ~7 y | 3 (epoch floor) |
+
+**Source of truth:** on-ledger `RewardEpoch` using `cidEmissionBps` — not this table.
+Tables are for review / ops planning and must be regenerated if CID constants change.
 ## Per-Validator Payout
 
 Validators receive a share of the **validator basket** (epochEmit after LP

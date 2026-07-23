@@ -1,70 +1,117 @@
 # Freeze soak check (private net 1099)
 
-**Pin:** `qxrp/xrpld:mainnet-v1` @ `1789d2fb4`  
-**Host:** val5 `5.78.142.246` — containers `qxrp-rehearsal-1/2/3`  
-**Frozen:** 2026-07-22 · leave running a few days  
+**Pin:** `qxrp/xrpld:mainnet-v2` @ `b007db22d`  
+**Digest:** `qxrp/xrpld@sha256:9362005f1360ad102d0cd76ff53f19ce7548d8149263e50f241489e4b73f3ea5`  
+**Host:** val5 — containers `qxrp-rehearsal-1/2/3`  
+**Runbook:** `docs/ops/SOAK_RUNBOOK.md`  
+**Uplift plan:** `docs/MAINNET_SCORE_UPLIFT_PLAN.md` B1  
+
+> Historical note: an earlier soak window used `mainnet-v1` @ `1789d2fb4`.  
+> **Credit multi-day soak only against the current T0 pin (mainnet-v2 scorefix).**
+
+---
 
 ## What “soak” means here
 
-Leave the chain **idle but online**. Goal: still healthy later — not to stress-test throughput.
+Leave the chain **idle but online** on the **freeze digest**. Goal: still healthy later — not to stress-test throughput.
+
+| Minimum for readiness credit | Better |
+|------------------------------|--------|
+| **≥48 h** continuous, no crash | **7+ days** or ≥1 long reward epoch |
+
+---
 
 ## Check results
 
-### 2026-07-22T10:09Z (first re-check after pin) — **PASS_EARLY**
+### 2026-07-23T08:15Z — **PASS_EARLY** (mainnet-v2 scorefix)
 
 | Field | Value |
 |-------|--------|
-| containers | all 3 **Up (healthy)** · `mainnet-v1` |
-| server_state | `full` |
-| seq | **742** (complete 5–742; advancing) |
+| containers | all 3 **Up (healthy)** · `mainnet-v2` |
+| revision / digest | `b007db22d` · `sha256:9362005f1360…` |
+| server_state | `full` (proposers also `proposing`) |
+| seq | **12842** (complete 12292–12842; advancing) |
 | peers / proposers | **2** / 2 |
-| uptime | **~0.6 h** (pin redeploy window — not multi-day yet) |
-| image | `e5086df99920` · rev `1789d2fb4` · AccountNames |
+| uptime | **~10.7 h** since scorefix redeploy |
+| network_id | **1099** (private — not public 1026) |
+| peer_disconnects | 0 |
+| io_latency_ms | 1 |
 
-Artifact: `dry-runs/soak-check-2026-07-22.json`  
-On host: `/root/mainnet-ceremony-artifacts/soak-check-2026-07-22.json`
+Artifact: `dry-runs/soak-2026-07-23T0815Z.json`
 
-**Verdict:** healthy now; re-check again after **≥24–48 h** for multi-day soak credit.
+**Verdict:** healthy on freeze pin; re-check after **≥48 h** continuous uptime for multi-day credit. Leave fleet running.
 
-### Next re-check (operator)
+### Prior window (mainnet-v1 — historical only)
+
+### 2026-07-22T10:09Z — PASS_EARLY on `mainnet-v1` @ `1789d2fb4`
+
+Seq ~742 · peers 2 · image `e5086df99920`. Superseded by scorefix redeploy; **do not** count toward mainnet-v2 soak hours.
+
+---
+
+## Operator re-check (copy/paste)
 
 ```bash
-ssh val5
+ssh val5   # or your soak host
 docker ps | grep rehearsal
+export PUBLIC_RPC='http://127.0.0.1:6005'
+bash /path/to/qXRP/scripts/ops/soak-health-check.sh
+
+# richer snapshot:
 curl -s http://127.0.0.1:6005 -H 'Content-Type: application/json' \
   -d '{"method":"server_info","params":[{}]}' | python3 -c "
-import sys,json
+import sys,json,datetime
 i=json.load(sys.stdin)['result']['info']
+vl=i.get('validated_ledger') or {}
+print('ts', datetime.datetime.utcnow().isoformat()+'Z')
 print('state', i.get('server_state'))
-print('seq', (i.get('validated_ledger') or {}).get('seq'))
+print('seq', vl.get('seq'))
+print('complete', i.get('complete_ledgers'))
 print('peers', i.get('peers'))
-print('uptime_hours', round((i.get('uptime') or 0)/3600, 1))
+print('proposers', (i.get('last_close') or {}).get('proposers'))
+print('uptime_h', round((i.get('uptime') or 0)/3600, 2))
+print('disconnects', i.get('peer_disconnects'))
 "
+docker inspect qxrp-rehearsal-1 --format \
+  '{{.Config.Image}} rev={{index .Config.Labels "org.opencontainers.image.revision"}}'
 ```
 
-**Good:** `full` (or proposing), seq **higher** than last check, peers **2**, containers **Up (healthy)** for days.  
-**Bad:** restart loops, seq stuck, peers 0, OOM kills.
+Archive each check under:
 
-Optional: one manual Payment from genesis to a test wallet — proves txs still apply. Not required.
+```text
+scripts/mainnet-ceremony/dry-runs/soak-YYYY-MM-DDThhmmZ.json
+```
+
+**Good:** `full`/`proposing`, seq **higher** than last check, peers **2**, containers **Up (healthy)** for days, same digest.  
+**Bad:** restart loops, seq stuck, peers 0, OOM kills, mixed digests.
+
+Optional: one manual Payment — proves txs still apply. Not required for soak credit.
+
+---
 
 ## Image distribution
 
 | Path | Status |
 |------|--------|
-| Docker Hub | **Pushed** 2026-07-22 — `mainnet-v1` + `mainnet-v1-1789d2fb4` |
-| RepoDigest | `qxrp/xrpld@sha256:e5086df99920ca62a6c7c09e65d49decd43ae3a67cf6167aa46419e006fcb31c` |
-| Offline tarball on val5 | also available — `/root/mainnet-ceremony-artifacts/qxrp-xrpld-mainnet-v1-1789d2fb4.tar.gz` |
+| Docker Hub | **Pushed** — `mainnet-v2` · `mainnet-v2-scoring-pay` · `mainnet-v2-scorefix` |
+| RepoDigest | `qxrp/xrpld@sha256:9362005f1360ad102d0cd76ff53f19ce7548d8149263e50f241489e4b73f3ea5` |
+| FREEZE_COMMIT | `b007db22d` |
 
-Pull pin: `docker pull qxrp/xrpld@sha256:e5086df99920ca62a6c7c09e65d49decd43ae3a67cf6167aa46419e006fcb31c`
+```bash
+export QXRP_XRPLD_IMAGE='qxrp/xrpld@sha256:9362005f1360ad102d0cd76ff53f19ce7548d8149263e50f241489e4b73f3ea5'
+```
+
+---
+
+## End of soak (before real T0)
+
+1. Archive final snapshot + logs  
+2. **Wipe** chain data  
+3. **Destroy** rehearsal secrets — never reuse on mainnet 1026  
+4. If failures: fix → new freeze tip → rebuild → re-soak  
+
+---
 
 ## Tx simulator?
 
-**Not normal / not required** for a freeze soak.
-
-| | |
-|--|--|
-| **Skip heavy load-gen** | Noise, fills disk/logs, can hide real stability signals |
-| **Optional light activity** | A few manual txs over days is fine |
-| **When a simulator *is* useful** | Separate load/perf test *after* freeze, or before T0 if you care about capacity |
-
-Soak = “does it stay up?” · Simulator = “how hard can we push?” — different jobs.
+**Not required** for freeze soak. Soak = “does it stay up?” · Load gen = separate capacity test.

@@ -10,11 +10,15 @@ Internal launch ops live under `docs/MAINNET_*.md` and `scripts/mainnet-ceremony
 | [MAINNET_READINESS_SUMMARY.md](MAINNET_READINESS_SUMMARY.md) | Short “where we are vs public T0” without ops secrets |
 | [NAME_SERVICE.md](NAME_SERVICE.md) | Bonded human names → `r…` addresses |
 | [validator-lifecycle.md](validator-lifecycle.md) | Bond, score, claim, slash |
-| [epoch-emission.md](epoch-emission.md) | CID emission math |
+| [slash-model.md](slash-model.md) | Launch-truth slash surface (DOUBLE_SIGN only) |
+| [epoch-emission.md](epoch-emission.md) | CID emission math + year-1 tables |
 | [supply-model.md](supply-model.md) | 200B cap, treasury, conservation |
 | [fee-split.md](fee-split.md) | Burn band + validator share |
 | [governance.md](governance.md) | On-chain parameter votes |
-
+| [GOVERNANCE_SURFACE.md](GOVERNANCE_SURFACE.md) | Full change-control inventory |
+| [UNL_CHARTER.md](UNL_CHARTER.md) | Bootstrap UNL policy (not open UNL) |
+| [OPEN_UNL_AMENDMENT.md](OPEN_UNL_AMENDMENT.md) | Future rotating trust design |
+| [FAUCET_ANTI_SYBIL.md](FAUCET_ANTI_SYBIL.md) | Portal faucet Sybil controls (not consensus) |
 ## Suggested announcement order
 
 1. **TEST_AND_VERIFICATION** — credibility / progress  
