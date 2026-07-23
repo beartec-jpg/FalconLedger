@@ -28,9 +28,9 @@ Epoch length follows the network pin:
 
 1. **Create wallet** — Falcon keypair → `r…` (no name required).  
 2. **Fund** — receive FALCON.  
-3. **Claim name** — choose e.g. `scott.reynolds` → if free and account has no name → lock **100 FALCON** bond → name live.  
-4. **Send** — pay to `alice.bob` → wallet resolves to her `r…` → normal Payment.  
-5. **Release** — owner starts unbond → status **releasing** for **1 epoch** → then bond returned, name free, another account may claim it.
+3. **Claim name** — choose e.g. `falcon.ledger` → if free and account has no name → lock **100 FALCON** bond → name live.  
+10. **Send** — pay to `alice.bob` → wallet resolves to her `r…` → normal Payment.  
+11. **Release** — owner starts unbond → status **releasing** for **1 epoch** → then bond returned, name free, another account may claim it.
 
 ---
 
