@@ -1,7 +1,7 @@
 # Falcon Ledger — Test & Verification Summary
 
 **Status:** Public engineering summary · **Date:** July 2026  
-**Audience:** Community, integrators, and press — no operator secrets or host inventory.
+**Audience:** Community, integrators, and press 
 
 This note summarizes **what has been proven** on Falcon Ledger testnet and in private mainnet dress-rehearsal / freeze-pin work. It is not a mainnet launch announcement. Public mainnet remains off until the go-live ceremony.
 
