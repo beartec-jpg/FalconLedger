@@ -7,12 +7,13 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import threading
 import time
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Deque, Dict, List, Tuple
+from typing import Any, Deque, Dict, List, Optional, Tuple
 
 import httpx
 import uvicorn
@@ -36,10 +37,18 @@ SHOW_TRAFFIC = os.environ.get("SHOW_TRAFFIC", "0").strip().lower() in (
 HISTORY_FILE = os.environ.get("METRICS_HISTORY_FILE", "/var/lib/qxrp-dashboard/history.json")
 # Persistent on-ledger tx index (sum of txs in every closed ledger).
 # Default: sit next to metrics history (container mount is usually /data).
+_DATA_DIR = Path(HISTORY_FILE).expanduser().resolve().parent
 TX_INDEX_FILE = os.environ.get(
     "TX_INDEX_FILE",
-    str(Path(HISTORY_FILE).expanduser().resolve().parent / "tx_index.json"),
+    str(_DATA_DIR / "tx_index.json"),
 )
+# Host-written capacity stats (disk/ledger size). Safe public ops signal.
+HOST_STATS_FILE = os.environ.get(
+    "HOST_STATS_FILE",
+    str(_DATA_DIR / "host_stats.json"),
+)
+# Optional mount of node data dir (nudb/db) for live size without host agent.
+LEDGER_DATA_DIR = os.environ.get("LEDGER_DATA_DIR", "").strip()
 # Full-history dashboard that owns the chain-wide tx index (validators pull from here).
 FULL_DASH_URL = os.environ.get("FULL_DASH_URL", "http://46.224.0.140:8080").rstrip("/")
 HISTORY_SECONDS = int(os.environ.get("METRICS_HISTORY_SECONDS", str(24 * 3600)))
@@ -50,6 +59,10 @@ TX_SCAN_BATCH = int(os.environ.get("TX_SCAN_BATCH", "500"))
 # Validators mirror totals from FULL_DASH_URL so we do not 5×-hammer network RPC.
 _TX_SCAN_DEFAULT = "0" if os.environ.get("VALIDATOR_ACCOUNT", "").strip() else "1"
 TX_SCAN_ENABLE = os.environ.get("TX_SCAN_ENABLE", _TX_SCAN_DEFAULT).strip().lower() in (
+    "1", "true", "yes", "on",
+)
+# Host disk / memory / ledger size on public operator dashboards (not secrets).
+SHOW_HOST_METRICS = os.environ.get("SHOW_HOST_METRICS", "1").strip().lower() in (
     "1", "true", "yes", "on",
 )
 # XRPL empty transaction tree hash — ledger with no txs.
@@ -471,6 +484,160 @@ def _tx_scanner_loop() -> None:
             time.sleep(3.0)
 
 
+def _dir_size_bytes(path: Path, max_entries: int = 50_000) -> Optional[int]:
+    """Best-effort recursive size; caps walk so a huge tree cannot hang the API."""
+    if not path.is_dir():
+        return None
+    total = 0
+    n = 0
+    try:
+        for root, _dirs, files in os.walk(path):
+            for name in files:
+                fp = Path(root) / name
+                try:
+                    total += fp.stat().st_size
+                except OSError:
+                    pass
+                n += 1
+                if n >= max_entries:
+                    return total
+    except OSError:
+        return None
+    return total
+
+
+def _read_meminfo() -> Dict[str, Any]:
+    """Host/container memory from /proc/meminfo (public capacity signal)."""
+    out: Dict[str, Any] = {}
+    try:
+        raw = Path("/proc/meminfo").read_text()
+    except OSError:
+        return out
+    kv: Dict[str, int] = {}
+    for line in raw.splitlines():
+        parts = line.replace(":", " ").split()
+        if len(parts) >= 2 and parts[1].isdigit():
+            # values in kB
+            kv[parts[0]] = int(parts[1]) * 1024
+    total = kv.get("MemTotal")
+    avail = kv.get("MemAvailable")
+    if total and avail is not None:
+        used = max(0, total - avail)
+        out = {
+            "total_bytes": total,
+            "available_bytes": avail,
+            "used_bytes": used,
+            "used_percent": round(100.0 * used / total, 1) if total else None,
+        }
+    return out
+
+
+def _disk_usage_dict(path: str) -> Optional[Dict[str, Any]]:
+    try:
+        u = shutil.disk_usage(path)
+    except OSError:
+        return None
+    total, used, free = int(u.total), int(u.used), int(u.free)
+    if total <= 0:
+        return None
+    return {
+        "path": path,
+        "total_bytes": total,
+        "used_bytes": used,
+        "free_bytes": free,
+        "used_percent": round(100.0 * used / total, 1),
+    }
+
+
+def _growth_per_day(history_key: str) -> Optional[float]:
+    """Bytes/day from oldest→newest non-null samples of a history metric."""
+    with _history_lock:
+        pts = [
+            (int(r["t"]), r.get(history_key))
+            for r in _history
+            if r.get(history_key) is not None
+        ]
+    if len(pts) < 2:
+        return None
+    t0, v0 = pts[0]
+    t1, v1 = pts[-1]
+    try:
+        v0f, v1f = float(v0), float(v1)
+    except (TypeError, ValueError):
+        return None
+    dt = t1 - t0
+    if dt < 300:  # need ≥5 minutes of samples
+        return None
+    return (v1f - v0f) / dt * 86400.0
+
+
+def collect_host_metrics() -> Dict[str, Any]:
+    """Disk / memory / ledger-db size for this node (operator-facing, public-safe)."""
+    if not SHOW_HOST_METRICS:
+        return {}
+
+    host_file: Dict[str, Any] = {}
+    path = Path(HOST_STATS_FILE)
+    if path.is_file():
+        try:
+            host_file = json.loads(path.read_text())
+            if not isinstance(host_file, dict):
+                host_file = {}
+        except Exception:
+            host_file = {}
+
+    disk = host_file.get("disk") if isinstance(host_file.get("disk"), dict) else None
+    if not disk:
+        disk = _disk_usage_dict("/data") or _disk_usage_dict("/")
+    # Prefer root disk if /data is a tiny volume and host file missing.
+    disk_root = _disk_usage_dict("/")
+    if disk and disk_root and disk.get("total_bytes", 0) < disk_root.get("total_bytes", 0) * 0.2:
+        # /data is a small bind mount; show root capacity for ops.
+        disk = {**disk_root, "path": disk_root.get("path", "/"), "note": "root filesystem"}
+
+    mem = host_file.get("memory") if isinstance(host_file.get("memory"), dict) else None
+    if not mem:
+        mem = _read_meminfo() or None
+
+    ledger_bytes = host_file.get("ledger_bytes")
+    ledger_detail = host_file.get("ledger") if isinstance(host_file.get("ledger"), dict) else {}
+    if ledger_bytes is None and LEDGER_DATA_DIR:
+        base = Path(LEDGER_DATA_DIR)
+        parts = {}
+        total = 0
+        for name in ("nudb", "db", "data"):
+            p = base / name
+            if p.is_dir():
+                sz = _dir_size_bytes(p)
+                if sz is not None:
+                    parts[name] = sz
+                    total += sz
+        if parts:
+            ledger_bytes = total
+            ledger_detail = parts
+
+    # Growth from measured history (not inferred from tx/s).
+    ledger_growth = _growth_per_day("ledger_bytes")
+    disk_growth = _growth_per_day("disk_used_bytes")
+
+    # Soft ETA if we have free space + positive growth.
+    days_to_full = None
+    if disk and disk_growth and disk_growth > 0 and disk.get("free_bytes"):
+        days_to_full = round(float(disk["free_bytes"]) / disk_growth, 1)
+
+    return {
+        "disk": disk,
+        "memory": mem,
+        "ledger_bytes": int(ledger_bytes) if ledger_bytes is not None else None,
+        "ledger": ledger_detail or None,
+        "ledger_growth_bytes_per_day": round(ledger_growth, 0) if ledger_growth is not None else None,
+        "disk_growth_bytes_per_day": round(disk_growth, 0) if disk_growth is not None else None,
+        "days_to_disk_full_est": days_to_full,
+        "source": "host_stats" if host_file else "local",
+        "updated_at": host_file.get("updated_at"),
+    }
+
+
 def collect_stats() -> Dict[str, Any]:
     local_info = rpc_local("server_info").get("info", {})
     net_info = rpc_network("server_info").get("info", {})
@@ -504,10 +671,35 @@ def collect_stats() -> Dict[str, Any]:
     # Live tip/rate from network; total comes from full ledger index scan.
     note_network_tip(int(net_seq or 0))
     tx_metrics = get_tx_metrics()
+    host = collect_host_metrics()
+
+    # Archive (full-history) storage view for network activity.
+    # On the archive node itself, use local host metrics; validators mirror.
+    archive_ledger_bytes = host.get("ledger_bytes") if not VALIDATOR_ACCOUNT else None
+    archive_growth = host.get("ledger_growth_bytes_per_day") if not VALIDATOR_ACCOUNT else None
+    if VALIDATOR_ACCOUNT and FULL_DASH_URL:
+        try:
+            r = httpx.get(f"{FULL_DASH_URL}/api/stats", timeout=4.0)
+            if r.status_code == 200:
+                remote = (r.json() or {}).get("node") or {}
+                rh = remote.get("host") or {}
+                if rh.get("ledger_bytes") is not None:
+                    archive_ledger_bytes = rh.get("ledger_bytes")
+                if rh.get("ledger_growth_bytes_per_day") is not None:
+                    archive_growth = rh.get("ledger_growth_bytes_per_day")
+                # Prefer remote network.archive_* if present.
+                rnet = (r.json() or {}).get("network") or {}
+                if rnet.get("archive_ledger_bytes") is not None:
+                    archive_ledger_bytes = rnet.get("archive_ledger_bytes")
+                if rnet.get("archive_growth_bytes_per_day") is not None:
+                    archive_growth = rnet.get("archive_growth_bytes_per_day")
+        except Exception:
+            pass
 
     return {
         "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "show_traffic": SHOW_TRAFFIC,
+        "show_host_metrics": SHOW_HOST_METRICS,
         "node": {
             "validator_account": VALIDATOR_ACCOUNT or None,
             "validation_pubkey": local_info.get("pubkey_validator"),
@@ -531,6 +723,7 @@ def collect_stats() -> Dict[str, Any]:
                 "vote_accuracy_score": bond.get("VoteAccuracyScore"),
                 "slash_multiplier": bond.get("SlashMultiplier"),
             } if bond else None,
+            "host": host or None,
         },
         "network": {
             "rpc": NETWORK_RPC_URL,
@@ -553,6 +746,9 @@ def collect_stats() -> Dict[str, Any]:
             "tx_index_progress_pct": tx_metrics["tx_index_progress_pct"],
             "tx_index_scanning": tx_metrics["tx_index_scanning"],
             "tx_index_remaining": tx_metrics["tx_index_remaining"],
+            # Full-history archive footprint (not "sum of all nodes").
+            "archive_ledger_bytes": archive_ledger_bytes,
+            "archive_growth_bytes_per_day": archive_growth,
         },
         "traffic": traffic,
     }
@@ -571,14 +767,17 @@ def _sample_point(stats: Dict[str, Any]) -> Dict[str, Any]:
 
     traffic = stats.get("traffic") or {}
     net = stats.get("network") or {}
-    bond = (stats.get("node") or {}).get("bond") or {}
+    node = stats.get("node") or {}
+    bond = node.get("bond") or {}
+    host = node.get("host") or {}
+    disk = host.get("disk") or {}
     composite = bond.get("composite_score")
     return {
         "t": int(now),
         "ledger_seq": net_seq,
-        "node_ledger_seq": int(stats.get("node", {}).get("ledger_seq") or 0),
-        "ledger_lag": stats.get("node", {}).get("ledger_lag"),
-        "peers": int(stats.get("node", {}).get("peers") or 0),
+        "node_ledger_seq": int(node.get("ledger_seq") or 0),
+        "ledger_lag": node.get("ledger_lag"),
+        "peers": int(node.get("peers") or 0),
         "net_peers": int(net.get("peers") or 0),
         "load_factor": float(net.get("load_factor") or 1),
         "ledger_rate_per_min": round(ledger_rate, 2),
@@ -592,6 +791,13 @@ def _sample_point(stats: Dict[str, Any]) -> Dict[str, Any]:
         "bonded_validators": int(net.get("bonded_validator_count") or 0),
         # Only chart a real score; missing bond → omit (avoids flat orange "0" line).
         "composite_score": int(composite) if composite is not None else None,
+        # Capacity history for growth charts.
+        "disk_used_percent": disk.get("used_percent"),
+        "disk_used_bytes": disk.get("used_bytes"),
+        "disk_free_bytes": disk.get("free_bytes"),
+        "ledger_bytes": host.get("ledger_bytes"),
+        "mem_used_percent": (host.get("memory") or {}).get("used_percent"),
+        "archive_ledger_bytes": net.get("archive_ledger_bytes"),
     }
 
 
@@ -783,6 +989,11 @@ const METRICS = {
   traffic_validated: { title: 'Traffic generator validated txs', color: '#b5179e' },
   bonded_validators: { title: 'Bonded validators', color: '#560bad' },
   composite_score: { title: 'Composite score', color: '#4cc9f0' },
+  disk_used_percent: { title: 'Disk used %', color: '#f5b942' },
+  disk_free_bytes: { title: 'Disk free (bytes)', color: '#3dd68c' },
+  ledger_bytes: { title: 'Ledger DB size (bytes)', color: '#4895ef' },
+  mem_used_percent: { title: 'Memory used %', color: '#ff9f1c' },
+  archive_ledger_bytes: { title: 'Archive ledger size (bytes)', color: '#b5179e' },
 };
 
 let modalChart = null;
@@ -870,6 +1081,29 @@ function fmtCount(n) {
   return v.toLocaleString();
 }
 
+function fmtBytes(n) {
+  const v = Number(n);
+  if (n == null || Number.isNaN(v) || v < 0) return '—';
+  const u = ['B','KB','MB','GB','TB'];
+  let x = v, i = 0;
+  while (x >= 1024 && i < u.length-1) { x /= 1024; i++; }
+  return (i === 0 ? String(Math.round(x)) : x.toFixed(x >= 10 ? 1 : 2)) + ' ' + u[i];
+}
+
+function fmtBytesPerDay(n) {
+  if (n == null || Number.isNaN(Number(n))) return null;
+  const v = Number(n);
+  const sign = v < 0 ? '-' : '';
+  return sign + fmtBytes(Math.abs(v)) + '/day';
+}
+
+function diskTone(pct) {
+  if (pct == null) return '';
+  if (pct >= 90) return 'bad';
+  if (pct >= 75) return 'warn';
+  return 'good';
+}
+
 async function refresh() {
   const [stats, histAll] = await Promise.all([
     fetch('/api/stats').then(r => r.json()),
@@ -918,6 +1152,27 @@ async function refresh() {
     ? ((node.balance_qxrp != null ? Number(node.balance_qxrp).toLocaleString(undefined,{maximumFractionDigits:2}) : '—') + ' FALCON')
     : 'n/a';
 
+  const host = node.host || {};
+  const disk = host.disk || {};
+  const mem = host.memory || {};
+  const diskPct = disk.used_percent;
+  const diskVal = (disk.used_bytes != null && disk.total_bytes != null)
+    ? (fmtBytes(disk.used_bytes) + ' / ' + fmtBytes(disk.total_bytes))
+    : '—';
+  const diskSub = disk.free_bytes != null
+    ? (fmtBytes(disk.free_bytes) + ' free' + (diskPct != null ? ' · ' + diskPct + '% used' : '')
+      + (host.days_to_disk_full_est != null ? ' · ~' + host.days_to_disk_full_est + 'd to full' : ''))
+    : (disk.path || 'host disk');
+  const ledgerSz = host.ledger_bytes;
+  const ledgerGrowth = fmtBytesPerDay(host.ledger_growth_bytes_per_day);
+  const ledgerSub = ledgerGrowth
+    ? ('measured ' + ledgerGrowth)
+    : (host.ledger ? Object.keys(host.ledger).join('+') : 'nudb+db (host)');
+  const memVal = mem.used_percent != null ? (mem.used_percent + '%') : '—';
+  const memSub = (mem.used_bytes != null && mem.total_bytes != null)
+    ? (fmtBytes(mem.used_bytes) + ' / ' + fmtBytes(mem.total_bytes))
+    : 'host memory';
+
   const nodeCards = [
     tile('v_state', 'Server state', node.server_state || '—', node.validation_pubkey ? node.validation_pubkey.slice(0,24)+'…' : (isValidatorNode ? '' : 'full-history node'), 'peers', cls(node.server_state, ['proposing'],['full','connected'])),
     tile('v_ledger', 'Node ledger', '#' + Number(node.ledger_seq||0).toLocaleString(), (node.ledger_hash||'').slice(0,20)+'…', 'node_ledger_seq', 'good'),
@@ -927,6 +1182,9 @@ async function refresh() {
     tile('v_score', 'Composite score', scoreVal, isValidatorNode ? 'basis points / 10000' : 'see bonded table below', scoreMetric, scoreClass),
     tile('v_bal', 'Balance', balVal, isValidatorNode ? 'validator account' : 'see bonded table', isValidatorNode ? 'ledger_rate_per_min' : ''),
     tile('v_uptime', 'Uptime', fmtUptime(node.uptime_seconds), 'load ×' + (node.load_factor||1), 'load_factor'),
+    tile('v_disk', 'Disk', diskVal, diskSub, 'disk_used_percent', diskTone(diskPct)),
+    tile('v_ledgerdb', 'Ledger DB', fmtBytes(ledgerSz), ledgerSub, 'ledger_bytes', ledgerSz != null ? 'good' : ''),
+    tile('v_mem', 'Memory', memVal, memSub, 'mem_used_percent', (mem.used_percent||0) >= 90 ? 'bad' : ((mem.used_percent||0) >= 75 ? 'warn' : '')),
   ];
   document.getElementById('nodeGrid').innerHTML = nodeCards.join('');
 
@@ -937,6 +1195,11 @@ async function refresh() {
     ? ('all closed ledgers · tip #' + Number(net.tx_index_tip||ledger).toLocaleString())
     : ('indexing on-ledger… ' + (net.tx_index_progress_pct != null ? Number(net.tx_index_progress_pct).toFixed(1) + '%' : '')
       + (net.tx_index_scanned_through != null ? ' · through #' + Number(net.tx_index_scanned_through).toLocaleString() : ''));
+  const archBytes = net.archive_ledger_bytes;
+  const archGrowth = fmtBytesPerDay(net.archive_growth_bytes_per_day);
+  const archSub = archGrowth
+    ? ('full-history archive · ' + archGrowth)
+    : 'full-history archive size (measured)';
   const netCards = [
     tile('n_ledger', 'Network ledger', '#' + ledger.toLocaleString(), net.complete_ledgers || '', 'ledger_seq', 'good'),
     tile('n_state', 'Network state', net.server_state || '—', net.rpc || '', 'net_peers'),
@@ -945,6 +1208,7 @@ async function refresh() {
     tile('n_rate', 'Ledger rate', '…', 'closes per minute', 'ledger_rate_per_min', 'good'),
     tile('n_tps', 'Tx rate', fmtTxPerSec(txPerSec), 'network-wide closes' + (net.last_ledger_txs != null ? ' · last ledger ' + net.last_ledger_txs : ''), 'net_tx_per_sec', (Number(txPerSec)||0) > 0 ? 'good' : ''),
     tile('n_txtotal', 'Total txs', fmtCount(totalTxs), txScanSub, 'total_txs', txComplete ? 'good' : 'warn'),
+    tile('n_arch', 'Archive size', fmtBytes(archBytes), archSub, 'archive_ledger_bytes', archBytes != null ? 'good' : ''),
   ];
   document.getElementById('netGrid').innerHTML = netCards.join('');
 
