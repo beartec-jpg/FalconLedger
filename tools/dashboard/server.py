@@ -466,11 +466,14 @@ function tile(id, label, value, sub, metric, valueClass='') {
 
 function fmtUptime(sec) {
   sec = Math.max(0, Math.floor(Number(sec) || 0));
-  const h = Math.floor(sec / 3600);
+  const d = Math.floor(sec / 86400);
+  const h = Math.floor((sec % 86400) / 3600);
   const m = Math.floor((sec % 3600) / 60);
-  if (h <= 0) return m + 'm';
-  if (m <= 0) return h + 'h';
-  return h + 'h ' + m + 'm';
+  // Never show a bare "0" — under 1 minute still say "<1m"
+  if (d > 0) return h > 0 ? (d + 'd ' + h + 'h') : (d + 'd');
+  if (h > 0) return m > 0 ? (h + 'h ' + m + 'm') : (h + 'h');
+  if (m > 0) return m + 'm';
+  return sec > 0 ? '<1m' : 'just started';
 }
 
 function drawSpark(canvas, points, color) {
