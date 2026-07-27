@@ -24,6 +24,14 @@ NETWORK_RPC_URL = os.environ.get("NETWORK_RPC_URL", "http://46.224.0.140:6005")
 LISTEN_PORT = int(os.environ.get("DASHBOARD_PORT", "8080"))
 VALIDATOR_ACCOUNT = os.environ.get("VALIDATOR_ACCOUNT", "")
 TRAFFIC_STATS_FILE = os.environ.get("TRAFFIC_STATS_FILE", "/var/lib/qxrp-traffic/stats.json")
+# Traffic generator is internal load-test only. Off by default so public
+# validator dashboards do not show pump/refill metrics.
+SHOW_TRAFFIC = os.environ.get("SHOW_TRAFFIC", "0").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
 HISTORY_FILE = os.environ.get("METRICS_HISTORY_FILE", "/var/lib/qxrp-dashboard/history.json")
 HISTORY_SECONDS = int(os.environ.get("METRICS_HISTORY_SECONDS", str(24 * 3600)))
 POLL_INTERVAL = float(os.environ.get("METRICS_POLL_INTERVAL", "15"))
@@ -89,24 +97,42 @@ def fetch_bond(account: str, rpc_fn) -> Dict[str, Any]:
     return data.get("node", {})
 
 
-def fetch_bonded_validators(limit: int = 32) -> List[Dict[str, Any]]:
-    data = rpc_network("ledger_data", {
-        "ledger_index": "validated",
-        "type": "validator_bond",
-        "limit": limit,
-    })
+def fetch_bonded_validators(page_limit: int = 100) -> List[Dict[str, Any]]:
+    """All ValidatorBond objects — paginate until the marker is exhausted."""
     out: List[Dict[str, Any]] = []
-    for entry in data.get("state", []) or []:
-        if entry.get("LedgerEntryType") != "ValidatorBond":
-            continue
-        out.append({
-            "account": entry.get("Account"),
-            "bond_status": bond_status_label(entry.get("BondStatus")),
-            "bonded_amount_qxrp": drops_to_qxrp(entry.get("BondedAmount")),
-            "composite_score": entry.get("CompositeScore"),
-            "reward_accum_qxrp": drops_to_qxrp(entry.get("RewardAccumulator")),
-            "consensus_key": (entry.get("ConsensusKey") or "")[:16],
-        })
+    marker: Any = None
+    for _ in range(64):  # safety cap
+        params: Dict[str, Any] = {
+            "ledger_index": "validated",
+            "type": "validator_bond",
+            "limit": page_limit,
+        }
+        if marker is not None:
+            params["marker"] = marker
+        data = rpc_network("ledger_data", params)
+        if data.get("error"):
+            break
+        for entry in data.get("state", []) or []:
+            if entry.get("LedgerEntryType") != "ValidatorBond":
+                continue
+            out.append({
+                "account": entry.get("Account"),
+                "bond_status": bond_status_label(entry.get("BondStatus")),
+                "bonded_amount_qxrp": drops_to_qxrp(entry.get("BondedAmount")),
+                "composite_score": entry.get("CompositeScore"),
+                "reward_accum_qxrp": drops_to_qxrp(entry.get("RewardAccumulator")),
+                "consensus_key": (entry.get("ConsensusKey") or "")[:16],
+            })
+        marker = data.get("marker")
+        if marker is None:
+            break
+    # Highest score first
+    out.sort(
+        key=lambda v: (
+            -(v.get("composite_score") or 0),
+            str(v.get("account") or ""),
+        )
+    )
     return out
 
 
@@ -163,10 +189,12 @@ def collect_stats() -> Dict[str, Any]:
     net_seq = net_vl.get("seq", 0) or 0
     ledger_lag = max(0, int(net_seq) - int(local_seq)) if net_seq and local_seq else None
 
-    traffic = read_traffic_stats()
+    # Internal traffic generator stats — only when explicitly enabled.
+    traffic = read_traffic_stats() if SHOW_TRAFFIC else {}
 
     return {
         "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "show_traffic": SHOW_TRAFFIC,
         "node": {
             "validator_account": VALIDATOR_ACCOUNT or None,
             "validation_pubkey": local_info.get("pubkey_validator"),
@@ -375,8 +403,10 @@ a { color:var(--accent); text-decoration:none; }
   <div class="section-title">Network activity</div>
   <div class="grid" id="netGrid"></div>
 
-  <div class="section-title">Traffic generator</div>
-  <div class="grid" id="trafficGrid"></div>
+  <div id="trafficSection" hidden>
+    <div class="section-title">Traffic generator <span class="badge">internal only</span></div>
+    <div class="grid" id="trafficGrid"></div>
+  </div>
 
   <div class="section-title">Bonded validators</div>
   <div class="panel">
@@ -513,21 +543,30 @@ async function refresh() {
   ];
   document.getElementById('netGrid').innerHTML = netCards.join('');
 
-  const pump = traffic.in_pump ? '<span class="badge" style="color:var(--warn)">PUMP</span>' : 'baseline';
-  const trafficCards = [
-    tile('t_rate', 'Tx rate', (traffic.tx_per_min ?? 0) + '/min', pump, 'tx_per_min', (traffic.tx_per_min||0) > 0 ? 'good' : ''),
-    tile('t_val', 'Validated txs', String(traffic.validated ?? 0), 'submitted ' + (traffic.submitted ?? 0), 'traffic_validated'),
-    tile('t_wallets', 'Load wallets', String(traffic.wallets ?? '—'), '5 per server × 6 hosts', 'tx_per_min'),
-    tile('t_refill', 'Refills', String(traffic.refills ?? 0), 'auto top-up from genesis', 'traffic_validated'),
-  ];
-  document.getElementById('trafficGrid').innerHTML = trafficCards.join('');
+  const showTraffic = !!(stats.show_traffic && traffic && Object.keys(traffic).length);
+  const trafficSection = document.getElementById('trafficSection');
+  if (trafficSection) trafficSection.hidden = !showTraffic;
+  if (showTraffic) {
+    const pump = traffic.in_pump ? '<span class="badge" style="color:var(--warn)">PUMP</span>' : 'baseline';
+    const trafficCards = [
+      tile('t_rate', 'Tx rate', (traffic.tx_per_min ?? 0) + '/min', pump, 'tx_per_min', (traffic.tx_per_min||0) > 0 ? 'good' : ''),
+      tile('t_val', 'Validated txs', String(traffic.validated ?? 0), 'submitted ' + (traffic.submitted ?? 0), 'traffic_validated'),
+      tile('t_wallets', 'Load wallets', String(traffic.wallets ?? '—'), 'internal load-test', 'tx_per_min'),
+      tile('t_refill', 'Refills', String(traffic.refills ?? 0), 'auto top-up from genesis', 'traffic_validated'),
+    ];
+    document.getElementById('trafficGrid').innerHTML = trafficCards.join('');
+  }
 
-  const rows = (net.validators || []).map(v => `<tr>
-    <td class="mono">${(v.account||'').slice(0,18)}…</td>
+  const rows = (net.validators || []).map(v => {
+    const acc = v.account || '';
+    const short = acc.length > 12 ? acc.slice(0, 8) + '…' + acc.slice(-6) : acc;
+    return `<tr>
+    <td class="mono" title="${acc}">${short}</td>
     <td>${v.bond_status}</td>
     <td>${v.bonded_amount_qxrp ?? '—'}</td>
     <td>${v.composite_score ?? '—'}</td>
-  </tr>`).join('');
+  </tr>`;
+  }).join('');
   document.getElementById('valTable').innerHTML = rows || '<tr><td colspan="4">No validators</td></tr>';
 
   document.querySelectorAll('canvas.spark').forEach((c) => {
