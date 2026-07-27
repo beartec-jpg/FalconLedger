@@ -27,10 +27,10 @@
 
 set -euo pipefail
 
-# ── Defaults (Falcon testnet) ─────────────────────────────────────────────────
-# Pin to a named release tag — never floating :latest across a validator fleet.
-# Override with QXRP_XRPLD_IMAGE (prefer @sha256: digest for mainnet).
-DOCKER_IMAGE="${QXRP_XRPLD_IMAGE:-qxrp/xrpld:lending-v5}"
+# ── Defaults (Falcon testnet = mainnet-v2 pin) ────────────────────────────────
+# Never floating :latest. Digest pin matches live fleet (AccountNames + score pay).
+# Override with QXRP_XRPLD_IMAGE only for intentional skew / next pin.
+DOCKER_IMAGE="${QXRP_XRPLD_IMAGE:-qxrp/xrpld@sha256:9362005f1360ad102d0cd76ff53f19ce7548d8149263e50f241489e4b73f3ea5}"
 NETWORK_ID=1001
 PUBLIC_RPC="${QXRP_PUBLIC_RPC:-http://46.224.0.140:6005}"
 BOOTSTRAP_PEERS="46.224.0.140:51235,167.233.55.43:51235,204.168.175.194:51235,89.167.109.241:51235"

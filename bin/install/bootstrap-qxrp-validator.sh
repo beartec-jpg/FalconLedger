@@ -26,8 +26,12 @@ while [[ $# -gt 0 ]]; do
 done
 
 SECRET_INPUT="${SECRET_INPUT:-qxrp-val-fresh-$(date +%s)}"
-# Pin fleet image — floating :latest may lack Falcon hex UNL support (see docs/fleet-image-pinning.md).
-DOCKER_IMAGE="${QXRP_XRPLD_IMAGE:-qxrp/xrpld:lending-v5}"
+# Pin to current Falcon testnet image (AccountNames + scoring-pay / mainnet-v2).
+# Override with QXRP_XRPLD_IMAGE only if you know you need a different build.
+# Digest pin preferred over floating tags so joiners match UNL peers.
+DOCKER_IMAGE="${QXRP_XRPLD_IMAGE:-qxrp/xrpld@sha256:9362005f1360ad102d0cd76ff53f19ce7548d8149263e50f241489e4b73f3ea5}"
+# Human-readable alias for logs (same digest as :mainnet-v2 on Hub).
+DOCKER_IMAGE_ALIAS="${QXRP_XRPLD_IMAGE_ALIAS:-qxrp/xrpld:mainnet-v2}"
 PUBLIC_RPC="${QXRP_PUBLIC_RPC:-http://46.224.0.140:6005}"
 FLEET_UNL_URL="${QXRP_FLEET_UNL_URL:-https://raw.githubusercontent.com/beartec-jpg/qXRP/develop/bin/install/testnet-falcon-unl.txt}"
 
@@ -282,10 +286,16 @@ for attempt in 1 2 3; do
 done
 if [[ "$PULL_OK" -ne 1 ]]; then
   echo "ERROR: could not pull ${DOCKER_IMAGE}" >&2
+  echo "  Expected Falcon testnet pin: mainnet-v2 @ sha256:9362005f1360…" >&2
   exit 1
+fi
+# Local alias so docker-compose / docker ps show a readable tag.
+if [[ -n "$DOCKER_IMAGE_ALIAS" && "$DOCKER_IMAGE" != "$DOCKER_IMAGE_ALIAS" ]]; then
+  docker tag "$DOCKER_IMAGE" "$DOCKER_IMAGE_ALIAS" 2>/dev/null || true
 fi
 # Record image id for support / image-skew debugging
 docker image inspect "$DOCKER_IMAGE" --format 'Image ID: {{.Id}}' || true
+echo "Pinned image: ${DOCKER_IMAGE} (alias ${DOCKER_IMAGE_ALIAS})"
 
 echo "Starting validator container..."
 (cd /var/lib/qxrp-validator && dc up -d --force-recreate)
@@ -302,7 +312,7 @@ for i in $(seq 1 30); do
 done
 if [[ "$RPC_READY" -ne 1 ]]; then
   echo "ERROR: qxrp-validator RPC not ready. Check: docker logs qxrp-validator" >&2
-  echo "  Common cause: wrong image tag (use qxrp/xrpld:lending-v5, not stale :latest)." >&2
+  echo "  Common cause: wrong image (need mainnet-v2 / sha256:9362005f…, not lending-v5 or :latest)." >&2
   exit 1
 fi
 

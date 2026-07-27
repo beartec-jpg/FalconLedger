@@ -12,8 +12,8 @@
 # (cfg/falcon-validators.txt mounted as validators.txt).
 #
 # Build / pin the image (prefer a digest for mainnet):
-#   docker build -t qxrp/xrpld:lending-v5 -f docker/Dockerfile .
-#   export QXRP_XRPLD_IMAGE=qxrp/xrpld@sha256:…
+#   docker build -t qxrp/xrpld:mainnet-v2 -f docker/Dockerfile .
+#   export QXRP_XRPLD_IMAGE=qxrp/xrpld@sha256:9362005f1360ad102d0cd76ff53f19ce7548d8149263e50f241489e4b73f3ea5
 #
 # Then launch a role:
 #   docker compose -f docker/docker-compose.falcon.yml up validator
@@ -26,7 +26,7 @@ version: "3.9"
 
 services:
   validator:
-    image: ${QXRP_XRPLD_IMAGE:-qxrp/xrpld:lending-v5}
+    image: ${QXRP_XRPLD_IMAGE:-qxrp/xrpld@sha256:9362005f1360ad102d0cd76ff53f19ce7548d8149263e50f241489e4b73f3ea5}
     container_name: falcon_validator
     restart: unless-stopped
     volumes:
@@ -40,7 +40,7 @@ services:
     command: ["--conf", "/cfg/xrpld.cfg"]
 
   fullhistory:
-    image: ${QXRP_XRPLD_IMAGE:-qxrp/xrpld:lending-v5}
+    image: ${QXRP_XRPLD_IMAGE:-qxrp/xrpld@sha256:9362005f1360ad102d0cd76ff53f19ce7548d8149263e50f241489e4b73f3ea5}
     container_name: falcon_fullhistory
     restart: unless-stopped
     volumes:
