@@ -520,16 +520,32 @@ async function refresh() {
     lastLedger = ledger;
   }
   document.getElementById('subtitle').innerHTML =
-    `<span class="badge">${stats.updated_at || ''}</span> &nbsp; Node: <span class="mono">${node.validator_account || 'n/a'}</span>`;
+    `<span class="badge">${stats.updated_at || ''}</span> &nbsp; ` +
+    (node.validator_account
+      ? `Validator: <span class="mono">${node.validator_account}</span>`
+      : `<span class="badge">full-history node</span> (no local bond — list below is network-wide)`);
+
+  // Full-history / non-validator dashboards have no VALIDATOR_ACCOUNT — bond tiles are n/a.
+  const isValidatorNode = !!(node.validator_account);
+  const bondStatus = isValidatorNode
+    ? (bond.status || 'unknown')
+    : 'n/a';
+  const bondSub = isValidatorNode
+    ? ((bond.bonded_amount_qxrp ?? '—') + ' qXRP')
+    : 'full node (not a bonded validator)';
+  const scoreVal = isValidatorNode ? (bond.composite_score ?? '—') : 'n/a';
+  const balVal = isValidatorNode
+    ? ((node.balance_qxrp ?? '—') + ' qXRP')
+    : 'n/a';
 
   const nodeCards = [
-    tile('v_state', 'Server state', node.server_state || '—', node.validation_pubkey ? node.validation_pubkey.slice(0,24)+'…' : '', 'peers', cls(node.server_state, ['proposing'],['full','connected'])),
+    tile('v_state', 'Server state', node.server_state || '—', node.validation_pubkey ? node.validation_pubkey.slice(0,24)+'…' : (isValidatorNode ? '' : 'full-history node'), 'peers', cls(node.server_state, ['proposing'],['full','connected'])),
     tile('v_ledger', 'Node ledger', '#' + Number(node.ledger_seq||0).toLocaleString(), (node.ledger_hash||'').slice(0,20)+'…', 'node_ledger_seq', 'good'),
     tile('v_lag', 'Sync lag', (node.ledger_lag ?? '—') + ' ledgers', node.complete_ledgers || '', 'ledger_lag', (node.ledger_lag||0) <= 5 ? 'good' : 'warn'),
     tile('v_peers', 'Peers', String(node.peers ?? '—'), 'P2P connections', 'peers', (node.peers||0) >= 3 ? 'good' : 'warn'),
-    tile('v_bond', 'Bond status', bond.status || '—', (bond.bonded_amount_qxrp || '—') + ' qXRP', 'bonded_validators', bond.status === 'bonded' ? 'good' : 'warn'),
-    tile('v_score', 'Composite score', bond.composite_score ?? '—', 'basis points', 'composite_score', (bond.composite_score||0) >= 5000 ? 'good' : 'warn'),
-    tile('v_bal', 'Balance', (node.balance_qxrp ?? '—') + ' qXRP', 'validator account', 'ledger_rate_per_min'),
+    tile('v_bond', 'Bond status', bondStatus, bondSub, 'bonded_validators', bond.status === 'bonded' ? 'good' : (isValidatorNode ? 'warn' : '')),
+    tile('v_score', 'Composite score', scoreVal, isValidatorNode ? 'basis points' : 'validators listed below', 'composite_score', (bond.composite_score||0) >= 5000 ? 'good' : ''),
+    tile('v_bal', 'Balance', balVal, isValidatorNode ? 'validator account' : 'see bonded table', 'ledger_rate_per_min'),
     tile('v_uptime', 'Uptime', fmtUptime(node.uptime_seconds), 'load ×' + (node.load_factor||1), 'load_factor'),
   ];
   document.getElementById('nodeGrid').innerHTML = nodeCards.join('');
