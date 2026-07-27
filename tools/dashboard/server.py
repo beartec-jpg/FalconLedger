@@ -10,8 +10,9 @@ import os
 import threading
 import time
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Deque, Dict, List
+from typing import Any, Deque, Dict, List, Tuple
 
 import httpx
 import uvicorn
@@ -33,8 +34,26 @@ SHOW_TRAFFIC = os.environ.get("SHOW_TRAFFIC", "0").strip().lower() in (
     "on",
 )
 HISTORY_FILE = os.environ.get("METRICS_HISTORY_FILE", "/var/lib/qxrp-dashboard/history.json")
+# Persistent on-ledger tx index (sum of txs in every closed ledger).
+# Default: sit next to metrics history (container mount is usually /data).
+TX_INDEX_FILE = os.environ.get(
+    "TX_INDEX_FILE",
+    str(Path(HISTORY_FILE).expanduser().resolve().parent / "tx_index.json"),
+)
+# Full-history dashboard that owns the chain-wide tx index (validators pull from here).
+FULL_DASH_URL = os.environ.get("FULL_DASH_URL", "http://46.224.0.140:8080").rstrip("/")
 HISTORY_SECONDS = int(os.environ.get("METRICS_HISTORY_SECONDS", str(24 * 3600)))
 POLL_INTERVAL = float(os.environ.get("METRICS_POLL_INTERVAL", "15"))
+TX_SCAN_WORKERS = int(os.environ.get("TX_SCAN_WORKERS", "24"))
+TX_SCAN_BATCH = int(os.environ.get("TX_SCAN_BATCH", "500"))
+# Only the full-history (non-validator) dashboard walks every ledger by default.
+# Validators mirror totals from FULL_DASH_URL so we do not 5×-hammer network RPC.
+_TX_SCAN_DEFAULT = "0" if os.environ.get("VALIDATOR_ACCOUNT", "").strip() else "1"
+TX_SCAN_ENABLE = os.environ.get("TX_SCAN_ENABLE", _TX_SCAN_DEFAULT).strip().lower() in (
+    "1", "true", "yes", "on",
+)
+# XRPL empty transaction tree hash — ledger with no txs.
+_EMPTY_TX_HASH = "0" * 64
 
 DROPS_PER_QXRP = 1_000_000
 
@@ -50,15 +69,22 @@ _history_lock = threading.Lock()
 _history: Deque[Dict[str, Any]] = deque(maxlen=max(2880, int(HISTORY_SECONDS / POLL_INTERVAL)))
 _prev_ledger_seq: int | None = None
 _prev_ledger_ts: float | None = None
-# Network tx counters (observed by this dashboard process).
+
+# On-ledger transaction index: sum(len(txs)) for every closed ledger from
+# genesis..counted_through, advanced by a background scanner against the
+# full-history network RPC. Not "what this process happened to see".
 _tx_lock = threading.Lock()
-_prev_tx_seq: int | None = None
-_prev_tx_ts: float | None = None
-_total_txs_observed: int = 0
-_last_tx_per_sec: float = 0.0
-_last_interval_txs: int = 0
-_last_ledger_txs: int = 0
-_MAX_TX_WALK = 48  # max ledgers scanned per poll for tx counts
+_tx_start_seq: int = 1          # first ledger we count from (raised if early missing)
+_tx_counted_through: int = 0    # contiguous prefix fully counted
+_tx_total: int = 0              # sum of txs in ledgers [_tx_start_seq .. _tx_counted_through]
+_tx_tip_seq: int = 0            # latest validated ledger known
+_tx_last_ledger_txs: int = 0
+_tx_per_sec: float = 0.0
+_tx_rate_prev_seq: int | None = None
+_tx_rate_prev_ts: float | None = None
+_tx_scan_active: bool = False
+_tx_scan_error: str | None = None
+_tx_index_dirty: bool = False
 
 
 def rpc_call(url: str, method: str, params: Dict[str, Any] | None = None) -> Dict[str, Any]:
@@ -170,80 +196,279 @@ def read_traffic_stats() -> Dict[str, Any]:
         return {}
 
 
-def count_ledger_txs(seq: int) -> int:
-    """Return transaction count in a single validated ledger (no expand)."""
-    if not seq:
-        return 0
-    data = rpc_network("ledger", {
+def _ledger_tx_count(seq: int) -> Tuple[int, int]:
+    """Return (seq, n_txs) for one ledger via network full-history RPC.
+
+    Empty ledgers have transaction_hash all zeros — skip expanding them.
+    """
+    header = rpc_network("ledger", {"ledger_index": int(seq)})
+    led = header.get("ledger") or {}
+    if not led:
+        # Missing ledger (pre-history on some nodes) — treat as 0.
+        return seq, 0
+    th = (led.get("transaction_hash") or "").lower()
+    if not th or th == _EMPTY_TX_HASH:
+        return seq, 0
+    full = rpc_network("ledger", {
         "ledger_index": int(seq),
         "transactions": True,
         "expand": False,
     })
-    txs = (data.get("ledger") or {}).get("transactions") or []
-    return len(txs) if isinstance(txs, list) else 0
+    txs = (full.get("ledger") or {}).get("transactions") or []
+    return seq, len(txs) if isinstance(txs, list) else 0
 
 
-def update_tx_metrics(net_seq: int) -> Dict[str, Any]:
-    """Walk newly closed ledgers and update cumulative / rate tx metrics."""
-    global _prev_tx_seq, _prev_tx_ts, _total_txs_observed
-    global _last_tx_per_sec, _last_interval_txs, _last_ledger_txs
+def _count_seq_range(start: int, end: int) -> Tuple[int, Dict[int, int]]:
+    """Count txs for ledgers [start, end] inclusive. Returns (sum, {seq: n})."""
+    if end < start:
+        return 0, {}
+    counts: Dict[int, int] = {}
+    workers = max(1, min(TX_SCAN_WORKERS, end - start + 1))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futs = [pool.submit(_ledger_tx_count, seq) for seq in range(start, end + 1)]
+        for fut in as_completed(futs):
+            try:
+                seq, n = fut.result()
+                counts[seq] = n
+            except Exception:
+                pass
+    # Fill gaps as 0 so contiguous advance stays honest.
+    total = 0
+    for seq in range(start, end + 1):
+        n = counts.get(seq, 0)
+        counts[seq] = n
+        total += n
+    return total, counts
+
+
+def _save_tx_index() -> None:
+    global _tx_index_dirty
+    path = Path(TX_INDEX_FILE)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with _tx_lock:
+            payload = {
+                "start_seq": _tx_start_seq,
+                "counted_through": _tx_counted_through,
+                "total_txs": _tx_total,
+                "tip_seq": _tx_tip_seq,
+                "saved_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            }
+            _tx_index_dirty = False
+        path.write_text(json.dumps(payload))
+    except Exception:
+        pass
+
+
+def _load_tx_index() -> None:
+    global _tx_start_seq, _tx_counted_through, _tx_total, _tx_tip_seq
+    path = Path(TX_INDEX_FILE)
+    if not path.is_file():
+        return
+    try:
+        data = json.loads(path.read_text())
+        with _tx_lock:
+            _tx_start_seq = int(data.get("start_seq") or 1)
+            _tx_counted_through = int(data.get("counted_through") or 0)
+            _tx_total = int(data.get("total_txs") or 0)
+            _tx_tip_seq = int(data.get("tip_seq") or 0)
+    except Exception:
+        pass
+
+
+def get_tx_metrics() -> Dict[str, Any]:
+    """Snapshot of on-ledger tx totals + live rate."""
+    with _tx_lock:
+        tip = _tx_tip_seq
+        through = _tx_counted_through
+        start = _tx_start_seq
+        total = _tx_total
+        complete = tip > 0 and through >= tip
+        remaining = max(0, tip - through) if tip else 0
+        span = max(1, tip - start + 1) if tip else 1
+        done = max(0, through - start + 1) if through >= start else 0
+        progress = min(100.0, round(100.0 * done / span, 2)) if tip else 0.0
+        return {
+            "tx_per_sec": round(_tx_per_sec, 4),
+            "tx_per_min": round(_tx_per_sec * 60.0, 2),
+            "total_txs": int(total),
+            "last_ledger_txs": int(_tx_last_ledger_txs),
+            "tx_index_complete": complete,
+            "tx_index_scanned_through": int(through),
+            "tx_index_tip": int(tip),
+            "tx_index_start": int(start),
+            "tx_index_remaining": int(remaining),
+            "tx_index_progress_pct": progress,
+            "tx_index_scanning": _tx_scan_active and not complete,
+            "tx_index_error": _tx_scan_error,
+        }
+
+
+def note_network_tip(net_seq: int) -> None:
+    """Update tip + live tx/s from newly closed ledgers (network-wide)."""
+    global _tx_tip_seq, _tx_last_ledger_txs, _tx_per_sec
+    global _tx_rate_prev_seq, _tx_rate_prev_ts
+    global _tx_counted_through, _tx_total, _tx_index_dirty
 
     net_seq = int(net_seq or 0)
+    if not net_seq:
+        return
     now = time.time()
+
     with _tx_lock:
-        if not net_seq:
-            return {
-                "tx_per_sec": _last_tx_per_sec,
-                "tx_per_min": round(_last_tx_per_sec * 60.0, 2),
-                "total_txs": _total_txs_observed,
-                "last_ledger_txs": _last_ledger_txs,
-                "interval_txs": _last_interval_txs,
-            }
+        _tx_tip_seq = max(_tx_tip_seq, net_seq)
+        prev_rate_seq = _tx_rate_prev_seq
+        prev_rate_ts = _tx_rate_prev_ts
 
-        interval_txs = 0
-        if _prev_tx_seq is None:
-            # Seed: count current ledger only; total continues from history if loaded.
-            _last_ledger_txs = count_ledger_txs(net_seq)
-            interval_txs = _last_ledger_txs
-            if _total_txs_observed <= 0:
-                _total_txs_observed = interval_txs
-            else:
-                # History already had a cumulative total; don't double-count seed.
+    # Live rate: count txs in newly closed tip ledgers (small window).
+    if prev_rate_seq is None:
+        _, n = _ledger_tx_count(net_seq)
+        with _tx_lock:
+            _tx_last_ledger_txs = n
+            _tx_rate_prev_seq = net_seq
+            _tx_rate_prev_ts = now
+            _tx_per_sec = 0.0
+            # If already fully indexed to previous tip, extend total for this ledger.
+            if _tx_counted_through == net_seq - 1 or (
+                _tx_counted_through == 0 and net_seq == _tx_start_seq
+            ):
+                # First ledger only if starting cold at tip — avoid claiming full history.
                 pass
-            _prev_tx_seq = net_seq
-            _prev_tx_ts = now
-            _last_interval_txs = interval_txs
-            _last_tx_per_sec = 0.0
-        elif net_seq > _prev_tx_seq:
-            start = _prev_tx_seq + 1
-            # Cap walk so a long outage does not hammer RPC.
-            if net_seq - _prev_tx_seq > _MAX_TX_WALK:
-                start = net_seq - _MAX_TX_WALK + 1
-            for seq in range(start, net_seq + 1):
-                n = count_ledger_txs(seq)
-                interval_txs += n
-                if seq == net_seq:
-                    _last_ledger_txs = n
-            _total_txs_observed += interval_txs
-            dt = max(0.001, now - (_prev_tx_ts or now))
-            _last_tx_per_sec = interval_txs / dt
-            _last_interval_txs = interval_txs
-            _prev_tx_seq = net_seq
-            _prev_tx_ts = now
-        else:
-            # Same ledger as last poll — rate decays toward 0.
-            dt = max(0.001, now - (_prev_tx_ts or now))
-            if dt > POLL_INTERVAL * 2:
-                _last_tx_per_sec = 0.0
-                _last_interval_txs = 0
+        return
 
-        return {
-            "tx_per_sec": round(_last_tx_per_sec, 4),
-            "tx_per_min": round(_last_tx_per_sec * 60.0, 2),
-            "total_txs": int(_total_txs_observed),
-            "last_ledger_txs": int(_last_ledger_txs),
-            "interval_txs": int(_last_interval_txs),
-        }
+    if net_seq <= prev_rate_seq:
+        with _tx_lock:
+            if prev_rate_ts and (now - prev_rate_ts) > POLL_INTERVAL * 2:
+                _tx_per_sec = 0.0
+        return
+
+    start = prev_rate_seq + 1
+    # Cap rate walk so a long sleep does not stall the API.
+    if net_seq - prev_rate_seq > 64:
+        start = net_seq - 63
+    interval_sum, counts = _count_seq_range(start, net_seq)
+    last_n = counts.get(net_seq, 0)
+    dt = max(0.001, now - (prev_rate_ts or now))
+
+    with _tx_lock:
+        _tx_last_ledger_txs = last_n
+        _tx_per_sec = interval_sum / dt
+        _tx_rate_prev_seq = net_seq
+        _tx_rate_prev_ts = now
+        _tx_tip_seq = max(_tx_tip_seq, net_seq)
+        # If the historical index is caught up, extend it with tip ledgers.
+        if _tx_counted_through >= start - 1 and _tx_counted_through < net_seq:
+            for seq in range(_tx_counted_through + 1, net_seq + 1):
+                _tx_total += counts.get(seq, 0)
+                _tx_counted_through = seq
+            _tx_index_dirty = True
+
+
+def _mirror_tx_index_from_full_dash() -> None:
+    """Validators: copy on-ledger total from the full-history dashboard."""
+    global _tx_counted_through, _tx_total, _tx_start_seq, _tx_tip_seq
+    global _tx_scan_active, _tx_scan_error, _tx_index_dirty
+    if not FULL_DASH_URL:
+        return
+    try:
+        r = httpx.get(f"{FULL_DASH_URL}/api/stats", timeout=6.0)
+        r.raise_for_status()
+        net = (r.json() or {}).get("network") or {}
+        total = net.get("total_txs")
+        through = net.get("tx_index_scanned_through")
+        tip = net.get("tx_index_tip") or net.get("ledger_seq")
+        if total is None:
+            return
+        with _tx_lock:
+            _tx_total = int(total or 0)
+            if through is not None:
+                _tx_counted_through = int(through)
+            if tip is not None:
+                _tx_tip_seq = max(_tx_tip_seq, int(tip))
+            _tx_scan_active = bool(net.get("tx_index_scanning"))
+            _tx_scan_error = None
+            _tx_index_dirty = True
+    except Exception as exc:
+        with _tx_lock:
+            _tx_scan_error = f"mirror: {str(exc)[:160]}"
+
+
+def _tx_mirror_loop() -> None:
+    """Background: pull full on-ledger totals from the archive dashboard."""
+    while True:
+        try:
+            _mirror_tx_index_from_full_dash()
+        except Exception:
+            pass
+        time.sleep(max(10.0, POLL_INTERVAL))
+
+
+def _tx_scanner_loop() -> None:
+    """Background: walk every closed ledger and sum on-chain transactions."""
+    global _tx_counted_through, _tx_total, _tx_start_seq, _tx_tip_seq
+    global _tx_scan_active, _tx_scan_error, _tx_index_dirty
+
+    # Prefer network full-history RPC (complete ledgers from early genesis).
+    while True:
+        try:
+            info = rpc_network("server_info").get("info", {})
+            vl = info.get("validated_ledger") or info.get("closed_ledger") or {}
+            tip = int(vl.get("seq") or 0)
+            complete = str(info.get("complete_ledgers") or "")
+            # Parse lowest available ledger, e.g. "4-256545" or "4-10,12-256545"
+            start_avail = _tx_start_seq
+            if complete:
+                first = complete.split(",")[0].split("-")[0].strip()
+                try:
+                    start_avail = max(1, int(first))
+                except ValueError:
+                    pass
+
+            with _tx_lock:
+                if tip:
+                    _tx_tip_seq = max(_tx_tip_seq, tip)
+                if _tx_counted_through < start_avail - 1:
+                    # Skip gap before first available ledger.
+                    _tx_start_seq = start_avail
+                    _tx_counted_through = start_avail - 1
+                through = _tx_counted_through
+                tip_now = _tx_tip_seq
+
+            if not tip_now or through >= tip_now:
+                with _tx_lock:
+                    _tx_scan_active = False
+                    _tx_scan_error = None
+                if _tx_index_dirty:
+                    _save_tx_index()
+                time.sleep(2.0)
+                continue
+
+            batch_end = min(tip_now, through + TX_SCAN_BATCH)
+            batch_start = through + 1
+            with _tx_lock:
+                _tx_scan_active = True
+                _tx_scan_error = None
+
+            batch_sum, counts = _count_seq_range(batch_start, batch_end)
+
+            with _tx_lock:
+                # Only apply if we still own this contiguous window (no races).
+                if _tx_counted_through == through:
+                    for seq in range(batch_start, batch_end + 1):
+                        _tx_total += counts.get(seq, 0)
+                        _tx_counted_through = seq
+                    _tx_index_dirty = True
+                    _tx_scan_error = None
+                _tx_scan_active = _tx_counted_through < _tx_tip_seq
+
+            _save_tx_index()
+            # Yield briefly so tip-rate polls stay snappy.
+            time.sleep(0.05)
+        except Exception as exc:
+            with _tx_lock:
+                _tx_scan_active = False
+                _tx_scan_error = str(exc)[:200]
+            time.sleep(3.0)
 
 
 def collect_stats() -> Dict[str, Any]:
@@ -276,7 +501,9 @@ def collect_stats() -> Dict[str, Any]:
 
     # Internal traffic generator stats — only when explicitly enabled.
     traffic = read_traffic_stats() if SHOW_TRAFFIC else {}
-    tx_metrics = update_tx_metrics(int(net_seq or 0))
+    # Live tip/rate from network; total comes from full ledger index scan.
+    note_network_tip(int(net_seq or 0))
+    tx_metrics = get_tx_metrics()
 
     return {
         "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -320,6 +547,12 @@ def collect_stats() -> Dict[str, Any]:
             "tx_per_min": tx_metrics["tx_per_min"],
             "total_txs": tx_metrics["total_txs"],
             "last_ledger_txs": tx_metrics["last_ledger_txs"],
+            "tx_index_complete": tx_metrics["tx_index_complete"],
+            "tx_index_scanned_through": tx_metrics["tx_index_scanned_through"],
+            "tx_index_tip": tx_metrics["tx_index_tip"],
+            "tx_index_progress_pct": tx_metrics["tx_index_progress_pct"],
+            "tx_index_scanning": tx_metrics["tx_index_scanning"],
+            "tx_index_remaining": tx_metrics["tx_index_remaining"],
         },
         "traffic": traffic,
     }
@@ -363,7 +596,6 @@ def _sample_point(stats: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _load_history() -> None:
-    global _total_txs_observed, _prev_tx_seq
     path = Path(HISTORY_FILE)
     if not path.is_file():
         return
@@ -375,15 +607,6 @@ def _load_history() -> None:
             for row in rows:
                 if row.get("t", 0) >= cutoff:
                     _history.append(row)
-            # Resume cumulative tx counter from last persisted sample.
-            if _history:
-                last = _history[-1]
-                prev_total = last.get("total_txs")
-                if isinstance(prev_total, (int, float)) and prev_total > 0:
-                    _total_txs_observed = int(prev_total)
-                prev_seq = last.get("ledger_seq")
-                if isinstance(prev_seq, (int, float)) and prev_seq > 0:
-                    _prev_tx_seq = int(prev_seq)
     except Exception:
         pass
 
@@ -412,8 +635,17 @@ def _collector_loop() -> None:
 @app.on_event("startup")
 def _startup() -> None:
     _load_history()
+    _load_tx_index()
     t = threading.Thread(target=_collector_loop, daemon=True, name="metrics-collector")
     t.start()
+    if TX_SCAN_ENABLE:
+        # Full on-ledger tx index — walks every closed ledger via network RPC.
+        s = threading.Thread(target=_tx_scanner_loop, daemon=True, name="tx-ledger-scanner")
+        s.start()
+    else:
+        # Validator dashboards mirror the archive node's completed index.
+        m = threading.Thread(target=_tx_mirror_loop, daemon=True, name="tx-index-mirror")
+        m.start()
 
 
 @app.get("/api/stats")
@@ -546,7 +778,7 @@ const METRICS = {
   load_factor: { title: 'Load factor', color: '#ff9f1c' },
   ledger_rate_per_min: { title: 'Ledger close rate (/min)', color: '#4895ef' },
   net_tx_per_sec: { title: 'Network tx rate (tx/s)', color: '#f72585' },
-  total_txs: { title: 'Total txs observed', color: '#b5179e' },
+  total_txs: { title: 'Total txs on ledger', color: '#b5179e' },
   tx_per_min: { title: 'Traffic generator tx rate (/min)', color: '#f72585' },
   traffic_validated: { title: 'Traffic generator validated txs', color: '#b5179e' },
   bonded_validators: { title: 'Bonded validators', color: '#560bad' },
@@ -700,14 +932,19 @@ async function refresh() {
 
   const txPerSec = net.tx_per_sec;
   const totalTxs = net.total_txs;
+  const txComplete = !!net.tx_index_complete;
+  const txScanSub = txComplete
+    ? ('all closed ledgers · tip #' + Number(net.tx_index_tip||ledger).toLocaleString())
+    : ('indexing on-ledger… ' + (net.tx_index_progress_pct != null ? Number(net.tx_index_progress_pct).toFixed(1) + '%' : '')
+      + (net.tx_index_scanned_through != null ? ' · through #' + Number(net.tx_index_scanned_through).toLocaleString() : ''));
   const netCards = [
     tile('n_ledger', 'Network ledger', '#' + ledger.toLocaleString(), net.complete_ledgers || '', 'ledger_seq', 'good'),
     tile('n_state', 'Network state', net.server_state || '—', net.rpc || '', 'net_peers'),
     tile('n_validators', 'Bonded validators', String(net.bonded_validator_count||0), (net.total_validator_entries||0) + ' on ledger', 'bonded_validators', 'good'),
     tile('n_load', 'Load factor', String(net.load_factor || 1), 'network pressure', 'load_factor'),
     tile('n_rate', 'Ledger rate', '…', 'closes per minute', 'ledger_rate_per_min', 'good'),
-    tile('n_tps', 'Tx rate', fmtTxPerSec(txPerSec), (net.tx_per_min != null ? Number(net.tx_per_min).toFixed(1) + '/min' : 'network-wide') + (net.last_ledger_txs != null ? ' · last ledger ' + net.last_ledger_txs : ''), 'net_tx_per_sec', (Number(txPerSec)||0) > 0 ? 'good' : ''),
-    tile('n_txtotal', 'Total txs', fmtCount(totalTxs), 'observed by this dashboard', 'total_txs', (Number(totalTxs)||0) > 0 ? 'good' : ''),
+    tile('n_tps', 'Tx rate', fmtTxPerSec(txPerSec), 'network-wide closes' + (net.last_ledger_txs != null ? ' · last ledger ' + net.last_ledger_txs : ''), 'net_tx_per_sec', (Number(txPerSec)||0) > 0 ? 'good' : ''),
+    tile('n_txtotal', 'Total txs', fmtCount(totalTxs), txScanSub, 'total_txs', txComplete ? 'good' : 'warn'),
   ];
   document.getElementById('netGrid').innerHTML = netCards.join('');
 
