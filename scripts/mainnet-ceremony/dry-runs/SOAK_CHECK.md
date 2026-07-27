@@ -23,6 +23,24 @@ Leave the chain **idle but online** on the **freeze digest**. Goal: still health
 
 ## Check results
 
+### 2026-07-27T09:11Z — **PASS_48H** (mainnet-v2 scorefix) ✅
+
+| Field | Value |
+|-------|--------|
+| containers | all 3 **Up (healthy)** · 4 days · `mainnet-v2` |
+| revision / digest | `b007db22d` · `sha256:9362005f1360…` |
+| server_state | `full` |
+| seq | **129110** (complete window advancing) |
+| peers / proposers | **2** / 2 |
+| uptime | **~107.7 h (~4.5 days)** |
+| network_id | **1099** (private — not public 1026) |
+| multi_day_48h | **true** |
+| multi_day_7d | false (need ~168 h; optional) |
+
+Artifact: `dry-runs/soak-2026-07-27T0911Z.json`
+
+**Verdict:** multi-day soak credit **earned** (≥48 h continuous on freeze pin). Leave running for optional 7 d.
+
 ### 2026-07-23T08:15Z — **PASS_EARLY** (mainnet-v2 scorefix)
 
 | Field | Value |
@@ -39,8 +57,7 @@ Leave the chain **idle but online** on the **freeze digest**. Goal: still health
 
 Artifact: `dry-runs/soak-2026-07-23T0815Z.json`
 
-**Verdict:** healthy on freeze pin; re-check after **≥48 h** continuous uptime for multi-day credit. Leave fleet running.
-
+**Verdict (historical):** early healthy; later promoted to PASS_48H.
 ### Prior window (mainnet-v1 — historical only)
 
 ### 2026-07-22T10:09Z — PASS_EARLY on `mainnet-v1` @ `1789d2fb4`

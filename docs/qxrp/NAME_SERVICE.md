@@ -2,8 +2,9 @@
 
 Status: **implemented in protocol** (2026-07-22) · amendment `AccountNames` · txs `NameSet`/`NameUnbond`/`NameRelease`  
 Network role: optional UX layer on top of Falcon wallets (`r…` remains the settlement address).  
-Enable: add `AccountNames` under `[features]` (mainnet cfg example includes it).
-
+Enable: add `AccountNames` under `[features]` so validators **vote yes**, then wait amendment majority (testnet cfg: 15 minutes).  
+**Do not** force via wipe/re-genesis or premature `[amendments]` on a live multi-node net.  
+Testnet live rollout: [`docs/ops/TESTNET_ACCOUNTNAMES_AMENDMENT.md`](../ops/TESTNET_ACCOUNTNAMES_AMENDMENT.md).
 ---
 
 ## Product rules (locked)

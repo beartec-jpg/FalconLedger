@@ -1,0 +1,27 @@
+{
+  "captured_at": "2026-07-27T09:11:46Z",
+  "check": "PASS_48H",
+  "rpc": "http://5.78.142.246:6005",
+  "network_id": 1099,
+  "server_info": {
+    "server_state": "full",
+    "validated_seq": 129110,
+    "complete_ledgers": "128516-129110",
+    "peers": 2,
+    "proposers": 2,
+    "uptime_s": 387544,
+    "uptime_h": 107.65,
+    "build_version": "3.2.0-b0",
+    "peer_disconnects": "0",
+    "load_factor": 1,
+    "io_latency_ms": 1
+  },
+  "criteria": {
+    "no_crash_loops": true,
+    "peers_ge_2": true,
+    "seq_advancing": true,
+    "multi_day_48h": true,
+    "multi_day_7d": false
+  },
+  "verdict": "PASS multi-day 48h+ on freeze pin mainnet-v2; continue toward 7d optional. uptime_h=107.65, seq=129110."
+}
