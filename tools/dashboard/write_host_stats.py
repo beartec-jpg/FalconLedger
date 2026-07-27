@@ -76,6 +76,71 @@ def meminfo() -> Dict[str, Any]:
     }
 
 
+def container_image_info(names: list[str]) -> Dict[str, Any]:
+    """Best-effort docker inspect for running xrpld container image/digest."""
+    import subprocess
+
+    for name in names:
+        if not name:
+            continue
+        try:
+            out = subprocess.check_output(
+                [
+                    "docker",
+                    "inspect",
+                    name,
+                    "--format",
+                    "{{.Config.Image}}|{{.Image}}",
+                ],
+                stderr=subprocess.DEVNULL,
+                text=True,
+                timeout=8,
+            ).strip()
+        except Exception:
+            continue
+        if not out or "|" not in out:
+            continue
+        cfg_image, image_id = out.split("|", 1)
+        digest = None
+        revision = None
+        labels: Dict[str, str] = {}
+        try:
+            raw = subprocess.check_output(
+                ["docker", "image", "inspect", image_id, "--format", "{{json .}}"],
+                stderr=subprocess.DEVNULL,
+                text=True,
+                timeout=8,
+            )
+            meta = json.loads(raw)
+            for d in meta.get("RepoDigests") or []:
+                if "@sha256:" in d:
+                    digest = d.split("@", 1)[1]
+                    break
+            labels = meta.get("Config", {}).get("Labels") or {}
+            revision = labels.get("org.opencontainers.image.revision")
+        except Exception:
+            pass
+        return {
+            "container": name,
+            "image": cfg_image,
+            "image_id": image_id[:19] if image_id else None,
+            "digest": digest,
+            "revision": revision,
+            "labels": {
+                k: labels[k]
+                for k in (
+                    "falcon.names",
+                    "falcon.scoring",
+                    "falcon.pop",
+                    "org.opencontainers.image.revision",
+                )
+                if k in labels
+            }
+            or None,
+        }
+    return {}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", required=True, help="host_stats.json path")
@@ -86,6 +151,12 @@ def main() -> int:
         help="Ledger data root(s) containing nudb/ and/or db/ (repeatable)",
     )
     ap.add_argument("--disk-path", default="/", help="Filesystem path for df (default /)")
+    ap.add_argument(
+        "--container",
+        action="append",
+        default=[],
+        help="Docker container name(s) to inspect for image pin (first match wins)",
+    )
     args = ap.parse_args()
 
     ledger_parts: Dict[str, int] = {}
@@ -110,12 +181,21 @@ def main() -> int:
             except OSError:
                 pass
 
+    containers = args.container or [
+        "qxrp-full",
+        "qxrp-val2",
+        "qxrp-validator",
+        "falcon-validator",
+    ]
+    xrpld = container_image_info(containers)
+
     payload = {
         "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "disk": disk_usage(args.disk_path),
         "memory": meminfo() or None,
         "ledger_bytes": ledger_total if ledger_parts else None,
         "ledger": ledger_parts or None,
+        "xrpld": xrpld or None,
     }
 
     out = Path(args.out)

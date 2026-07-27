@@ -65,6 +65,13 @@ TX_SCAN_ENABLE = os.environ.get("TX_SCAN_ENABLE", _TX_SCAN_DEFAULT).strip().lowe
 SHOW_HOST_METRICS = os.environ.get("SHOW_HOST_METRICS", "1").strip().lower() in (
     "1", "true", "yes", "on",
 )
+# Expected Falcon testnet pin (mainnet-v2). Shown in header; joiners must match.
+EXPECTED_IMAGE_TAG = os.environ.get("EXPECTED_XRPLD_TAG", "qxrp/xrpld:mainnet-v2")
+EXPECTED_IMAGE_DIGEST = os.environ.get(
+    "EXPECTED_XRPLD_DIGEST",
+    "sha256:9362005f1360ad102d0cd76ff53f19ce7548d8149263e50f241489e4b73f3ea5",
+)
+EXPECTED_REVISION = os.environ.get("EXPECTED_XRPLD_REVISION", "b007db22d")
 # XRPL empty transaction tree hash — ledger with no txs.
 _EMPTY_TX_HASH = "0" * 64
 
@@ -625,6 +632,8 @@ def collect_host_metrics() -> Dict[str, Any]:
     if disk and disk_growth and disk_growth > 0 and disk.get("free_bytes"):
         days_to_full = round(float(disk["free_bytes"]) / disk_growth, 1)
 
+    xrpld = host_file.get("xrpld") if isinstance(host_file.get("xrpld"), dict) else None
+
     return {
         "disk": disk,
         "memory": mem,
@@ -633,8 +642,40 @@ def collect_host_metrics() -> Dict[str, Any]:
         "ledger_growth_bytes_per_day": round(ledger_growth, 0) if ledger_growth is not None else None,
         "disk_growth_bytes_per_day": round(disk_growth, 0) if disk_growth is not None else None,
         "days_to_disk_full_est": days_to_full,
+        "xrpld": xrpld,
         "source": "host_stats" if host_file else "local",
         "updated_at": host_file.get("updated_at"),
+    }
+
+
+def version_status(build_version: Any, host: Dict[str, Any]) -> Dict[str, Any]:
+    """Compare this node to the expected Falcon testnet pin."""
+    xrpld = (host or {}).get("xrpld") or {}
+    image = xrpld.get("image") or os.environ.get("LOCAL_XRPLD_IMAGE")
+    digest = xrpld.get("digest") or os.environ.get("LOCAL_XRPLD_DIGEST")
+    revision = xrpld.get("revision") or os.environ.get("LOCAL_XRPLD_REVISION")
+
+    match = None
+    if digest:
+        match = digest.replace("sha256:", "") == EXPECTED_IMAGE_DIGEST.replace("sha256:", "")
+    elif image:
+        # Tag match is weaker than digest but still useful.
+        match = (
+            "mainnet-v2" in str(image)
+            or EXPECTED_IMAGE_DIGEST in str(image)
+            or str(image).endswith("@" + EXPECTED_IMAGE_DIGEST)
+        )
+
+    return {
+        "build_version": build_version,
+        "image": image,
+        "digest": digest,
+        "revision": revision,
+        "expected_tag": EXPECTED_IMAGE_TAG,
+        "expected_digest": EXPECTED_IMAGE_DIGEST,
+        "expected_revision": EXPECTED_REVISION,
+        "matches_expected": match,
+        "network_id_expected": 1001,
     }
 
 
@@ -672,6 +713,7 @@ def collect_stats() -> Dict[str, Any]:
     note_network_tip(int(net_seq or 0))
     tx_metrics = get_tx_metrics()
     host = collect_host_metrics()
+    version = version_status(local_info.get("build_version"), host)
 
     # Archive (full-history) storage view for network activity.
     # On the archive node itself, use local host metrics; validators mirror.
@@ -724,10 +766,13 @@ def collect_stats() -> Dict[str, Any]:
                 "slash_multiplier": bond.get("SlashMultiplier"),
             } if bond else None,
             "host": host or None,
+            "version": version,
         },
         "network": {
             "rpc": NETWORK_RPC_URL,
             "server_state": net_info.get("server_state"),
+            "build_version": net_info.get("build_version"),
+            "network_id": net_info.get("network_id") or local_info.get("network_id"),
             "ledger_seq": net_seq,
             "complete_ledgers": net_info.get("complete_ledgers"),
             "peers": net_info.get("peers", 0),
@@ -938,6 +983,7 @@ a { color:var(--accent); text-decoration:none; }
 <header>
   <div>
     <h1>qXRP Network Dashboard</h1>
+    <div class="sub" id="versionBar">Loading version…</div>
     <div class="sub" id="subtitle">Loading network…</div>
   </div>
   <div class="live-pill"><span class="live-dot"></span><span id="liveLabel">LIVE</span></div>
@@ -1123,6 +1169,28 @@ async function refresh() {
     document.getElementById('liveLabel').textContent = 'LIVE +' + (ledger - lastLedger);
     lastLedger = ledger;
   }
+  const ver = node.version || {};
+  const match = ver.matches_expected;
+  const matchBadge = match === true
+    ? '<span class="badge" style="color:var(--good);border-color:#1f4d38">✓ expected pin</span>'
+    : (match === false
+      ? '<span class="badge" style="color:var(--bad);border-color:#5c2a2a">⚠ image skew — upgrade</span>'
+      : '<span class="badge">pin check pending</span>');
+  const imgLabel = ver.image
+    ? ver.image.replace('qxrp/xrpld@sha256:', 'digest:').replace('qxrp/xrpld:', '')
+    : (ver.expected_tag || 'mainnet-v2').replace('qxrp/xrpld:', '');
+  const digShort = (ver.digest || ver.expected_digest || '').replace('sha256:', '').slice(0, 12);
+  const rev = ver.revision || ver.expected_revision || '—';
+  const netId = net.network_id || node.network_id || 1001;
+  document.getElementById('versionBar').innerHTML =
+    `<span class="badge">network ${netId}</span> &nbsp; ` +
+    `<span class="badge">image <span class="mono">${imgLabel}</span></span> &nbsp; ` +
+    `<span class="badge">build ${ver.build_version || node.build_version || '—'}</span> &nbsp; ` +
+    `<span class="badge">rev <span class="mono">${rev}</span></span> &nbsp; ` +
+    (digShort ? `<span class="badge">sha256:${digShort}…</span> &nbsp; ` : '') +
+    matchBadge +
+    ` &nbsp; <span class="badge" style="opacity:.85">expected ${ (ver.expected_tag||'mainnet-v2').replace('qxrp/xrpld:','') }</span>`;
+
   document.getElementById('subtitle').innerHTML =
     `<span class="badge">${stats.updated_at || ''}</span> &nbsp; ` +
     (node.validator_account
