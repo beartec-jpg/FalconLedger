@@ -50,6 +50,15 @@ _history_lock = threading.Lock()
 _history: Deque[Dict[str, Any]] = deque(maxlen=max(2880, int(HISTORY_SECONDS / POLL_INTERVAL)))
 _prev_ledger_seq: int | None = None
 _prev_ledger_ts: float | None = None
+# Network tx counters (observed by this dashboard process).
+_tx_lock = threading.Lock()
+_prev_tx_seq: int | None = None
+_prev_tx_ts: float | None = None
+_total_txs_observed: int = 0
+_last_tx_per_sec: float = 0.0
+_last_interval_txs: int = 0
+_last_ledger_txs: int = 0
+_MAX_TX_WALK = 48  # max ledgers scanned per poll for tx counts
 
 
 def rpc_call(url: str, method: str, params: Dict[str, Any] | None = None) -> Dict[str, Any]:
@@ -161,6 +170,82 @@ def read_traffic_stats() -> Dict[str, Any]:
         return {}
 
 
+def count_ledger_txs(seq: int) -> int:
+    """Return transaction count in a single validated ledger (no expand)."""
+    if not seq:
+        return 0
+    data = rpc_network("ledger", {
+        "ledger_index": int(seq),
+        "transactions": True,
+        "expand": False,
+    })
+    txs = (data.get("ledger") or {}).get("transactions") or []
+    return len(txs) if isinstance(txs, list) else 0
+
+
+def update_tx_metrics(net_seq: int) -> Dict[str, Any]:
+    """Walk newly closed ledgers and update cumulative / rate tx metrics."""
+    global _prev_tx_seq, _prev_tx_ts, _total_txs_observed
+    global _last_tx_per_sec, _last_interval_txs, _last_ledger_txs
+
+    net_seq = int(net_seq or 0)
+    now = time.time()
+    with _tx_lock:
+        if not net_seq:
+            return {
+                "tx_per_sec": _last_tx_per_sec,
+                "tx_per_min": round(_last_tx_per_sec * 60.0, 2),
+                "total_txs": _total_txs_observed,
+                "last_ledger_txs": _last_ledger_txs,
+                "interval_txs": _last_interval_txs,
+            }
+
+        interval_txs = 0
+        if _prev_tx_seq is None:
+            # Seed: count current ledger only; total continues from history if loaded.
+            _last_ledger_txs = count_ledger_txs(net_seq)
+            interval_txs = _last_ledger_txs
+            if _total_txs_observed <= 0:
+                _total_txs_observed = interval_txs
+            else:
+                # History already had a cumulative total; don't double-count seed.
+                pass
+            _prev_tx_seq = net_seq
+            _prev_tx_ts = now
+            _last_interval_txs = interval_txs
+            _last_tx_per_sec = 0.0
+        elif net_seq > _prev_tx_seq:
+            start = _prev_tx_seq + 1
+            # Cap walk so a long outage does not hammer RPC.
+            if net_seq - _prev_tx_seq > _MAX_TX_WALK:
+                start = net_seq - _MAX_TX_WALK + 1
+            for seq in range(start, net_seq + 1):
+                n = count_ledger_txs(seq)
+                interval_txs += n
+                if seq == net_seq:
+                    _last_ledger_txs = n
+            _total_txs_observed += interval_txs
+            dt = max(0.001, now - (_prev_tx_ts or now))
+            _last_tx_per_sec = interval_txs / dt
+            _last_interval_txs = interval_txs
+            _prev_tx_seq = net_seq
+            _prev_tx_ts = now
+        else:
+            # Same ledger as last poll — rate decays toward 0.
+            dt = max(0.001, now - (_prev_tx_ts or now))
+            if dt > POLL_INTERVAL * 2:
+                _last_tx_per_sec = 0.0
+                _last_interval_txs = 0
+
+        return {
+            "tx_per_sec": round(_last_tx_per_sec, 4),
+            "tx_per_min": round(_last_tx_per_sec * 60.0, 2),
+            "total_txs": int(_total_txs_observed),
+            "last_ledger_txs": int(_last_ledger_txs),
+            "interval_txs": int(_last_interval_txs),
+        }
+
+
 def collect_stats() -> Dict[str, Any]:
     local_info = rpc_local("server_info").get("info", {})
     net_info = rpc_network("server_info").get("info", {})
@@ -191,6 +276,7 @@ def collect_stats() -> Dict[str, Any]:
 
     # Internal traffic generator stats — only when explicitly enabled.
     traffic = read_traffic_stats() if SHOW_TRAFFIC else {}
+    tx_metrics = update_tx_metrics(int(net_seq or 0))
 
     return {
         "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -230,6 +316,10 @@ def collect_stats() -> Dict[str, Any]:
             "total_validator_entries": len(validators),
             "validators": validators,
             "epoch": fetch_epoch(),
+            "tx_per_sec": tx_metrics["tx_per_sec"],
+            "tx_per_min": tx_metrics["tx_per_min"],
+            "total_txs": tx_metrics["total_txs"],
+            "last_ledger_txs": tx_metrics["last_ledger_txs"],
         },
         "traffic": traffic,
     }
@@ -247,24 +337,33 @@ def _sample_point(stats: Dict[str, Any]) -> Dict[str, Any]:
     _prev_ledger_ts = now
 
     traffic = stats.get("traffic") or {}
+    net = stats.get("network") or {}
+    bond = (stats.get("node") or {}).get("bond") or {}
+    composite = bond.get("composite_score")
     return {
         "t": int(now),
         "ledger_seq": net_seq,
         "node_ledger_seq": int(stats.get("node", {}).get("ledger_seq") or 0),
         "ledger_lag": stats.get("node", {}).get("ledger_lag"),
         "peers": int(stats.get("node", {}).get("peers") or 0),
-        "net_peers": int(stats.get("network", {}).get("peers") or 0),
-        "load_factor": float(stats.get("network", {}).get("load_factor") or 1),
+        "net_peers": int(net.get("peers") or 0),
+        "load_factor": float(net.get("load_factor") or 1),
         "ledger_rate_per_min": round(ledger_rate, 2),
+        # Network-wide tx metrics (not the internal traffic generator).
+        "net_tx_per_sec": float(net.get("tx_per_sec") or 0),
+        "net_tx_per_min": float(net.get("tx_per_min") or 0),
+        "total_txs": int(net.get("total_txs") or 0),
         "tx_per_min": float(traffic.get("tx_per_min") or 0),
         "traffic_submitted": int(traffic.get("submitted") or 0),
         "traffic_validated": int(traffic.get("validated") or 0),
-        "bonded_validators": int(stats.get("network", {}).get("bonded_validator_count") or 0),
-        "composite_score": int((stats.get("node", {}).get("bond") or {}).get("composite_score") or 0),
+        "bonded_validators": int(net.get("bonded_validator_count") or 0),
+        # Only chart a real score; missing bond → omit (avoids flat orange "0" line).
+        "composite_score": int(composite) if composite is not None else None,
     }
 
 
 def _load_history() -> None:
+    global _total_txs_observed, _prev_tx_seq
     path = Path(HISTORY_FILE)
     if not path.is_file():
         return
@@ -276,6 +375,15 @@ def _load_history() -> None:
             for row in rows:
                 if row.get("t", 0) >= cutoff:
                     _history.append(row)
+            # Resume cumulative tx counter from last persisted sample.
+            if _history:
+                last = _history[-1]
+                prev_total = last.get("total_txs")
+                if isinstance(prev_total, (int, float)) and prev_total > 0:
+                    _total_txs_observed = int(prev_total)
+                prev_seq = last.get("ledger_seq")
+                if isinstance(prev_seq, (int, float)) and prev_seq > 0:
+                    _prev_tx_seq = int(prev_seq)
     except Exception:
         pass
 
@@ -437,8 +545,10 @@ const METRICS = {
   net_peers: { title: 'Network peers', color: '#95e06c' },
   load_factor: { title: 'Load factor', color: '#ff9f1c' },
   ledger_rate_per_min: { title: 'Ledger close rate (/min)', color: '#4895ef' },
-  tx_per_min: { title: 'Traffic tx rate (/min)', color: '#f72585' },
-  traffic_validated: { title: 'Cumulative validated txs', color: '#b5179e' },
+  net_tx_per_sec: { title: 'Network tx rate (tx/s)', color: '#f72585' },
+  total_txs: { title: 'Total txs observed', color: '#b5179e' },
+  tx_per_min: { title: 'Traffic generator tx rate (/min)', color: '#f72585' },
+  traffic_validated: { title: 'Traffic generator validated txs', color: '#b5179e' },
   bonded_validators: { title: 'Bonded validators', color: '#560bad' },
   composite_score: { title: 'Composite score', color: '#4cc9f0' },
 };
@@ -477,22 +587,34 @@ function fmtUptime(sec) {
 }
 
 function drawSpark(canvas, points, color) {
-  if (!canvas || !points.length) return;
+  // Drop null/undefined samples so "n/a" metrics do not paint a flat zero line.
+  const vals = (points || []).map(p => p.v).filter(v => v != null && !Number.isNaN(Number(v)));
+  if (!canvas || !vals.length) {
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        canvas.width = canvas.clientWidth || 0;
+        canvas.height = 34;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+    return;
+  }
   const cssW = canvas.clientWidth || canvas.parentElement?.clientWidth || 180;
   if (cssW < 2) return;
   const ctx = canvas.getContext('2d');
   const ratio = Math.min(window.devicePixelRatio || 1, 2);
   const w = canvas.width = Math.floor(cssW * ratio);
   const h = canvas.height = Math.floor(34 * ratio);
-  const vals = points.map(p => p.v ?? 0);
-  const min = Math.min(...vals), max = Math.max(...vals);
+  const nums = vals.map(Number);
+  const min = Math.min(...nums), max = Math.max(...nums);
   const span = Math.max(max - min, 1);
   ctx.clearRect(0,0,w,h);
   ctx.strokeStyle = color;
   ctx.lineWidth = 2 * ratio;
   ctx.beginPath();
-  vals.forEach((v,i) => {
-    const x = (i / Math.max(vals.length-1,1)) * (w-8) + 4;
+  nums.forEach((v,i) => {
+    const x = (i / Math.max(nums.length-1,1)) * (w-8) + 4;
     const y = h - 4 - ((v - min) / span) * (h-10);
     i ? ctx.lineTo(x,y) : ctx.moveTo(x,y);
   });
@@ -500,7 +622,20 @@ function drawSpark(canvas, points, color) {
 }
 
 function historyForMetric(metric) {
-  return historyCache.map(p => ({ t: p.t, v: p[metric] }));
+  return historyCache.map(p => ({ t: p.t, v: p[metric] })).filter(p => p.v != null);
+}
+
+function fmtTxPerSec(n) {
+  const v = Number(n) || 0;
+  if (v >= 10) return v.toFixed(1) + '/s';
+  if (v >= 1) return v.toFixed(2) + '/s';
+  if (v > 0) return v.toFixed(3) + '/s';
+  return '0/s';
+}
+
+function fmtCount(n) {
+  const v = Number(n) || 0;
+  return v.toLocaleString();
 }
 
 async function refresh() {
@@ -530,15 +665,25 @@ async function refresh() {
 
   // Full-history / non-validator dashboards have no VALIDATOR_ACCOUNT — bond tiles are n/a.
   const isValidatorNode = !!(node.validator_account);
+  const bondOk = bond.status === 'bonded';
   const bondStatus = isValidatorNode
     ? (bond.status || 'unknown')
     : 'n/a';
   const bondSub = isValidatorNode
-    ? ((bond.bonded_amount_qxrp ?? '—') + ' qXRP')
-    : 'full node (not a bonded validator)';
-  const scoreVal = isValidatorNode ? (bond.composite_score ?? '—') : 'n/a';
+    ? ((bond.bonded_amount_qxrp != null ? bond.bonded_amount_qxrp : '—') + ' FALCON locked')
+    : 'full-history node · not a validator';
+  const bondClass = bondOk ? 'good' : (isValidatorNode ? 'warn' : '');
+  // Bond tile chart: only validators with a score; full nodes get no flat-zero sparkline.
+  const bondMetric = isValidatorNode ? 'composite_score' : '';
+  const scoreVal = isValidatorNode
+    ? (bond.composite_score != null ? bond.composite_score : '—')
+    : 'n/a';
+  const scoreClass = isValidatorNode
+    ? ((bond.composite_score || 0) >= 5000 ? 'good' : 'warn')
+    : '';
+  const scoreMetric = isValidatorNode ? 'composite_score' : '';
   const balVal = isValidatorNode
-    ? ((node.balance_qxrp ?? '—') + ' qXRP')
+    ? ((node.balance_qxrp != null ? Number(node.balance_qxrp).toLocaleString(undefined,{maximumFractionDigits:2}) : '—') + ' FALCON')
     : 'n/a';
 
   const nodeCards = [
@@ -546,19 +691,23 @@ async function refresh() {
     tile('v_ledger', 'Node ledger', '#' + Number(node.ledger_seq||0).toLocaleString(), (node.ledger_hash||'').slice(0,20)+'…', 'node_ledger_seq', 'good'),
     tile('v_lag', 'Sync lag', (node.ledger_lag ?? '—') + ' ledgers', node.complete_ledgers || '', 'ledger_lag', (node.ledger_lag||0) <= 5 ? 'good' : 'warn'),
     tile('v_peers', 'Peers', String(node.peers ?? '—'), 'P2P connections', 'peers', (node.peers||0) >= 3 ? 'good' : 'warn'),
-    tile('v_bond', 'Bond status', bondStatus, bondSub, 'bonded_validators', bond.status === 'bonded' ? 'good' : (isValidatorNode ? 'warn' : '')),
-    tile('v_score', 'Composite score', scoreVal, isValidatorNode ? 'basis points' : 'validators listed below', 'composite_score', (bond.composite_score||0) >= 5000 ? 'good' : ''),
-    tile('v_bal', 'Balance', balVal, isValidatorNode ? 'validator account' : 'see bonded table', 'ledger_rate_per_min'),
+    tile('v_bond', 'Bond status', bondStatus, bondSub, bondMetric, bondClass),
+    tile('v_score', 'Composite score', scoreVal, isValidatorNode ? 'basis points / 10000' : 'see bonded table below', scoreMetric, scoreClass),
+    tile('v_bal', 'Balance', balVal, isValidatorNode ? 'validator account' : 'see bonded table', isValidatorNode ? 'ledger_rate_per_min' : ''),
     tile('v_uptime', 'Uptime', fmtUptime(node.uptime_seconds), 'load ×' + (node.load_factor||1), 'load_factor'),
   ];
   document.getElementById('nodeGrid').innerHTML = nodeCards.join('');
 
+  const txPerSec = net.tx_per_sec;
+  const totalTxs = net.total_txs;
   const netCards = [
     tile('n_ledger', 'Network ledger', '#' + ledger.toLocaleString(), net.complete_ledgers || '', 'ledger_seq', 'good'),
     tile('n_state', 'Network state', net.server_state || '—', net.rpc || '', 'net_peers'),
     tile('n_validators', 'Bonded validators', String(net.bonded_validator_count||0), (net.total_validator_entries||0) + ' on ledger', 'bonded_validators', 'good'),
     tile('n_load', 'Load factor', String(net.load_factor || 1), 'network pressure', 'load_factor'),
     tile('n_rate', 'Ledger rate', '…', 'closes per minute', 'ledger_rate_per_min', 'good'),
+    tile('n_tps', 'Tx rate', fmtTxPerSec(txPerSec), (net.tx_per_min != null ? Number(net.tx_per_min).toFixed(1) + '/min' : 'network-wide') + (net.last_ledger_txs != null ? ' · last ledger ' + net.last_ledger_txs : ''), 'net_tx_per_sec', (Number(txPerSec)||0) > 0 ? 'good' : ''),
+    tile('n_txtotal', 'Total txs', fmtCount(totalTxs), 'observed by this dashboard', 'total_txs', (Number(totalTxs)||0) > 0 ? 'good' : ''),
   ];
   document.getElementById('netGrid').innerHTML = netCards.join('');
 
