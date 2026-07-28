@@ -19,6 +19,12 @@
       "currency": "ETH",
       "issuer": "rNn8xd3hbeTEAcEmRQae8xVaKshAj7HrED",
       "liquidity": "bridge_user_lp"
+    },
+    {
+      "symbol": "FBNB",
+      "currency": "BNB",
+      "issuer": "rf8NZLdcwxrXAnPppttTeenQcAJW75uj7E",
+      "liquidity": "bridge_user_lp"
     }
   ],
   "env": {
