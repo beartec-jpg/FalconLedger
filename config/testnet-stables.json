@@ -25,6 +25,12 @@
       "currency": "BNB",
       "issuer": "rf8NZLdcwxrXAnPppttTeenQcAJW75uj7E",
       "liquidity": "bridge_user_lp"
+    },
+    {
+      "symbol": "FBTC",
+      "currency": "BTC",
+      "issuer": "rnvzCKcBU7G8Kb9JXHwEKTHiK9aTrZAqWT",
+      "liquidity": "bridge_user_lp"
     }
   ],
   "env": {
