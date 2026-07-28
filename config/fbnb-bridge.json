@@ -8,10 +8,9 @@
     "rpc_url": "https://bsc-testnet-rpc.publicnode.com",
     "explorer_url": "https://testnet.bscscan.com",
     "wbnb_token": "0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd",
-    "lock_contract": null,
+    "lock_contract": "0x682D60Bbf8dE13065C71cbF35c1dAdAa23E79938",
     "wbnb_decimals": 18,
-    "deployer": "0x64BA18002B6E72fE443f3F8a146cE529250Db107",
-    "note": "Lock deploys when deployer has >=0.015 tBNB. Waiter: /var/lib/qxrp-bridge/wait-deploy-fbnb.sh"
+    "deployer": "0x64BA18002B6E72fE443f3F8a146cE529250Db107"
   },
   "falcon": {
     "network_id": 1001,
@@ -21,6 +20,7 @@
   },
   "relay": {
     "script": "scripts/bridge-deposit-relay.py",
+    "service": "qxrp-fbnb-relay.service",
     "args": "--currency BNB --decimals 18 --issuer-key FBNB_issuer",
     "state_file": "/var/lib/qxrp-bridge/fbnb_relay_state.json"
   }
