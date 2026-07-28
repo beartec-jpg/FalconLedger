@@ -46,6 +46,8 @@ DEPOSIT_CREATED_TOPIC = (
 
 DROPS_PER_QXRP = 1_000_000
 QUSDC_CURRENCY = "QUC"
+# Default route = F-USDC. Multi-asset: pass --currency / --decimals / --issuer-key
+# e.g. FETH: --currency ETH --decimals 18 --issuer-key FETH_issuer
 
 
 class RpcClient:
@@ -158,7 +160,7 @@ def pad32(hex_str: str) -> str:
     return h.zfill(64)
 
 
-def decode_deposit_log(log: dict) -> dict:
+def decode_deposit_log(log: dict, decimals: int = 6) -> dict:
     topics = log.get("topics", [])
     if len(topics) < 3:
         raise ValueError("invalid DepositCreated log")
@@ -172,11 +174,17 @@ def decode_deposit_log(log: dict) -> dict:
     str_len = int(data[str_off:str_off + 64], 16)
     str_hex = data[str_off + 64:str_off + 64 + str_len * 2]
     falcon_account = bytes.fromhex(str_hex).decode("utf-8")
+    scale = 10 ** decimals
+    amount_human = amount / scale
     return {
         "deposit_id": deposit_id,
         "sender": sender,
         "amount": amount,
-        "amount_usdc": amount / 1_000_000,
+        "amount_raw": amount,
+        "amount_human": amount_human,
+        # backward-compat for F-USDC callers / state files
+        "amount_usdc": amount_human,
+        "decimals": decimals,
         "falcon_account": falcon_account,
         "block_number": int(log.get("blockNumber", "0x0"), 16),
         "tx_hash": log.get("transactionHash"),
@@ -220,16 +228,23 @@ def wait_validated(rpc: RpcClient, tx_hash: str) -> str:
     return "TIMEOUT"
 
 
-def mint_quc(
+def mint_iou(
     rpc: RpcClient,
     issuer: dict,
     destination: str,
-    amount_usdc: float,
+    amount_human: float,
+    currency: str,
+    decimals: int,
     dry_run: bool,
 ) -> tuple[bool, str]:
+    """Mint any IOU (QUC / ETH / BTC / BNB) 1:1 with locked collateral."""
     secret = issuer.get("falcon_secret") or issuer.get("seed")
     issuer_addr = issuer["address"]
-    amount_str = f"{amount_usdc:.6f}".rstrip("0").rstrip(".")
+    # XRPL issued amounts: up to 15 significant digits; format with asset decimals
+    prec = min(max(decimals, 0), 15)
+    amount_str = f"{amount_human:.{prec}f}".rstrip("0").rstrip(".")
+    if not amount_str or amount_str == "-":
+        amount_str = "0"
 
     acct = rpc.public("account_info", {"account": issuer_addr, "ledger_index": "validated"})
     seq = acct["account_data"]["Sequence"]
@@ -240,7 +255,7 @@ def mint_quc(
         "Account": issuer_addr,
         "Destination": destination,
         "Amount": {
-            "currency": QUSDC_CURRENCY,
+            "currency": currency,
             "issuer": issuer_addr,
             "value": amount_str,
         },
@@ -250,7 +265,7 @@ def mint_quc(
     }
 
     if dry_run:
-        log(f"[DRY RUN] mint {amount_str} QUC → {destination}")
+        log(f"[DRY RUN] mint {amount_str} {currency} → {destination}")
         return True, "dry-run"
 
     signed = rpc.admin("sign", sign_params_for_secret(secret, tx))
@@ -270,15 +285,28 @@ def mint_quc(
     return True, tx_hash
 
 
+def mint_quc(
+    rpc: RpcClient,
+    issuer: dict,
+    destination: str,
+    amount_usdc: float,
+    dry_run: bool,
+) -> tuple[bool, str]:
+    """Backward-compat wrapper for F-USDC (QUC, 6 decimals)."""
+    return mint_iou(rpc, issuer, destination, amount_usdc, QUSDC_CURRENCY, 6, dry_run)
+
+
 def _queue_pending(state: dict, dep: dict) -> None:
     """Remember deposits that could not mint yet so we retry on later polls."""
     dep_id = dep["deposit_id"].lower()
     pending = state.setdefault("pending_deposits", {})
     if dep_id not in pending:
+        amt = dep.get("amount_human", dep.get("amount_usdc", 0))
         pending[dep_id] = {
             "deposit_id": dep_id,
             "falcon_account": dep["falcon_account"],
-            "amount_usdc": dep["amount_usdc"],
+            "amount_human": amt,
+            "amount_usdc": amt,  # legacy key
             "sepolia_tx": dep.get("tx_hash"),
             "block_number": dep.get("block_number"),
             "queued_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -291,6 +319,8 @@ def _retry_pending(
     state: dict,
     state_path: Path,
     dry_run: bool,
+    currency: str = QUSDC_CURRENCY,
+    decimals: int = 6,
 ) -> int:
     """Retry mints that were queued waiting for account or trust line."""
     pending: dict = state.get("pending_deposits") or {}
@@ -305,22 +335,22 @@ def _retry_pending(
             resolved.append(dep_id)
             continue
         dest = dep["falcon_account"]
-        amount = float(dep["amount_usdc"])
-        log(f"retry pending {dep_id[:18]}… {amount} USDC → {dest}")
+        amount = float(dep.get("amount_human", dep.get("amount_usdc", 0)))
+        log(f"retry pending {dep_id[:18]}… {amount} {currency} → {dest}")
 
         if not account_exists(falcon, dest):
             warn(f"{dest} still unfunded — keep queued")
             continue
-        if not has_trust_line(falcon, dest, QUSDC_CURRENCY, issuer["address"]):
-            warn(f"{dest} still has no QUC trust line — keep queued")
+        if not has_trust_line(falcon, dest, currency, issuer["address"]):
+            warn(f"{dest} still has no {currency} trust line — keep queued")
             continue
 
-        success, detail = mint_quc(falcon, issuer, dest, amount, dry_run)
+        success, detail = mint_iou(falcon, issuer, dest, amount, currency, decimals, dry_run)
         if not success:
             warn(f"pending mint failed: {detail}")
             continue
 
-        ok(f"minted {amount} QUC → {dest} ({detail[:16]}…)")
+        ok(f"minted {amount} {currency} → {dest} ({detail[:16]}…)")
         minted_ids.add(dep_id)
         state.setdefault("minted_deposits", [])
         if dep_id not in state["minted_deposits"]:
@@ -328,7 +358,9 @@ def _retry_pending(
         state.setdefault("mints", []).append({
             "deposit_id": dep_id,
             "falcon_account": dest,
+            "amount_human": amount,
             "amount_usdc": amount,
+            "currency": currency,
             "sepolia_tx": dep.get("sepolia_tx"),
             "falcon_tx": detail if not dry_run else None,
             "minted_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -356,6 +388,8 @@ def process_deposits(
     from_block: int,
     to_block: int,
     dry_run: bool,
+    currency: str = QUSDC_CURRENCY,
+    decimals: int = 6,
 ) -> int:
     logs = sepolia.get_logs(lock_contract, from_block, to_block)
     processed = 0
@@ -363,7 +397,7 @@ def process_deposits(
 
     for raw in logs:
         try:
-            dep = decode_deposit_log(raw)
+            dep = decode_deposit_log(raw, decimals=decimals)
         except Exception as e:
             warn(f"skip log {raw.get('transactionHash')}: {e}")
             continue
@@ -373,9 +407,9 @@ def process_deposits(
             continue
 
         dest = dep["falcon_account"]
-        amount = dep["amount_usdc"]
+        amount = dep["amount_human"]
         log(
-            f"deposit {dep_id[:18]}… {amount} USDC → {dest} "
+            f"deposit {dep_id[:18]}… {amount} {currency} → {dest} "
             f"(sep tx {dep.get('tx_hash', '')[:14]}…)",
         )
 
@@ -384,17 +418,17 @@ def process_deposits(
             _queue_pending(state, dep)
             continue
 
-        if not has_trust_line(falcon, dest, QUSDC_CURRENCY, issuer["address"]):
-            warn(f"{dest} has no QUC trust line — queued (open Swap tab to add trust line)")
+        if not has_trust_line(falcon, dest, currency, issuer["address"]):
+            warn(f"{dest} has no {currency} trust line — queued (open trust line first)")
             _queue_pending(state, dep)
             continue
 
-        success, detail = mint_quc(falcon, issuer, dest, amount, dry_run)
+        success, detail = mint_iou(falcon, issuer, dest, amount, currency, decimals, dry_run)
         if not success:
             warn(f"mint failed: {detail}")
             continue
 
-        ok(f"minted {amount} QUC → {dest} ({detail[:16]}…)")
+        ok(f"minted {amount} {currency} → {dest} ({detail[:16]}…)")
         minted_ids.add(dep_id)
         (state.get("pending_deposits") or {}).pop(dep_id, None)
         state.setdefault("minted_deposits", [])
@@ -403,7 +437,9 @@ def process_deposits(
         state.setdefault("mints", []).append({
             "deposit_id": dep_id,
             "falcon_account": dest,
+            "amount_human": amount,
             "amount_usdc": amount,
+            "currency": currency,
             "sepolia_tx": dep.get("tx_hash"),
             "falcon_tx": detail if not dry_run else None,
             "minted_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -419,7 +455,9 @@ def process_deposits(
 
 
 def main() -> int:
-    p = argparse.ArgumentParser(description="Sepolia USDC lock → Falcon QUC mint relay")
+    p = argparse.ArgumentParser(
+        description="EVM lock → Falcon IOU mint relay (F-USDC / FETH / multi-asset)",
+    )
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--once", action="store_true", help="single poll then exit")
     p.add_argument("--loop", action="store_true", help="poll continuously")
@@ -445,6 +483,28 @@ def main() -> int:
     p.add_argument("--public-rpc", default=os.environ.get("PUBLIC_RPC_URL", "http://127.0.0.1:6005"))
     p.add_argument("--admin-rpc", default=os.environ.get("ADMIN_RPC_URL", "http://127.0.0.1:5005"))
     p.add_argument("--container", default=os.environ.get("DOCKER_CONTAINER", "qxrp-full"))
+    # Multi-asset route (defaults preserve F-USDC / QUC behaviour)
+    p.add_argument(
+        "--currency",
+        default=os.environ.get("BRIDGE_MINT_CURRENCY", QUSDC_CURRENCY),
+        help="Falcon IOU currency code (QUC, ETH, BTC, BNB)",
+    )
+    p.add_argument(
+        "--decimals",
+        type=int,
+        default=int(os.environ.get("BRIDGE_TOKEN_DECIMALS", "6")),
+        help="Locked ERC-20 decimals (USDC=6, WETH=18)",
+    )
+    p.add_argument(
+        "--issuer-key",
+        default=os.environ.get("BRIDGE_ISSUER_KEY", "qUSDC_issuer"),
+        help="Key in stables_state.json (qUSDC_issuer, FETH_issuer, …)",
+    )
+    p.add_argument(
+        "--lock-contract",
+        default=os.environ.get("SEPOLIA_LOCK_CONTRACT", "").strip(),
+        help="Override lock contract (else bridge manifest sepolia.lock_contract)",
+    )
     args = p.parse_args()
 
     if not args.once and not args.loop and not args.dry_run:
@@ -454,21 +514,26 @@ def main() -> int:
     stables_manifest = load_json(Path(args.stables_manifest))
     stables_state = load_json(Path(args.stables_state))
 
+    currency = (args.currency or QUSDC_CURRENCY).strip().upper()
+    decimals = int(args.decimals)
+    issuer_key = args.issuer_key.strip() or "qUSDC_issuer"
+
     lock = (
-        os.environ.get("SEPOLIA_LOCK_CONTRACT", "").strip()
+        args.lock_contract
+        or os.environ.get("SEPOLIA_LOCK_CONTRACT", "").strip()
         or bridge_cfg.get("sepolia", {}).get("lock_contract", "")
     )
     if not lock.startswith("0x"):
         log("SEPOLIA_LOCK_CONTRACT not set")
         return 1
 
-    issuer = stables_state.get("qUSDC_issuer")
+    issuer = stables_state.get(issuer_key)
     if not issuer or not issuer.get("address"):
-        log("qUSDC_issuer missing from stables state — run issue-testnet-stables.py first")
+        log(f"{issuer_key} missing from stables state — create issuer first")
         return 1
 
     manifest_issuer = next(
-        (t["issuer"] for t in stables_manifest.get("tokens", []) if t.get("currency") == QUSDC_CURRENCY),
+        (t["issuer"] for t in stables_manifest.get("tokens", []) if t.get("currency") == currency),
         None,
     )
     if manifest_issuer and issuer["address"] != manifest_issuer:
@@ -476,12 +541,21 @@ def main() -> int:
 
     state_path = Path(args.relay_state)
     state = load_json(state_path) if state_path.exists() else {}
+    state.setdefault("route", {
+        "currency": currency,
+        "decimals": decimals,
+        "issuer_key": issuer_key,
+        "lock": lock,
+    })
 
     rpc_urls = [args.sepolia_rpc] + [u for u in SEPOLIA_RPC_FALLBACKS if u != args.sepolia_rpc]
     sepolia = SepoliaClient(rpc_urls)
     falcon = RpcClient(args.admin_rpc, args.public_rpc, args.container)
 
-    log(f"relay: lock={lock} issuer={issuer['address']}")
+    log(
+        f"relay: lock={lock} issuer={issuer['address']} "
+        f"mint={currency} decimals={decimals} key={issuer_key}",
+    )
 
     def poll_once() -> int:
         if args.from_block and not state.get("last_block"):
@@ -497,7 +571,10 @@ def main() -> int:
             log(f"first run: scanning from block {fb}")
 
         head = sepolia.block_number()
-        total = _retry_pending(falcon, issuer, state, state_path, args.dry_run)
+        total = _retry_pending(
+            falcon, issuer, state, state_path, args.dry_run,
+            currency=currency, decimals=decimals,
+        )
         if fb > head:
             return total
 
@@ -508,6 +585,7 @@ def main() -> int:
             total += process_deposits(
                 sepolia, falcon, lock, issuer, state, state_path,
                 cursor, tb, args.dry_run,
+                currency=currency, decimals=decimals,
             )
             cursor = tb + 1
         return total
