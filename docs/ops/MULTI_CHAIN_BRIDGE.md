@@ -39,6 +39,18 @@ python3 scripts/bridge-deposit-relay.py --loop --interval 30 \
 python3 scripts/issue-bridge-iou.py --symbol FBTC --currency BTC
 ```
 
+## Verified bridge mints (sample, 2026-07-28)
+
+See wallet doc §4.4 for full tables. Highlights:
+
+| Route | Amount | EVM lock tx | Falcon mint |
+|-------|--------|-------------|-------------|
+| FETH | 0.00005 | `0x840c79f8…6340b` | `D01327A5…7FC4B3` |
+| FETH | 0.1 | `0xb4c54c25…04393` | `468692B3…297B14` |
+| FBNB | 0.15 | `0xcf7fe6e6…8d014` (BSC testnet) | `10E550D8…55EB195` |
+
+State files: `/var/lib/qxrp-bridge/feth_relay_state.json`, `fbnb_relay_state.json`, `relay_state.json`.
+
 ## FBTC: need a new script?
 
 | Path | Deploy lock? | New relay script? |
