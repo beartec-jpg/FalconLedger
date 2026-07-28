@@ -96,7 +96,10 @@ def save_json(path: Path, data: dict) -> None:
 
 
 def sign_params(secret: str, tx_json: dict) -> dict:
-    if secret.startswith(("s", "S", "n", "N")) and len(secret) < 128:
+    """Classical genesis/masterpassphrase seed vs Falcon falcon_secret hex."""
+    if secret == GENESIS_SECRET or (
+        secret.startswith(("s", "S", "n", "N")) and len(secret) < 128
+    ):
         return {"secret": secret, "tx_json": tx_json}
     return {"falcon_secret": secret, "tx_json": tx_json}
 

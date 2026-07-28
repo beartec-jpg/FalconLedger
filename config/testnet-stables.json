@@ -1,27 +1,28 @@
 {
   "network_id": 1001,
   "rpc_url": "http://46.224.0.140:6005",
-  "issued_at": "2026-07-02T20:31:41Z",
+  "issued_at": "2026-07-18T13:38:39Z",
   "genesis": "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh",
-  "liquidity_provider": "rQBwFcbG1qo89zuBG6PNBWL9vvdRe6YQ9w",
+  "bridge_only": true,
+  "bootstrap_liquidity": false,
+  "note": "F-USDC (QUC) minted ONLY by Sepolia bridge relay. Zero bootstrap mint. Users add AMM/DEX liquidity from bridged F-USDC.",
+  "liquidity_provider": "rfSB7uTdtZsXEEupKSLuCwoH96SsMdXgCa",
   "tokens": [
     {
-      "symbol": "qUSDC",
+      "symbol": "F-USDC",
       "currency": "QUC",
-      "issuer": "rfftKWuA7Dk7PF1YrH8NA7262oY3tejhqt",
-      "liquidity": "dex"
+      "issuer": "rPh77fAAmvbVuMQQP9H9JKtyTFuhRjp3Fk",
+      "liquidity": "bridge_user_lp"
     },
     {
-      "symbol": "qUSDT",
-      "currency": "QUT",
-      "issuer": "rDtCqvzVU1xg9ViF7tAFjjXshabjR82S6T",
-      "liquidity": "dex"
+      "symbol": "FETH",
+      "currency": "ETH",
+      "issuer": "rNn8xd3hbeTEAcEmRQae8xVaKshAj7HrED",
+      "liquidity": "bridge_user_lp"
     }
   ],
   "env": {
-    "NEXT_PUBLIC_TESTNET_QUSDC_CURRENCY": "QUC",
-    "NEXT_PUBLIC_TESTNET_QUSDC_ISSUER": "rfftKWuA7Dk7PF1YrH8NA7262oY3tejhqt",
-    "NEXT_PUBLIC_TESTNET_QUSDT_CURRENCY": "QUT",
-    "NEXT_PUBLIC_TESTNET_QUSDT_ISSUER": "rDtCqvzVU1xg9ViF7tAFjjXshabjR82S6T"
+    "NEXT_PUBLIC_TESTNET_USDC_CURRENCY": "QUC",
+    "NEXT_PUBLIC_TESTNET_USDC_ISSUER": "rPh77fAAmvbVuMQQP9H9JKtyTFuhRjp3Fk"
   }
 }

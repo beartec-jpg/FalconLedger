@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "status": "testnet",
+  "description": "Sepolia WETH \u2192 Falcon FETH (ETH). Mint only via FETH deposit relay. No free bootstrap.",
+  "sepolia": {
+    "chain_id": 11155111,
+    "chain_name": "Sepolia",
+    "rpc_url": "https://ethereum-sepolia-rpc.publicnode.com",
+    "explorer_url": "https://sepolia.etherscan.io",
+    "weth_token": "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14",
+    "lock_contract": "0x11808B5Cda14d4144dbD2279f92f447e0f8F8F1d",
+    "weth_decimals": 18
+  },
+  "falcon": {
+    "network_id": 1001,
+    "rpc_url": "http://46.224.0.140:6005",
+    "token_symbol": "FETH",
+    "token_currency": "ETH",
+    "token_issuer": "rNn8xd3hbeTEAcEmRQae8xVaKshAj7HrED"
+  },
+  "relay": {
+    "script": "scripts/bridge-deposit-relay.py",
+    "state_file": "/var/lib/qxrp-bridge/feth_relay_state.json",
+    "currency": "ETH",
+    "decimals": 18,
+    "issuer_key": "FETH_issuer",
+    "poll_interval_seconds": 30
+  }
+}
