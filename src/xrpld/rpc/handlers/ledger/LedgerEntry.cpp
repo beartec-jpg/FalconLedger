@@ -934,6 +934,88 @@ parseGovernanceProposal(
     return keylet::governanceProposal(*id, *seq).key;
 }
 
+// --- Bitcoin SPV light client ledger entries (featureBitcoinSPVBridge) ---
+
+// Singleton bridge state SLE
+auto const parseBtcBridgeState = fixed(keylet::btcBridgeState());
+
+static Expected<uint256, json::Value>
+parseBtcHeader(
+    json::Value const& params,
+    json::StaticString const fieldName,
+    [[maybe_unused]] unsigned const apiVersion)
+{
+    // Accept index hex, or object { "hash": "<blockhash>" }
+    if (!params.isObject())
+        return parseObjectID(params, fieldName);
+
+    auto const hash = LedgerEntryHelpers::requiredUInt256(params, jss::hash, "malformedHash");
+    if (!hash)
+        return Unexpected(hash.error());
+    return keylet::btcHeader(*hash).key;
+}
+
+static Expected<uint256, json::Value>
+parseBtcDeposit(
+    json::Value const& params,
+    json::StaticString const fieldName,
+    [[maybe_unused]] unsigned const apiVersion)
+{
+    // Accept index hex, or object { "hash": "<txid>", "vout": N }  (hash = BTC txid)
+    if (!params.isObject())
+        return parseObjectID(params, fieldName);
+
+    auto const txid = LedgerEntryHelpers::requiredUInt256(params, jss::hash, "malformedHash");
+    if (!txid)
+        return Unexpected(txid.error());
+    auto const vout = LedgerEntryHelpers::requiredUInt32(params, jss::vout, "malformedRequest");
+    if (!vout)
+        return Unexpected(vout.error());
+    return keylet::btcDeposit(*txid, *vout).key;
+}
+
+static Expected<uint256, json::Value>
+parseBtcHeight(
+    json::Value const& params,
+    json::StaticString const fieldName,
+    [[maybe_unused]] unsigned const apiVersion)
+{
+    // Accept index hex, or object { "height": N } / bare number via requiredUInt32 on field
+    if (!params.isObject())
+    {
+        // bare height number
+        if (params.isUInt() || params.isInt())
+            return keylet::btcHeight(static_cast<std::uint32_t>(params.asUInt())).key;
+        return parseObjectID(params, fieldName);
+    }
+
+    auto const height =
+        LedgerEntryHelpers::requiredUInt32(params, jss::height, "malformedRequest");
+    if (!height)
+        return Unexpected(height.error());
+    return keylet::btcHeight(*height).key;
+}
+
+static Expected<uint256, json::Value>
+parseBtcWithdrawal(
+    json::Value const& params,
+    json::StaticString const fieldName,
+    [[maybe_unused]] unsigned const apiVersion)
+{
+    // Accept index hex, or object { "account": "...", "seq": N }
+    if (!params.isObject())
+        return parseObjectID(params, fieldName);
+
+    auto const account =
+        LedgerEntryHelpers::requiredAccountID(params, jss::account, "malformedAddress");
+    if (!account)
+        return Unexpected(account.error());
+    auto const seq = LedgerEntryHelpers::requiredUInt32(params, jss::seq, "malformedSeq");
+    if (!seq)
+        return Unexpected(seq.error());
+    return keylet::btcWithdraw(*account, *seq).key;
+}
+
 struct LedgerEntry
 {
     json::StaticString fieldName;

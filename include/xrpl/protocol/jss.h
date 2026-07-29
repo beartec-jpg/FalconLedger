@@ -277,6 +277,7 @@ JSS(fullbelow_size);              // out: GetCounts
 JSS(git);                         // out: server_info
 JSS(good);                        // out: RPCVersion
 JSS(hash);                        // out: NetworkOPs, InboundLedger, LedgerToJson, STTx; field
+JSS(height);                      // in: LedgerEntry (btc_height)
 JSS(have_header);                 // out: InboundLedger
 JSS(have_state);                  // out: InboundLedger
 JSS(have_transactions);           // out: InboundLedger
@@ -668,6 +669,7 @@ JSS(validator_list_threshold);    // out: ValidatorList
 JSS(validator_sites);             // out: ValidatorSites
 JSS(value);                       // out: STAmount
 JSS(vault_id);                    // in: VaultInfo
+JSS(vout);                        // in: LedgerEntry (btc_deposit)
 JSS(version);                     // out: RPCVersion
 JSS(vetoed);                      // out: AmendmentTableImpl
 JSS(volume_a);                    // out: BookChanges

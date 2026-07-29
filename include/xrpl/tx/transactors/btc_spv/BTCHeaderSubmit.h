@@ -3,11 +3,14 @@
 #pragma once
 
 #include <xrpl/tx/Transactor.h>
+#include <xrpl/tx/invariants/BitcoinSPVInvariant.h>
 
 namespace xrpl {
 
 class BTCHeaderSubmit : public Transactor
 {
+    ValidBitcoinSPV inv_;
+
 public:
     static constexpr auto kCONSEQUENCES_FACTORY = ConsequencesFactoryType::Normal;
 
@@ -26,6 +29,20 @@ public:
 
     TER
     doApply() override;
+
+    void
+    visitInvariantEntry(
+        bool isDelete,
+        std::shared_ptr<SLE const> const& before,
+        std::shared_ptr<SLE const> const& after) override;
+
+    [[nodiscard]] bool
+    finalizeInvariants(
+        STTx const& tx,
+        TER result,
+        XRPAmount fee,
+        ReadView const& view,
+        beast::Journal const& j) override;
 };
 
 }  // namespace xrpl

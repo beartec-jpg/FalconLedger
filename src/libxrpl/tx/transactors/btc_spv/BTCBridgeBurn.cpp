@@ -4,6 +4,7 @@
 #include <xrpl/tx/transactors/btc_spv/BTCBridgeBurn.h>
 
 #include <xrpl/basics/Slice.h>
+#include <xrpl/ledger/View.h>
 #include <xrpl/ledger/helpers/DirectoryHelpers.h>
 #include <xrpl/ledger/helpers/TokenHelpers.h>
 #include <xrpl/protocol/BitcoinSPVConstants.h>
@@ -69,7 +70,7 @@ BTCBridgeBurn::preclaim(PreclaimContext const& ctx)
         return tecINSUFFICIENT_FUNDS;
 
     auto const account = ctx.tx[sfAccount];
-    auto const issuanceID = state->at(sfMPTokenIssuanceID);
+    uint192 const issuanceID = state->at(sfMPTokenIssuanceID);
     auto const mpt = ctx.view.read(keylet::mptoken(issuanceID, account));
     if (!mpt)
         return tecNO_ENTRY;
@@ -95,8 +96,8 @@ BTCBridgeBurn::doApply()
     auto const preimage = ctx_.tx.getFieldVL(sfBtcBurnPreimage);
     auto const commit = sha256Commit(makeSlice(preimage));
 
-    auto const issuanceID = state->at(sfMPTokenIssuanceID);
-    auto const issuer = state->at(sfAccount);
+    uint192 const issuanceID = state->at(sfMPTokenIssuanceID);
+    AccountID const issuer = state->at(sfAccount);
     auto const account = account_;
     auto const seq = ctx_.tx.getSeqValue();
 
@@ -123,7 +124,7 @@ BTCBridgeBurn::doApply()
     w->setFieldU32(sfBtcWithdrawStatus, kBTC_WITHDRAW_PENDING);
     w->setFieldU32(sfBtcChallengeEndLedger, view().seq() + kBTC_CHALLENGE_LEDGERS_DEFAULT);
     w->setFieldU32(sfBtcWithdrawSeq, seq);
-    w->at(sfMPTokenIssuanceID) = issuanceID;
+    w->at(sfMPTokenIssuanceID) = issuanceID;  // uint192 value, not ValueProxy
     w->setFieldH256(sfPreviousTxnID, ctx_.tx.getTransactionID());
     w->setFieldU32(sfPreviousTxnLgrSeq, view().seq());
 
@@ -132,6 +133,26 @@ BTCBridgeBurn::doApply()
 
     view().insert(w);
     return tesSUCCESS;
+}
+
+void
+BTCBridgeBurn::visitInvariantEntry(
+    bool isDelete,
+    std::shared_ptr<SLE const> const& before,
+    std::shared_ptr<SLE const> const& after)
+{
+    inv_.visitEntry(isDelete, before, after);
+}
+
+bool
+BTCBridgeBurn::finalizeInvariants(
+    STTx const& tx,
+    TER result,
+    XRPAmount fee,
+    ReadView const& view,
+    beast::Journal const& j)
+{
+    return inv_.finalize(tx, result, fee, view, j);
 }
 
 }  // namespace xrpl

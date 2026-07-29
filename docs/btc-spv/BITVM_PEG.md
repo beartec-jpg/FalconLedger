@@ -1,62 +1,46 @@
 # BitVM-class peg (e2e testable prototype)
 
-## Light client vs BitVM (again)
+## Light client vs BitVM
 
-| Piece | Role |
-|-------|------|
-| **SPV light client** | Prove BTC deposit on Falcon → mint FBTC |
-| **BitVM-class peg-out** | Burn FBTC on Falcon → release BTC from vault **without custodian keys** |
+| Piece | Role | E2E status (1101 + regtest) |
+|-------|------|------------------------------|
+| **SPV light client** | Prove BTC deposit on Falcon → mint FBTC | **PASS** |
+| **BitVM-class peg-out** | Burn FBTC → release BTC from vault without custodian keys | **PASS** (`e2e_full_peg.py`) |
 
-Both are required for full e2e bridge tests.
+Full BitVM (on-Bitcoin dispute programs / SNARK fraud proofs) is the evolution path; this prototype is the integration surface.
 
-## What this prototype implements
+## Prototype shape
 
-Not production BitVM SNARK trees. It implements a **BitVM-class** testable shape:
+1. **Challenge window on Falcon** after burn (`kBTC_CHALLENGE_LEDGERS_DEFAULT` = 32).  
+2. **Bitcoin vault script** (P2WSH): CSV relative locktime + SHA256(preimage) hashlock + user CHECKSIG.  
+3. **No company/validator multisig** on the happy-path vault claim after finalize.
 
-1. **Challenge window on Falcon** after burn (anyone could later post fraud evidence; prototype: time-based).
-2. **Bitcoin vault script** with:
-   - CSV timeout (relative locktime)
-   - Hashlock on `sfBtcBurnCommit = SHA256(preimage)`  
-   - After timeout + preimage, user claims BTC to payout script
-3. **No company/validator multisig custody** of the vault keys for the happy path after finalize.
-
-Full BitVM (dispute program / fraud proofs on Bitcoin) is the evolution path; the vault script and Falcon withdraw objects are the integration surface.
-
-## E2E flow
+## E2E flow (proven)
 
 ```
-BTC → vault UTXO (regtest)
+BTC → vault UTXO (regtest) + OP_RETURN FALC‖AccountID
   → SPV BTCDepositClaim → mint FBTC
-  → BTCBridgeBurn (burn FBTC, open withdraw PENDING)
-  → wait kBTC_CHALLENGE_LEDGERS_DEFAULT Falcon ledgers
+  → BTCBridgeBurn (same preimage as vault commit)
+  → wait challenge ledgers
   → BTCWithdrawFinalize → FINAL
   → wait CSV blocks on Bitcoin
-  → reveal preimage + spend vault → user receives BTC
+  → claim vault with preimage + user sig → user BTC
 ```
 
 ## Falcon txs
 
 | Code | Name | Purpose |
 |------|------|---------|
-| 111 | `BTCBridgeBurn` | Burn FBTC; create `ltBTC_WITHDRAWAL` |
-| 112 | `BTCWithdrawFinalize` | After challenge end ledger → status FINAL |
+| 111 | `BTCBridgeBurn` | Burn FBTC; create `ltBTC_WITHDRAWAL` PENDING |
+| 112 | `BTCWithdrawFinalize` | After challenge end ledger → FINAL |
 
 ## Tools
 
 ```
-scripts/btc-spv/bitvm/
-  vault.py          # vault script, fund, claim
-  e2e_regtest.py    # end-to-end harness (bitcoind regtest)
-  README.md
+scripts/btc-spv/bitvm/          # vault script, fund helpers
+scripts/btc-spv/e2e_full_peg.py # full two-way peg
 ```
 
-## Run e2e (server)
-
 ```bash
-# terminal A: bitcoind -regtest
-# terminal B: Falcon isolated node network_id 1101 (optional for full stack)
-
-cd scripts/btc-spv/bitvm
-python3 e2e_regtest.py --bitcoin-only   # vault + CSV claim only
-python3 e2e_regtest.py --full           # needs Falcon RPC too
+scripts/btc-spv/.venv/bin/python scripts/btc-spv/e2e_full_peg.py
 ```

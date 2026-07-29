@@ -154,14 +154,14 @@ BTCDepositClaim::doApply()
     if (view().exists(depKey))
         return tecDUPLICATE;
 
-    auto const issuanceID = state->at(sfMPTokenIssuanceID);
-    auto const issuer = state->at(sfAccount);
+    uint192 const issuanceID = state->at(sfMPTokenIssuanceID);
+    AccountID const issuer = state->at(sfAccount);
 
     // Ensure holder MPToken (VaultDeposit pattern)
     if (!view().exists(keylet::mptoken(issuanceID, dest)))
     {
         if (auto const err =
-                authorizeMPToken(view(), priorBalance_, issuanceID, dest, ctx_.journal);
+                authorizeMPToken(view(), preFeeBalance_, issuanceID, dest, ctx_.journal);
             !isTesSuccess(err))
             return err;
     }
@@ -193,6 +193,26 @@ BTCDepositClaim::doApply()
     view().update(state);
 
     return tesSUCCESS;
+}
+
+void
+BTCDepositClaim::visitInvariantEntry(
+    bool isDelete,
+    std::shared_ptr<SLE const> const& before,
+    std::shared_ptr<SLE const> const& after)
+{
+    inv_.visitEntry(isDelete, before, after);
+}
+
+bool
+BTCDepositClaim::finalizeInvariants(
+    STTx const& tx,
+    TER result,
+    XRPAmount fee,
+    ReadView const& view,
+    beast::Journal const& j)
+{
+    return inv_.finalize(tx, result, fee, view, j);
 }
 
 }  // namespace xrpl

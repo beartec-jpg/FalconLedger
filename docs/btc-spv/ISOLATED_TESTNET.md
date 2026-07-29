@@ -1,50 +1,55 @@
 # Bitcoin SPV Isolated Testnet (network_id 1101)
 
-Prototype / research network for the **Bitcoin SPV payment-attestation mint**.  
-Does **not** touch live testnet 1001 or custodial ETH relays.
+Prototype / research network for the **Bitcoin SPV payment-attestation mint** and BitVM-class peg-out.  
+Does **not** touch live testnet **1001** or mainnet.
 
 ## Hard rules
 
-- Branch: `feature/btc-spv-light-client`
-- Enable feature only via **`[features]`** (not `[amendments]`):
+- Branch: `feature/btc-spv-light-client` (or merged equivalent)
+- Enable feature only via **`[features]`** (not `[amendments]`) on this isolated cfg:
   ```
   [features]
   BitcoinSPVBridge
   MPTokensV1
+  ProofOfParticipation
   ```
-- `network_id = 1101` (all user txs need `NetworkID: 1101`)
-- No pause guardians; covenant/BitVM redeem is later; MVP is mint-only attestation
-- Never enable this feature in `cfg/falcon-validator.cfg` used by 1001
+- `network_id = 1101` (user txs need `NetworkID: 1101`)
+- Sample cfg: `cfg/btc-spv-isolated.cfg`
+- Never copy `[features] BitcoinSPVBridge` into 1001 validator configs
 
 ## Build
 
 ```bash
-cd FalconLedger
-cmake --build build -j$(nproc) --target xrpld
+cd qXRP
+cmake --build .build -j1 --target xrpld
 ```
 
-## Activate + smoke (after nodes up)
+## Stack
 
-1. Run bitcoind regtest; generate blocks.
-2. `BTCBridgeActivate` with regtest chain id `3`, anchor header, watch script hash, mint cap.
-3. `BTCHeaderSubmit` with batches of 80-byte headers (fee auto-scales with count).
-4. Pay BTC to watch script + OP_RETURN `FALC || AccountID20`.
-5. `BTCDepositClaim` with raw tx + merkle proof (claimer == destination).
+```bash
+./scripts/btc-spv/start-bitcoin-regtest.sh   # Docker bitcoind regtest
+./scripts/btc-spv/start-isolated-falcon.sh   # standalone xrpld :5115
+```
 
-## Product label
+## E2E
 
-FBTC is **SPV payment attestation** until BitVM peg-out is used.  
-BitVM-class burn/finalize + vault tools: `docs/btc-spv/BITVM_PEG.md`, `scripts/btc-spv/bitvm/`.
+```bash
+export PATH="$PWD/data/btc-spv-1101/bin:$PATH"
+# Full two-way peg (clean NuDB recommended)
+scripts/btc-spv/.venv/bin/python scripts/btc-spv/e2e_full_peg.py
+# Broader suite
+python3 scripts/btc-spv/run-all-spv-tests.py
+```
 
-## Full e2e (SPV + BitVM)
+Flow:
 
 ```
-activate → headers → deposit claim (mint)
+activate → headers → deposit claim (mint FBTC)
   → BTCBridgeBurn → wait challenge ledgers → BTCWithdrawFinalize
   → Bitcoin vault claim (CSV + preimage)
 ```
 
-```bash
-python3 scripts/btc-spv/bitvm/e2e_regtest.py --bitcoin-only
-python3 scripts/btc-spv/bitvm/e2e_regtest.py --full --falcon-url http://127.0.0.1:5115
-```
+## Product label
+
+FBTC here is **SPV payment attestation** + BitVM-class redeem prototype.  
+Public testnet enablement: [TESTNET_AMENDMENT_ROLLOUT.md](./TESTNET_AMENDMENT_ROLLOUT.md).

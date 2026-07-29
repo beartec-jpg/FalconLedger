@@ -107,3 +107,4 @@ cfg/*
 
 # Bridge deploy script deps (npm install in scripts/)
 scripts/node_modules/
+scripts/btc-spv/.venv/

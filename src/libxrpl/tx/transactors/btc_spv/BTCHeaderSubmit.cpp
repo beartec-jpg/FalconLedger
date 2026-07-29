@@ -80,9 +80,14 @@ BTCHeaderSubmit::doApply()
 
     auto const blob = ctx_.tx.getFieldVL(sfBtcHeaders);
     auto const n = blob.size() / kBTC_HEADER_SIZE;
-    auto const closeTime = static_cast<std::uint32_t>(std::chrono::duration_cast<std::chrono::seconds>(
+    // Falcon NetClock is seconds since 2000-01-01; Bitcoin nTime is Unix (1970).
+    // Convert ledger close to Unix for apples-to-apples comparison with BTC headers.
+    constexpr std::uint32_t kRIPPLE_EPOCH_OFFSET = 946'684'800u;
+    auto const closeRipple = static_cast<std::uint32_t>(std::chrono::duration_cast<std::chrono::seconds>(
                                                                view().header().closeTime.time_since_epoch())
                                                            .count());
+    // Saturating add — ledger close is never near overflow in practice
+    auto const closeUnix = closeRipple + kRIPPLE_EPOCH_OFFSET;
 
     for (std::size_t i = 0; i < n; ++i)
     {
@@ -107,8 +112,8 @@ BTCHeaderSubmit::doApply()
         if (!btcHashMeetsTarget(parsed->blockHash, parsed->bits))
             return temMALFORMED;
 
-        // Soft timestamp: not more than 2h ahead of Falcon close (seconds)
-        if (parsed->timestamp > static_cast<std::uint32_t>(closeTime) + kBTC_MAX_TIMESTAMP_AHEAD_SEC)
+        // Soft timestamp: not more than 2h ahead of Falcon close (Unix seconds)
+        if (parsed->timestamp > closeUnix + kBTC_MAX_TIMESTAMP_AHEAD_SEC)
             return temMALFORMED;
 
         auto const parentWork = parent->getFieldH256(sfBtcChainWork);
@@ -167,6 +172,26 @@ BTCHeaderSubmit::doApply()
     view().update(state);
 
     return tesSUCCESS;
+}
+
+void
+BTCHeaderSubmit::visitInvariantEntry(
+    bool isDelete,
+    std::shared_ptr<SLE const> const& before,
+    std::shared_ptr<SLE const> const& after)
+{
+    inv_.visitEntry(isDelete, before, after);
+}
+
+bool
+BTCHeaderSubmit::finalizeInvariants(
+    STTx const& tx,
+    TER result,
+    XRPAmount fee,
+    ReadView const& view,
+    beast::Journal const& j)
+{
+    return inv_.finalize(tx, result, fee, view, j);
 }
 
 }  // namespace xrpl

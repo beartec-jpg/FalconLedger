@@ -114,10 +114,11 @@ BTCBridgeActivate::doApply()
     if (!maybePseudo)
         return maybePseudo.error();
     auto& pseudo = *maybePseudo;
+    // ValueProxy<STAccount> — same pattern as VaultCreate / LoanBrokerSet
     auto const pseudoId = pseudo->at(sfAccount);
-    if (!pseudoId)
-        return tefINTERNAL;
     AccountID const issuerAccount = *pseudoId;
+    if (!issuerAccount || issuerAccount == noAccount())
+        return tefINTERNAL;
 
     Blob meta;
     if (tx.isFieldPresent(sfMPTokenMetadata))
@@ -188,6 +189,26 @@ BTCBridgeActivate::doApply()
     view().insert(hi);
 
     return tesSUCCESS;
+}
+
+void
+BTCBridgeActivate::visitInvariantEntry(
+    bool isDelete,
+    std::shared_ptr<SLE const> const& before,
+    std::shared_ptr<SLE const> const& after)
+{
+    inv_.visitEntry(isDelete, before, after);
+}
+
+bool
+BTCBridgeActivate::finalizeInvariants(
+    STTx const& tx,
+    TER result,
+    XRPAmount fee,
+    ReadView const& view,
+    beast::Journal const& j)
+{
+    return inv_.finalize(tx, result, fee, view, j);
 }
 
 }  // namespace xrpl

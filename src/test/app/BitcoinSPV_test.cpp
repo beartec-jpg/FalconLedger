@@ -106,8 +106,8 @@ class BitcoinSPV_test : public beast::unit_test::Suite
         env.fund(XRP(10000), alice);
         env.close();
 
-        // Submit unknown-looking JSON — type must map to our enums
-        Json::Value jv;
+        // Submit txs — must be temDISABLED with feature off
+        json::Value jv = json::ValueType::Object;
         jv[jss::Account] = alice.human();
         jv[jss::TransactionType] = "BTCBridgeActivate";
         jv["BtcChainId"] = 3;
@@ -118,15 +118,15 @@ class BitcoinSPV_test : public beast::unit_test::Suite
         jv["BtcWatchScriptHash"] = to_string(uint256{});
         jv["BtcMintCap"] = 1000;
         jv["BtcHeaderBytes"] = strHex(Blob(80, 0));
-        env(jv, ter(temDISABLED));
+        env(jv, Ter(temDISABLED));
 
-        Json::Value jh;
+        json::Value jh = json::ValueType::Object;
         jh[jss::Account] = alice.human();
         jh[jss::TransactionType] = "BTCHeaderSubmit";
         jh["BtcHeaders"] = strHex(Blob(80, 0));
-        env(jh, ter(temDISABLED));
+        env(jh, Ter(temDISABLED));
 
-        Json::Value jc;
+        json::Value jc = json::ValueType::Object;
         jc[jss::Account] = alice.human();
         jc[jss::TransactionType] = "BTCDepositClaim";
         jc[jss::Destination] = alice.human();
@@ -135,21 +135,21 @@ class BitcoinSPV_test : public beast::unit_test::Suite
         jc["BtcTxIndex"] = 0;
         jc["BtcBlockHash"] = to_string(uint256{});
         jc["BtcVout"] = 0;
-        env(jc, ter(temDISABLED));
+        env(jc, Ter(temDISABLED));
 
-        Json::Value jb;
+        json::Value jb = json::ValueType::Object;
         jb[jss::Account] = alice.human();
         jb[jss::TransactionType] = "BTCBridgeBurn";
         jb["BtcWithdrawAmount"] = 1;
         jb["BtcPayoutScript"] = "00";
         jb["BtcBurnPreimage"] = strHex(Blob(32, 0xab));
-        env(jb, ter(temDISABLED));
+        env(jb, Ter(temDISABLED));
 
-        Json::Value jf;
+        json::Value jf = json::ValueType::Object;
         jf[jss::Account] = alice.human();
         jf[jss::TransactionType] = "BTCWithdrawFinalize";
         jf["BtcWithdrawSeq"] = 1;
-        env(jf, ter(temDISABLED));
+        env(jf, Ter(temDISABLED));
     }
 
     void
@@ -190,22 +190,25 @@ class BitcoinSPV_test : public beast::unit_test::Suite
 
         uint256 work = btcWorkFromBits(parsed.bits);
 
-        Json::Value jv;
+        json::Value jv = json::ValueType::Object;
         jv[jss::Account] = alice.human();
         jv[jss::TransactionType] = "BTCBridgeActivate";
-        jv["BtcChainId"] = static_cast<Json::UInt>(kBTC_CHAIN_REGTEST);
+        jv["BtcChainId"] = json::UInt{kBTC_CHAIN_REGTEST};
         jv["BtcAnchorHash"] = to_string(parsed.blockHash);
         jv["BtcAnchorHeight"] = 0;
         jv["BtcAnchorWork"] = to_string(work);
         jv["BtcMinConfirmations"] = 1;
         jv["BtcWatchScriptHash"] = to_string(uint256{});
-        jv["BtcMintCap"] = static_cast<Json::UInt64>(kBTC_ISOLATED_RECOMMENDED_MINT_CAP);
+        // Cap fits in 32-bit for test; field is U64 on ledger
+        jv["BtcMintCap"] = json::UInt{
+            static_cast<json::UInt>(std::min<std::uint64_t>(
+                kBTC_ISOLATED_RECOMMENDED_MINT_CAP, json::Value::kMAX_UINT))};
         jv["BtcHeaderBytes"] = strHex(hdr);
         env(jv);
         env.close();
 
         // Second activate → tecDUPLICATE
-        env(jv, ter(tecDUPLICATE));
+        env(jv, Ter(tecDUPLICATE));
 
         // Child header linking to anchor
         std::array<std::uint8_t, 32> prev2{};
@@ -234,12 +237,12 @@ class BitcoinSPV_test : public beast::unit_test::Suite
         if (!found)
             return;
 
-        Json::Value jh;
+        json::Value jh = json::ValueType::Object;
         jh[jss::Account] = alice.human();
         jh[jss::TransactionType] = "BTCHeaderSubmit";
         jh["BtcHeaders"] = strHex(hdr2);
         // fee auto-scales; pay enough
-        env(jh, fee(XRP(1)));
+        env(jh, Fee(XRP(1)));
         env.close();
     }
 

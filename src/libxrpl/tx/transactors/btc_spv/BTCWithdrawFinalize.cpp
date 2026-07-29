@@ -62,4 +62,24 @@ BTCWithdrawFinalize::doApply()
     return tesSUCCESS;
 }
 
+void
+BTCWithdrawFinalize::visitInvariantEntry(
+    bool isDelete,
+    std::shared_ptr<SLE const> const& before,
+    std::shared_ptr<SLE const> const& after)
+{
+    inv_.visitEntry(isDelete, before, after);
+}
+
+bool
+BTCWithdrawFinalize::finalizeInvariants(
+    STTx const& tx,
+    TER result,
+    XRPAmount fee,
+    ReadView const& view,
+    beast::Journal const& j)
+{
+    return inv_.finalize(tx, result, fee, view, j);
+}
+
 }  // namespace xrpl

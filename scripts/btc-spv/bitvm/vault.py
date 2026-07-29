@@ -37,13 +37,36 @@ def bitcoin_cli(*args: str, wallet: Optional[str] = None) -> str:
 
 
 def ensure_wallet(name: str = "bitvm") -> None:
+    """Load or create a named wallet. Idempotent if already loaded."""
+    try:
+        wlist = json.loads(bitcoin_cli("listwallets") or "[]")
+        if name in wlist:
+            return
+    except RuntimeError:
+        pass
     try:
         bitcoin_cli("loadwallet", name)
-    except RuntimeError:
-        try:
-            bitcoin_cli("createwallet", name)
-        except RuntimeError:
-            bitcoin_cli("loadwallet", name)
+        return
+    except RuntimeError as e:
+        err = str(e)
+        # -35 already loaded / already exists in memory
+        if "already loaded" in err.lower():
+            return
+    try:
+        bitcoin_cli("createwallet", name)
+        return
+    except RuntimeError as e:
+        err = str(e)
+        if "already exists" in err.lower() or "Database already exists" in err:
+            # On disk but not loaded (or race) — load again
+            try:
+                bitcoin_cli("loadwallet", name)
+                return
+            except RuntimeError as e2:
+                if "already loaded" in str(e2).lower():
+                    return
+                raise
+        raise
 
 
 @dataclass
@@ -87,13 +110,18 @@ def build_vault_script(p: VaultParams) -> bytes:
     script.append(0x51)
     # OP_ELSE
     script.append(0x67)
-    # CSV push
-    if p.csv_blocks < 0x100:
+    # CSV relative locktime (MINIMALDATA: 1..16 must be OP_1..OP_16, not PUSHDATA)
+    n = p.csv_blocks
+    if 1 <= n <= 16:
+        script.append(0x50 + n)  # OP_1 .. OP_16
+    elif n == 0:
+        script.append(0x00)  # OP_0
+    elif n < 0x100:
         script.append(0x01)
-        script.append(p.csv_blocks & 0xFF)
+        script.append(n & 0xFF)
     else:
         script.append(0x02)
-        script.extend(struct.pack("<H", p.csv_blocks))
+        script.extend(struct.pack("<H", n))
     # OP_CHECKSEQUENCEVERIFY (0xb2)
     script.append(0xB2)
     # OP_DROP
@@ -115,22 +143,26 @@ def build_vault_script(p: VaultParams) -> bytes:
 
 
 def script_to_p2wsh_address(script: bytes) -> str:
-    """Use bitcoin-cli decodescript / getdescriptorinfo if available; else raw hex helper."""
-    # Prefer bitcoin-cli: create witness v0 scripthash address via descriptor
-    # wsh(raw(SCRIPT))
+    """Derive regtest P2WSH address from redeem script (Bitcoin Core 24+ / 28)."""
+    # Core 28 rejects wsh(raw(...)) nested; decodescript exposes segwit address.
+    try:
+        info = json.loads(bitcoin_cli("decodescript", script.hex()))
+        seg = info.get("segwit") or {}
+        addr = seg.get("address")
+        if addr:
+            return addr
+    except RuntimeError:
+        pass
+    # Fallback: descriptor path on older cores that still accept wsh(raw())
     desc = f"wsh(raw({script.hex()}))"
     try:
         info = json.loads(bitcoin_cli("getdescriptorinfo", desc))
         desc_c = info["descriptor"]
-        # derive address
-        # bitcoin core 24+: deriveaddresses
         addrs = json.loads(bitcoin_cli("deriveaddresses", desc_c))
         return addrs[0]
     except Exception as e:
-        # Fallback: return script hex for manual use
         raise RuntimeError(
-            f"Could not derive P2WSH address (need bitcoin-cli with descriptors): {e}\n"
-            f"script_hex={script.hex()}"
+            f"Could not derive P2WSH address: {e}\nscript_hex={script.hex()}"
         ) from e
 
 

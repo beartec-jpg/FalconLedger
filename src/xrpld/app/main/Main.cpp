@@ -293,7 +293,8 @@ runUnitTests(
     if (!child)
     {
         MultiRunnerParent parentRunner;
-        std::vector<boost::process::child> children;
+        // Boost.Process 1.88+ puts legacy API under process::v1
+        std::vector<boost::process::v1::child> children;
 
         std::string const exeName = argv[0];
         std::vector<std::string> args;
@@ -308,7 +309,7 @@ runUnitTests(
         for (std::size_t i = 0; i < numJobs; ++i)
         {
             children.emplace_back(
-                boost::process::exe = exeName, boost::process::args = args);
+                boost::process::v1::exe = exeName, boost::process::v1::args = args);
         }
 
         int badChildExits = 0;
