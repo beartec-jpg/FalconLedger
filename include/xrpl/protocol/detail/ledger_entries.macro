@@ -150,6 +150,7 @@ LEDGER_ENTRY(ltACCOUNT_ROOT, 0x0061, AccountRoot, account, ({
     {sfAMMID,                SoeOptional}, // pseudo-account designator
     {sfVaultID,              SoeOptional}, // pseudo-account designator
     {sfLoanBrokerID,         SoeOptional}, // pseudo-account designator
+    {sfBtcBridgeID,          SoeOptional}, // pseudo-account designator (Bitcoin SPV issuer)
     {sfAccountName,          SoeOptional}, // reverse pointer to ltACCOUNT_NAME key
 }))
 
@@ -715,6 +716,86 @@ LEDGER_ENTRY(ltACCOUNT_NAME, 0x0096, AccountName, account_name, ({
     {sfBondedAmount,         SoeRequired},  // 100 FALCON while active/releasing
     {sfNameStatus,           SoeRequired},  // 0=active 1=releasing
     {sfUnbondingStartLedger, SoeDefault},   // set when status = releasing
+    {sfOwnerNode,            SoeRequired},
+    {sfPreviousTxnID,        SoeRequired},
+    {sfPreviousTxnLgrSeq,    SoeRequired},
+}))
+
+/** Bitcoin SPV payment-attestation bridge singleton.
+    \sa keylet::btcBridgeState
+ */
+LEDGER_ENTRY(ltBTC_BRIDGE_STATE, 0x0097, BtcBridgeState, btc_bridge_state, ({
+    {sfBtcChainId,           SoeRequired},
+    {sfBtcAnchorHash,        SoeRequired},
+    {sfBtcAnchorHeight,      SoeRequired},
+    {sfBtcTipHash,           SoeRequired},
+    {sfBtcTipHeight,         SoeRequired},
+    {sfBtcTipWork,           SoeRequired},
+    {sfBtcMinConfirmations,  SoeRequired},
+    {sfBtcWatchScriptHash,   SoeRequired},
+    {sfBtcMintCap,           SoeRequired},
+    {sfBtcPaused,            SoeDefault},
+    {sfAccount,              SoeRequired},  // pseudo issuer
+    {sfMPTokenIssuanceID,    SoeRequired},
+    {sfBtcTotalMinted,       SoeRequired},
+    {sfPreviousTxnID,        SoeRequired},
+    {sfPreviousTxnLgrSeq,    SoeRequired},
+}))
+
+/** One Bitcoin block header stored on Falcon.
+    \sa keylet::btcHeader
+ */
+LEDGER_ENTRY(ltBTC_HEADER, 0x0098, BtcHeader, btc_header, ({
+    {sfBtcBlockHash,         SoeRequired},
+    {sfBtcHeight,            SoeRequired},
+    {sfBtcHeaderBytes,       SoeRequired},
+    {sfBtcChainWork,         SoeRequired},
+    {sfBtcPrevBlockHash,     SoeRequired},
+    {sfBtcMerkleRoot,        SoeRequired},
+    {sfPreviousTxnID,        SoeRequired},
+    {sfPreviousTxnLgrSeq,    SoeRequired},
+}))
+
+/** Permanent deposit tombstone keyed by Bitcoin outpoint.
+    \sa keylet::btcDeposit
+ */
+LEDGER_ENTRY(ltBTC_DEPOSIT, 0x0099, BtcDeposit, btc_deposit, ({
+    {sfBtcTxID,              SoeRequired},
+    {sfBtcVout,              SoeRequired},
+    {sfBtcAmount,            SoeRequired},
+    {sfDestination,          SoeRequired},
+    {sfBtcBlockHash,         SoeRequired},
+    {sfBtcHeight,            SoeRequired},
+    {sfBtcMerkleRoot,        SoeRequired},
+    {sfBtcDepositStatus,     SoeRequired},
+    {sfMPTokenIssuanceID,    SoeRequired},
+    {sfPreviousTxnID,        SoeRequired},
+    {sfPreviousTxnLgrSeq,    SoeRequired},
+}))
+
+/** Height → tip-lineage block hash index for retarget / O(1) height lookup.
+    \sa keylet::btcHeight
+ */
+LEDGER_ENTRY(ltBTC_HEIGHT, 0x009A, BtcHeight, btc_height, ({
+    {sfBtcHeight,            SoeRequired},
+    {sfBtcBlockHash,         SoeRequired},
+    {sfBtcChainWork,         SoeRequired},
+    {sfPreviousTxnID,        SoeRequired},
+    {sfPreviousTxnLgrSeq,    SoeRequired},
+}))
+
+/** BitVM peg-out request: burn FBTC, challenge window, then claimable on BTC.
+    \sa keylet::btcWithdraw
+ */
+LEDGER_ENTRY(ltBTC_WITHDRAWAL, 0x009B, BtcWithdrawal, btc_withdrawal, ({
+    {sfAccount,              SoeRequired},  // burner / recipient of BTC
+    {sfBtcWithdrawAmount,    SoeRequired},  // sats burned
+    {sfBtcPayoutScript,      SoeRequired},  // BTC scriptPubKey
+    {sfBtcBurnCommit,        SoeRequired},  // hashlock commit
+    {sfBtcWithdrawStatus,    SoeRequired},
+    {sfBtcChallengeEndLedger,SoeRequired},
+    {sfBtcWithdrawSeq,       SoeRequired},
+    {sfMPTokenIssuanceID,    SoeRequired},
     {sfOwnerNode,            SoeRequired},
     {sfPreviousTxnID,        SoeRequired},
     {sfPreviousTxnLgrSeq,    SoeRequired},

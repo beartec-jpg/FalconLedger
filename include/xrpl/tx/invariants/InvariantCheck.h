@@ -6,6 +6,7 @@
 #include <xrpl/protocol/STTx.h>
 #include <xrpl/protocol/TER.h>
 #include <xrpl/tx/invariants/AMMInvariant.h>
+#include <xrpl/tx/invariants/BitcoinSPVInvariant.h>
 #include <xrpl/tx/invariants/FreezeInvariant.h>
 #include <xrpl/tx/invariants/LoanBrokerInvariant.h>
 #include <xrpl/tx/invariants/LoanInvariant.h>
@@ -425,7 +426,8 @@ using InvariantChecks = std::tuple<
     ValidLoan,
     ValidVault,
     ValidMPTPayment,
-    QXRPDropConservation>;
+    QXRPDropConservation,
+    ValidBitcoinSPV>;
 
 /**
  * @brief get a tuple of all invariant checks

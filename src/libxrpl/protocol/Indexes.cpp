@@ -92,6 +92,12 @@ enum class LedgerNameSpace : std::uint16_t {
     GovernanceProposal  = 0xB3,  // per-proposal governance object
     PopLpState          = 0xB4,  // per-account LP claim tracker
     AccountName         = 0xB5,  // human-readable account name object
+    // Bitcoin SPV payment-attestation mint
+    BtcBridgeState      = 0xB6,  // singleton bridge state
+    BtcHeader           = 0xB7,  // per block hash
+    BtcDeposit          = 0xB8,  // per outpoint
+    BtcHeight           = 0xB9,  // height → tip-lineage hash index
+    BtcWithdraw         = 0xBA,  // BitVM peg-out withdrawal
 
     // No longer used or supported. Left here to reserve the space to avoid accidental reuse.
     Contract [[deprecated]] = 'c',
@@ -627,6 +633,39 @@ Keylet
 accountName(Slice name) noexcept
 {
     return {ltACCOUNT_NAME, indexHash(LedgerNameSpace::AccountName, name)};
+}
+
+Keylet const&
+btcBridgeState() noexcept
+{
+    static Keylet const kSTATE{
+        ltBTC_BRIDGE_STATE,
+        indexHash(LedgerNameSpace::BtcBridgeState, std::uint32_t{0})};
+    return kSTATE;
+}
+
+Keylet
+btcHeader(uint256 const& blockHash) noexcept
+{
+    return {ltBTC_HEADER, indexHash(LedgerNameSpace::BtcHeader, blockHash)};
+}
+
+Keylet
+btcDeposit(uint256 const& txid, std::uint32_t vout) noexcept
+{
+    return {ltBTC_DEPOSIT, indexHash(LedgerNameSpace::BtcDeposit, txid, vout)};
+}
+
+Keylet
+btcHeight(std::uint32_t height) noexcept
+{
+    return {ltBTC_HEIGHT, indexHash(LedgerNameSpace::BtcHeight, height)};
+}
+
+Keylet
+btcWithdraw(AccountID const& account, std::uint32_t seq) noexcept
+{
+    return {ltBTC_WITHDRAWAL, indexHash(LedgerNameSpace::BtcWithdraw, account, seq)};
 }
 
 }  // namespace keylet

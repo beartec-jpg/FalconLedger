@@ -395,6 +395,38 @@ accountName(uint256 const& key) noexcept
     return {ltACCOUNT_NAME, key};
 }
 
+/** Bitcoin SPV bridge singleton. */
+Keylet const&
+btcBridgeState() noexcept;
+
+/** Bitcoin header SLE keyed by block hash. */
+Keylet
+btcHeader(uint256 const& blockHash) noexcept;
+
+inline Keylet
+btcHeaderKey(uint256 const& key) noexcept
+{
+    return {ltBTC_HEADER, key};
+}
+
+/** Deposit tombstone keyed by Bitcoin outpoint (txid internal + vout). */
+Keylet
+btcDeposit(uint256 const& txid, std::uint32_t vout) noexcept;
+
+/** Height → tip-lineage header hash index. */
+Keylet
+btcHeight(std::uint32_t height) noexcept;
+
+/** BitVM peg-out withdrawal object. */
+Keylet
+btcWithdraw(AccountID const& account, std::uint32_t seq) noexcept;
+
+inline Keylet
+btcWithdraw(uint256 const& key) noexcept
+{
+    return {ltBTC_WITHDRAWAL, key};
+}
+
 }  // namespace keylet
 
 // Everything below is deprecated and should be removed in favor of keylets:

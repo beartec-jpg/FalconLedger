@@ -1291,6 +1291,38 @@ TRANSACTION(ttNAME_RELEASE, 97, NameRelease,
     {sfName, SoeRequired},  // name to finalize release for
 }))
 
+/** Bitcoin SPV: activate singleton bridge state + pseudo FBTC issuer (once). */
+#if TRANSACTION_INCLUDE
+#   include <xrpl/tx/transactors/btc_spv/BTCBridgeActivate.h>
+#endif
+TRANSACTION(ttBTC_BRIDGE_ACTIVATE, 98, BTCBridgeActivate,
+    Delegation::NotDelegable,
+    featureBitcoinSPVBridge,
+    CreatePseudoAcct | CreateMptIssuance,
+    ({
+    {sfBtcChainId, SoeRequired},
+    {sfBtcAnchorHash, SoeRequired},
+    {sfBtcAnchorHeight, SoeRequired},
+    {sfBtcAnchorWork, SoeRequired},
+    {sfBtcMinConfirmations, SoeRequired},
+    {sfBtcWatchScriptHash, SoeRequired},
+    {sfBtcMintCap, SoeRequired},
+    {sfBtcHeaderBytes, SoeRequired},
+    {sfMPTokenMetadata, SoeOptional},
+}))
+
+/** Bitcoin SPV: submit one or more 80-byte headers (any known parent). */
+#if TRANSACTION_INCLUDE
+#   include <xrpl/tx/transactors/btc_spv/BTCHeaderSubmit.h>
+#endif
+TRANSACTION(ttBTC_HEADER_SUBMIT, 99, BTCHeaderSubmit,
+    Delegation::NotDelegable,
+    featureBitcoinSPVBridge,
+    NoPriv,
+    ({
+    {sfBtcHeaders, SoeRequired},
+}))
+
 /** This system-generated transaction type is used to update the status of the various amendments.
 
     For details, see: https://xrpl.org/amendments.html
@@ -1339,4 +1371,47 @@ TRANSACTION(ttUNL_MODIFY, 102, UNLModify,
     {sfUNLModifyDisabling, SoeRequired},
     {sfLedgerSequence, SoeRequired},
     {sfUNLModifyValidator, SoeRequired},
+}))
+
+/** Bitcoin SPV: claim deposit with Merkle proof and mint FBTC (claimer == destination). */
+#if TRANSACTION_INCLUDE
+#   include <xrpl/tx/transactors/btc_spv/BTCDepositClaim.h>
+#endif
+TRANSACTION(ttBTC_DEPOSIT_CLAIM, 110, BTCDepositClaim,
+    Delegation::NotDelegable,
+    featureBitcoinSPVBridge,
+    MayCreateMpt,
+    ({
+    {sfDestination, SoeRequired},
+    {sfBtcRawTx, SoeRequired},
+    {sfBtcMerkleProof, SoeRequired},
+    {sfBtcTxIndex, SoeRequired},
+    {sfBtcBlockHash, SoeRequired},
+    {sfBtcVout, SoeRequired},
+}))
+
+/** BitVM peg-out: burn FBTC and open challenge window (creates ltBTC_WITHDRAWAL). */
+#if TRANSACTION_INCLUDE
+#   include <xrpl/tx/transactors/btc_spv/BTCBridgeBurn.h>
+#endif
+TRANSACTION(ttBTC_BRIDGE_BURN, 111, BTCBridgeBurn,
+    Delegation::NotDelegable,
+    featureBitcoinSPVBridge,
+    NoPriv,
+    ({
+    {sfBtcWithdrawAmount, SoeRequired},
+    {sfBtcPayoutScript, SoeRequired},
+    {sfBtcBurnPreimage, SoeRequired},  // 32+ bytes; commit = SHA256(preimage)
+}))
+
+/** BitVM peg-out: after challenge window, mark withdrawal final (claimable on BTC). */
+#if TRANSACTION_INCLUDE
+#   include <xrpl/tx/transactors/btc_spv/BTCWithdrawFinalize.h>
+#endif
+TRANSACTION(ttBTC_WITHDRAW_FINALIZE, 112, BTCWithdrawFinalize,
+    Delegation::NotDelegable,
+    featureBitcoinSPVBridge,
+    NoPriv,
+    ({
+    {sfBtcWithdrawSeq, SoeRequired},
 }))

@@ -140,6 +140,20 @@ TYPED_SFIELD(sfVotedAgainst,             UINT32,    91) // cumulative compositeS
 TYPED_SFIELD(sfLPAllocationBps,          UINT32,    92) // PoPL: vault-LP fraction of epoch emission
 TYPED_SFIELD(sfAmmLPAllocationBps,       UINT32,    93) // PoPL: AMM-LP fraction of epoch emission
 TYPED_SFIELD(sfNameStatus,               UINT32,    94) // AccountName: 0=active 1=releasing
+// Bitcoin SPV light-client bridge
+TYPED_SFIELD(sfBtcChainId,               UINT32,    95)
+TYPED_SFIELD(sfBtcAnchorHeight,          UINT32,    96)
+TYPED_SFIELD(sfBtcTipHeight,             UINT32,    97)
+TYPED_SFIELD(sfBtcMinConfirmations,      UINT32,    98)
+TYPED_SFIELD(sfBtcPaused,                UINT32,    99) // reserved; MVP always 0
+TYPED_SFIELD(sfBtcHeight,                UINT32,   100)
+TYPED_SFIELD(sfBtcVout,                  UINT32,   101)
+TYPED_SFIELD(sfBtcDepositStatus,         UINT32,   102)
+TYPED_SFIELD(sfBtcTxIndex,               UINT32,   103)
+// BitVM peg-out / withdraw
+TYPED_SFIELD(sfBtcWithdrawStatus,        UINT32,   104) // 0=pending 1=challenged 2=final 3=paid
+TYPED_SFIELD(sfBtcChallengeEndLedger,    UINT32,   105)
+TYPED_SFIELD(sfBtcWithdrawSeq,           UINT32,   106)
 
 // 64-bit integers (common)
 TYPED_SFIELD(sfIndexNext,                UINT64,     1)
@@ -175,6 +189,11 @@ TYPED_SFIELD(sfVaultNode,                UINT64,    30)
 TYPED_SFIELD(sfLoanBrokerNode,           UINT64,    31)
 TYPED_SFIELD(sfAggregateLPShares,        UINT64,    32) // sum of vault share MPT outstanding
 TYPED_SFIELD(sfAggregateAmmTvlDrops,     UINT64,    33) // sum of XRP legs of native AMMs (TVL weight)
+// Bitcoin SPV
+TYPED_SFIELD(sfBtcMintCap,               UINT64,    34)
+TYPED_SFIELD(sfBtcTotalMinted,           UINT64,    35)
+TYPED_SFIELD(sfBtcAmount,                UINT64,    36)
+TYPED_SFIELD(sfBtcWithdrawAmount,        UINT64,    37)
 
 // 128-bit
 TYPED_SFIELD(sfEmailHash,                UINT128,    1)
@@ -239,6 +258,21 @@ TYPED_SFIELD(sfLoanID,                   UINT256,   38)
 TYPED_SFIELD(sfValidatorBondID,          UINT256,   40) // keylet index of ltVALIDATOR_BOND
 TYPED_SFIELD(sfProposalID,               UINT256,   41) // keylet index of ltGOVERNANCE_PROPOSAL
 TYPED_SFIELD(sfAccountName,              UINT256,   42) // reverse pointer: account root → ltACCOUNT_NAME key
+// Bitcoin SPV
+TYPED_SFIELD(sfBtcBridgeID,              UINT256,   43,
+    SField::kSMD_PSEUDO_ACCOUNT | SField::kSMD_DEFAULT)
+TYPED_SFIELD(sfBtcAnchorHash,            UINT256,   44)
+TYPED_SFIELD(sfBtcTipHash,               UINT256,   45)
+TYPED_SFIELD(sfBtcTipWork,               UINT256,   46)
+TYPED_SFIELD(sfBtcWatchScriptHash,       UINT256,   47)
+TYPED_SFIELD(sfBtcBlockHash,             UINT256,   48)
+TYPED_SFIELD(sfBtcChainWork,             UINT256,   49)
+TYPED_SFIELD(sfBtcPrevBlockHash,         UINT256,   50)
+TYPED_SFIELD(sfBtcMerkleRoot,            UINT256,   51)
+TYPED_SFIELD(sfBtcTxID,                  UINT256,   52)
+TYPED_SFIELD(sfBtcAnchorWork,            UINT256,   53)
+TYPED_SFIELD(sfBtcBurnCommit,            UINT256,   54) // SHA256 commitment for BitVM hashlock
+TYPED_SFIELD(sfBtcWithdrawID,            UINT256,   55)
 
 // number (common)
 TYPED_SFIELD(sfNumber,                   NUMBER,     1)
@@ -351,6 +385,13 @@ TYPED_SFIELD(sfSlashEvidence2,           VL,        33) // second diverging sign
 TYPED_SFIELD(sfVoterList,                VL,        34) // packed AccountIDs that voted on proposal
 TYPED_SFIELD(sfConsensusKey,             VL,        35) // classical secp256k1/ed25519 node key for scoring lookup
 TYPED_SFIELD(sfName,                     VL,        36) // normalized account name (AccountNames)
+// Bitcoin SPV
+TYPED_SFIELD(sfBtcHeaderBytes,           VL,        37) // single 80-byte header
+TYPED_SFIELD(sfBtcHeaders,               VL,        38) // k*80 concatenated headers
+TYPED_SFIELD(sfBtcRawTx,                 VL,        39) // raw Bitcoin transaction
+TYPED_SFIELD(sfBtcMerkleProof,           VL,        40) // concatenated 32-byte siblings
+TYPED_SFIELD(sfBtcPayoutScript,          VL,        41) // BTC payout scriptPubKey for peg-out
+TYPED_SFIELD(sfBtcBurnPreimage,          VL,        42) // reveal after challenge (BitVM claim)
 
 // account (common)
 TYPED_SFIELD(sfAccount,                  ACCOUNT,    1)
