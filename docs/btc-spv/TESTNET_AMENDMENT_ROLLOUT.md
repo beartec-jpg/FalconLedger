@@ -65,25 +65,68 @@ Do **not** hard-code the hash into production docs until the deployed binary’s
 
 ---
 
-## 5. Later: activation sequence (do not run until approved)
+## 5. Activation sequence — **amendment vote only** (no force)
 
-When product/security says go:
+### Never do this on 1001
 
-1. Ensure **all** bonded validators run a binary that supports `BitcoinSPVBridge`.  
-2. Set `amendment_majority_time` if needed (fleet scripts often use 15 minutes on testnet).  
-3. Un-veto + vote on each validator (pattern in `scripts/enable-lending-fleet.sh`).  
-4. Wait until `enabled=true` on public RPC.  
-5. **Then** operational steps: one-time `BTCBridgeActivate` with chosen Bitcoin network (testnet3/signet/regtest for drills — **not mainnet BTC** without a separate gate), header submitters, wallet UX.
+```ini
+# WRONG — force-enables rules, can fork the network
+[features]
+BitcoinSPVBridge
+```
 
-Activation helper (when approved):
+### Right way
+
+1. **Deploy binary** with SPV code to **every** bonded validator (same generation).  
+   Until then, `feature` RPC will not list `BitcoinSPVBridge` at all.
+2. Confirm on public RPC: `supported=true`, `enabled=false` (usually `vetoed=true` by DefaultNo).
+3. Each validator **votes yes** by listing the amendment hash under **`[amendments]`** (not `[features]`) and setting `vetoed=false` via admin RPC.
+4. Keep **`[amendment_majority_time]`** (testnet often `15 minutes`).
+5. Wait until enough validators vote and majority time elapses → `enabled=true`.
+6. Only then run ops (`BTCBridgeActivate`, header submitters, etc.).
+
+### Fleet helper
 
 ```bash
-# Dry-run / prepare only (default) — does not patch or vote
+# Status + dry-run (safe)
 bash scripts/enable-btc-spv-fleet.sh
 
-# ONLY after written approval:
-# bash scripts/enable-btc-spv-fleet.sh --execute --wait
+# After ALL vals run new binary — starts amendment vote + waits for enable
+bash scripts/enable-btc-spv-fleet.sh --execute --wait
 ```
+
+### Single-validator commands (send to other ops)
+
+After they have upgraded `xrpld` to a build that includes `BitcoinSPVBridge`:
+
+```bash
+HASH=76DAF975D0E23358239AED3C74A8600600A0FBEBB7E12B1FEA314C41469F3D33
+# Adjust CFG + container name per host
+CFG=/var/lib/qxrp-validator/config/xrpld.cfg
+CONTAINER=qxrp-validator
+
+# Ensure majority clock exists
+grep -q '\[amendment_majority_time\]' "$CFG" || printf '\n[amendment_majority_time]\n15 minutes\n' >> "$CFG"
+grep -q '\[amendments\]' "$CFG" || printf '\n[amendments]\n' >> "$CFG"
+# Vote YES (amendment list) — never under [features]
+grep -q "$HASH" "$CFG" || echo "$HASH BitcoinSPVBridge" >> "$CFG"
+
+# Remove if someone force-listed it under [features] by mistake
+# (edit cfg by hand: delete BitcoinSPVBridge lines under [features] only)
+
+docker restart "$CONTAINER"
+sleep 5
+docker exec "$CONTAINER" curl -sf -X POST http://127.0.0.1:5005 \
+  -H 'Content-Type: application/json' \
+  -d '{"method":"feature","params":[{"feature":"BitcoinSPVBridge","vetoed":false}]}'
+
+# Watch network (from anywhere)
+curl -s -X POST http://46.224.0.140:6005 -H 'Content-Type: application/json' \
+  -d '{"method":"feature","params":[{"feature":"BitcoinSPVBridge"}]}'
+```
+
+Amendment hash (this branch):  
+`76DAF975D0E23358239AED3C74A8600600A0FBEBB7E12B1FEA314C41469F3D33` = `BitcoinSPVBridge`
 
 ---
 
