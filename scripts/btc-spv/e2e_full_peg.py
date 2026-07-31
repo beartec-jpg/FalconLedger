@@ -116,7 +116,8 @@ def falcon_hash_field_from_header_le(header80: bytes, offset: int) -> str:
 
 
 def falcon_script_hash_hex(spk: bytes) -> str:
-    return hashlib.sha256(spk).digest()[::-1].hex().upper()
+    # Raw SHA256(scriptPubKey) — matches btcScriptHash / design (no LE reverse)
+    return hashlib.sha256(spk).digest().hex().upper()
 
 
 def classic_account_id(addr: str) -> bytes:

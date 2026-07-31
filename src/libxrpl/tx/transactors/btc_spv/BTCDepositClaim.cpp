@@ -133,7 +133,16 @@ BTCDepositClaim::doApply()
     }
 
     auto const watchHash = state->getFieldH256(sfBtcWatchScriptHash);
-    auto const extracted = btcExtractDeposit(*parsedTx, watchHash, preferredVout);
+    // Optional BitVM vault witness script (P2WSH multi-user peg-in)
+    Slice vaultScript{};
+    Blob vaultBlob;
+    if (ctx_.tx.isFieldPresent(sfBtcVaultScript))
+    {
+        vaultBlob = ctx_.tx.getFieldVL(sfBtcVaultScript);
+        vaultScript = makeSlice(vaultBlob);
+    }
+    auto const extracted =
+        btcExtractDeposit(*parsedTx, watchHash, preferredVout, vaultScript);
     if (!extracted)
         return temMALFORMED;
     if (extracted->destination != dest)

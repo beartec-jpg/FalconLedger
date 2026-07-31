@@ -392,6 +392,7 @@ TYPED_SFIELD(sfBtcRawTx,                 VL,        39) // raw Bitcoin transacti
 TYPED_SFIELD(sfBtcMerkleProof,           VL,        40) // concatenated 32-byte siblings
 TYPED_SFIELD(sfBtcPayoutScript,          VL,        41) // BTC payout scriptPubKey for peg-out
 TYPED_SFIELD(sfBtcBurnPreimage,          VL,        42) // reveal after challenge (BitVM claim)
+TYPED_SFIELD(sfBtcVaultScript,           VL,        43) // BitVM vault witness script (peg-in claim)
 
 // account (common)
 TYPED_SFIELD(sfAccount,                  ACCOUNT,    1)

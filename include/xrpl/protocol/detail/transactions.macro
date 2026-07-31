@@ -1388,6 +1388,7 @@ TRANSACTION(ttBTC_DEPOSIT_CLAIM, 110, BTCDepositClaim,
     {sfBtcTxIndex, SoeRequired},
     {sfBtcBlockHash, SoeRequired},
     {sfBtcVout, SoeRequired},
+    {sfBtcVaultScript, SoeOptional},  // BitVM vault redeem script when deposit is P2WSH
 }))
 
 /** BitVM peg-out: burn FBTC and open challenge window (creates ltBTC_WITHDRAWAL). */

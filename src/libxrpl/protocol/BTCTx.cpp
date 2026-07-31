@@ -87,11 +87,16 @@ doubleSha256Raw(void const* data, std::size_t len)
 uint256
 btcScriptHash(Slice scriptPubKey)
 {
-    // Single SHA256 of script (convention for watch script identity)
+    // Single SHA256(scriptPubKey) as UINT256 (design + activate on 1001).
+    // Do NOT byte-reverse like Bitcoin block/txid hashes — watch identity is a
+    // raw digest. Reversing here made live deposits fail temMALFORMED even when
+    // OP_RETURN and merkle proofs were valid (activate stored unreversed SHA256).
     sha256_hasher h;
     h(scriptPubKey.data(), scriptPubKey.size());
     auto const d = static_cast<sha256_hasher::result_type>(h);
-    return digestToUint256(d.data());
+    uint256 out;
+    std::memcpy(out.data(), d.data(), d.size());
+    return out;
 }
 
 std::optional<BTCParsedTx>
@@ -258,11 +263,91 @@ btcParseTx(Slice rawTx)
     return tx;
 }
 
+bool
+btcIsP2WSH(Slice scriptPubKey)
+{
+    return scriptPubKey.size() == 34 && scriptPubKey[0] == 0x00 &&
+        scriptPubKey[1] == 0x20;
+}
+
+bool
+btcParseBitvmVaultScript(Slice witnessScript, uint256& commitOut)
+{
+    // Must match scripts/btc-spv/bitvm/vault.py build_vault_script (CSV=6).
+    // OP_IF OP_SHA256 <32 zero> OP_EQUALVERIFY OP_TRUE
+    // OP_ELSE OP_6 OP_CSV OP_DROP OP_SHA256 <commit32> OP_EQUALVERIFY
+    // <33 pubkey> OP_CHECKSIG OP_ENDIF
+    auto const* p = witnessScript.data();
+    auto const n = witnessScript.size();
+    if (n < 1 + 1 + 1 + 32 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 32 + 1 + 1 + 33 + 1 + 1)
+        return false;
+    std::size_t i = 0;
+    auto need = [&](std::size_t k) -> bool { return i + k <= n; };
+    auto take = [&](std::uint8_t b) -> bool {
+        if (!need(1) || p[i] != b)
+            return false;
+        ++i;
+        return true;
+    };
+    if (!take(0x63))  // OP_IF
+        return false;
+    if (!take(0xa8))  // OP_SHA256
+        return false;
+    if (!take(0x20) || !need(32))
+        return false;
+    for (std::size_t k = 0; k < 32; ++k)
+    {
+        if (p[i + k] != 0)
+            return false;
+    }
+    i += 32;
+    if (!take(0x88))  // OP_EQUALVERIFY
+        return false;
+    if (!take(0x51))  // OP_TRUE
+        return false;
+    if (!take(0x67))  // OP_ELSE
+        return false;
+    // CSV blocks = kBTC_VAULT_CSV_BLOCKS (6) → OP_6
+    if (kBTC_VAULT_CSV_BLOCKS >= 1 && kBTC_VAULT_CSV_BLOCKS <= 16)
+    {
+        if (!take(static_cast<std::uint8_t>(0x50 + kBTC_VAULT_CSV_BLOCKS)))
+            return false;
+    }
+    else
+        return false;
+    if (!take(0xb2))  // OP_CHECKSEQUENCEVERIFY
+        return false;
+    if (!take(0x75))  // OP_DROP
+        return false;
+    if (!take(0xa8))  // OP_SHA256
+        return false;
+    if (!take(0x20) || !need(32))
+        return false;
+    std::memcpy(commitOut.data(), p + i, 32);
+    i += 32;
+    if (!take(0x88))  // OP_EQUALVERIFY
+        return false;
+    if (!need(1))
+        return false;
+    auto const pkLen = p[i++];
+    if (pkLen != 33 && pkLen != 65)
+        return false;
+    if (!need(pkLen))
+        return false;
+    i += pkLen;
+    if (!take(0xac))  // OP_CHECKSIG
+        return false;
+    if (!take(0x68))  // OP_ENDIF
+        return false;
+    return i == n;
+}
+
 std::optional<BTCDepositExtract>
 btcExtractDeposit(
     BTCParsedTx const& tx,
     uint256 const& watchScriptHash,
-    std::uint32_t preferredVout)
+    std::uint32_t preferredVout,
+    Slice vaultWitnessScript)
 {
     std::optional<AccountID> dest;
     int opReturnCount = 0;
@@ -307,20 +392,56 @@ btcExtractDeposit(
     if (opReturnCount != 1 || !dest)
         return std::nullopt;
 
-    // Prefer preferredVout if it matches watch
+    uint256 vaultCommit{};
+    bool const haveVault =
+        !vaultWitnessScript.empty() && btcParseBitvmVaultScript(vaultWitnessScript, vaultCommit);
+
+    // Prefer preferredVout if it matches watch or vault
     auto tryVout = [&](std::uint32_t v) -> std::optional<BTCDepositExtract> {
         if (v >= tx.outputs.size())
             return std::nullopt;
         auto const& o = tx.outputs[v];
-        if (btcScriptHash(makeSlice(o.scriptPubKey)) != watchScriptHash)
-            return std::nullopt;
         if (o.valueSats == 0)
             return std::nullopt;
-        BTCDepositExtract e;
-        e.watchVout = v;
-        e.valueSats = o.valueSats;
-        e.destination = *dest;
-        return e;
+        auto const spk = makeSlice(o.scriptPubKey);
+
+        // (1) Legacy fixed watch (P2PKH era)
+        if (btcScriptHash(spk) == watchScriptHash)
+        {
+            BTCDepositExtract e;
+            e.watchVout = v;
+            e.valueSats = o.valueSats;
+            e.destination = *dest;
+            e.isVault = false;
+            return e;
+        }
+
+        // (2) BitVM vault P2WSH: scriptPubKey commits to witness script
+        if (haveVault && btcIsP2WSH(spk))
+        {
+            sha256_hasher h;
+            h(vaultWitnessScript.data(), vaultWitnessScript.size());
+            auto const d = static_cast<sha256_hasher::result_type>(h);
+            bool match = true;
+            for (std::size_t k = 0; k < 32; ++k)
+            {
+                if (spk[2 + k] != d[k])
+                {
+                    match = false;
+                    break;
+                }
+            }
+            if (!match)
+                return std::nullopt;
+            BTCDepositExtract e;
+            e.watchVout = v;
+            e.valueSats = o.valueSats;
+            e.destination = *dest;
+            e.isVault = true;
+            e.vaultCommit = vaultCommit;
+            return e;
+        }
+        return std::nullopt;
     };
 
     if (auto e = tryVout(preferredVout))

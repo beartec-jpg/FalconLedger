@@ -123,8 +123,8 @@ def falcon_hash_field_from_header_le(header80: bytes, offset: int) -> str:
 
 
 def falcon_script_hash_hex(script_pubkey: bytes) -> str:
-    """Match C++ btcScriptHash: SHA256 then BE (display) uint256."""
-    return hashlib.sha256(script_pubkey).digest()[::-1].hex().upper()
+    """Match C++ btcScriptHash: raw SHA256(scriptPubKey) as UINT256 (no LE reverse)."""
+    return hashlib.sha256(script_pubkey).digest().hex().upper()
 
 
 def work_from_bits(nbits: int) -> str:

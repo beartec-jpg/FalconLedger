@@ -41,16 +41,34 @@ struct BTCDepositExtract
     std::uint32_t watchVout = 0;
     std::uint64_t valueSats = 0;
     AccountID destination;
+    /** True if payment is BitVM vault P2WSH (not legacy fixed watch P2PKH). */
+    bool isVault = false;
+    /** SHA256(preimage) embedded in vault script (for client cross-check). */
+    uint256 vaultCommit;
 };
 
+/** True if scriptPubKey is witness v0 P2WSH (0x00 0x20 || 32). */
+bool
+btcIsP2WSH(Slice scriptPubKey);
+
+/**
+ * Validate BitVM-class vault witness script (CSV + hashlock + CHECKSIG).
+ * On success sets @p commitOut to the 32-byte burn commit in the script.
+ */
+bool
+btcParseBitvmVaultScript(Slice witnessScript, uint256& commitOut);
+
 /** Find watch payment + OP_RETURN FALC||AccountID.
-    Requires exactly one OP_RETURN with magic payload and ≥1 watch match;
-    uses @p preferredVout if it is a watch output, else first watch output.
+    Accepts:
+      (1) legacy fixed watchScriptHash (P2PKH custody-era), or
+      (2) P2WSH vault when @p vaultWitnessScript is provided and matches template.
+    Requires exactly one OP_RETURN with magic payload.
     Rejects ambiguous multi OP_RETURN. */
 std::optional<BTCDepositExtract>
 btcExtractDeposit(
     BTCParsedTx const& tx,
     uint256 const& watchScriptHash,
-    std::uint32_t preferredVout);
+    std::uint32_t preferredVout,
+    Slice vaultWitnessScript = {});
 
 }  // namespace xrpl
