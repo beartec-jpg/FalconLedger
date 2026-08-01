@@ -111,10 +111,8 @@ safe_rm_rf() {
 # Verify the pulled image can sign/simulate Falcon txs (local).
 smoke_test_local_image() {
   log "Falcon smoke test — local image (${DOCKER_IMAGE})..."
-  local smoke_dir
+  local smoke_dir wp sim_result sim_code acct secret i
   smoke_dir=$(mktemp -d)
-  # RETURN trap must not fail (set -e): only docker cleanup is required.
-  trap 'docker rm -f qxrp_falcon_smoke >/dev/null 2>&1 || true; safe_rm_rf "$smoke_dir" || true' RETURN
 
   # Paths must be container paths (/data/...), not host mktemp paths
   cat > "${smoke_dir}/xrpld.cfg" <<'CFG'
@@ -148,16 +146,16 @@ CFG
     if [[ $i -eq 45 ]]; then
       warn "Smoke container logs:"
       docker logs qxrp_falcon_smoke 2>&1 | tail -30 || true
+      docker rm -f qxrp_falcon_smoke >/dev/null 2>&1 || true
+      safe_rm_rf "$smoke_dir"
       die "Falcon smoke test: ephemeral node did not start"
     fi
     sleep 1
   done
 
-  local wp sim_result sim_code
   wp=$(docker exec qxrp_falcon_smoke curl -sf -X POST http://127.0.0.1:5998 \
     -H 'Content-Type: application/json' \
     -d '{"method":"wallet_propose","params":[{"key_type":"falcon512"}]}')
-  local acct secret
   acct=$(echo "$wp" | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['account_id'])")
   secret=$(echo "$wp" | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['falcon_secret'])")
 
@@ -166,12 +164,15 @@ CFG
     -d "{\"method\":\"simulate\",\"params\":[{\"tx_json\":{\"TransactionType\":\"Payment\",\"Account\":\"${acct}\",\"Destination\":\"rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh\",\"Amount\":\"1\",\"Fee\":\"12\",\"Sequence\":1,\"LastLedgerSequence\":99999999},\"falcon_secret\":\"${secret}\"}]}")
 
   sim_code=$(echo "$sim_result" | python3 -c "import sys,json; r=json.load(sys.stdin)['result']; print(r.get('engine_result') or r.get('error',''))")
+  docker stop qxrp_falcon_smoke >/dev/null 2>&1 || true
+  docker rm -f qxrp_falcon_smoke >/dev/null 2>&1 || true
+  safe_rm_rf "$smoke_dir"
+
   if echo "$sim_code" | grep -qiE 'BAD.?SIGN|invalid.?sign|temBAD'; then
     die "Falcon smoke test FAILED (local): bad signature (${sim_code})"
   fi
   [[ -n "$sim_code" ]] || die "Falcon smoke test FAILED (local): empty simulate response"
 
-  docker stop qxrp_falcon_smoke >/dev/null 2>&1 || true
   log "  local image OK (simulate → ${sim_code})"
 }
 
@@ -324,7 +325,8 @@ if [[ -f "$KEYS_FILE" ]]; then
 else
   log "Generating validator keys..."
   BOOT_DIR=$(mktemp -d)
-  trap 'docker rm -f qxrp_keygen_boot >/dev/null 2>&1 || true; safe_rm_rf "$BOOT_DIR" || true' EXIT
+  # Expand path now (set -u safe); clear trap after successful keygen.
+  trap "docker rm -f qxrp_keygen_boot >/dev/null 2>&1 || true; safe_rm_rf '${BOOT_DIR}' || true" EXIT
 
   cat > "${BOOT_DIR}/xrpld.cfg" <<'CFG'
 [server]
