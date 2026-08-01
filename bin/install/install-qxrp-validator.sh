@@ -647,8 +647,18 @@ submit_blob() {
     || warn "submit failed (local + public) — re-run bond when node is synced"
 }
 
+# Drop finish-bond helper next to the node (home nets often block public :6005).
+FINISH_BOND="${HOME}/.qxrp/${NODE_NAME}/finish-bond.sh"
+if [[ -f "$(dirname "${BASH_SOURCE[0]:-$0}")/finish-qxrp-bond.sh" ]]; then
+  cp "$(dirname "${BASH_SOURCE[0]:-$0}")/finish-qxrp-bond.sh" "$FINISH_BOND"
+else
+  curl -fsSL "${INSTALL_RAW_BASE}/finish-qxrp-bond.sh" -o "$FINISH_BOND" 2>/dev/null || true
+fi
+chmod +x "$FINISH_BOND" 2>/dev/null || true
+
 # ── Wait for funding + auto bond ──────────────────────────────────────────────
-log "Waiting for funding on ${ACCOUNT} (local RPC first, then ${PUBLIC_RPC})..."
+log "Waiting for funding on ${ACCOUNT} (local ledger first — home nets often block ${PUBLIC_RPC})..."
+log "If you already paid and this spins forever: Ctrl+C then: bash ${FINISH_BOND} --node-name ${NODE_NAME}"
 FUNDED=0
 for i in $(seq 1 180); do
   BAL=$(account_balance_drops "${ACCOUNT}")
@@ -657,15 +667,20 @@ for i in $(seq 1 180); do
     log "Funded: $(python3 -c "print(${BAL}/1000000)") qXRP"
     break
   fi
-  [[ $((i % 6)) -eq 0 ]] && log "  … still waiting (${BAL} drops, need ${MIN_FUND_DROPS})"
+  if [[ $((i % 6)) -eq 0 ]]; then
+    # Show local sync so "0 drops" is not mysterious
+    LSTATE=$(rpc_local server_info 2>/dev/null | python3 -c "import sys,json; print((json.load(sys.stdin).get('result') or {}).get('info',{}).get('server_state','?'))" 2>/dev/null || echo "?")
+    LPEERS=$(rpc_local server_info 2>/dev/null | python3 -c "import sys,json; print((json.load(sys.stdin).get('result') or {}).get('info',{}).get('peers',0))" 2>/dev/null || echo 0)
+    log "  … bal=${BAL} drops (need ${MIN_FUND_DROPS}) local_state=${LSTATE} peers=${LPEERS}"
+  fi
   sleep 10
 done
 
 if [[ "$FUNDED" -eq 0 ]]; then
-  warn "Timed out waiting for funding. If you already sent FALCON, your network may block"
-  warn "public RPC; check balance once the local node is synced, then bond:"
-  warn "  # on this machine:"
-  warn "  docker exec ${SERVICE_NAME} curl -sf -X POST http://127.0.0.1:5005 -H 'Content-Type: application/json' -d '{\"method\":\"account_info\",\"params\":[{\"account\":\"${ACCOUNT}\",\"ledger_index\":\"validated\"}]}'"
+  warn "Timed out waiting for funding on local/public RPC."
+  warn "If Payment already succeeded on-chain, finish bond after local sync:"
+  warn "  bash ${FINISH_BOND} --node-name ${NODE_NAME}"
+  warn "Docker tip: sudo usermod -aG docker \$USER && newgrp docker"
   exit 0
 fi
 
