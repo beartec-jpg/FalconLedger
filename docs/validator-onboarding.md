@@ -7,6 +7,7 @@ Network ID **1001** · Falcon Ledger · Proof-of-Participation rewards
 From the [Wallet → Run Validator](https://q-xrp-faucet.vercel.app/wallet) panel, copy the one-liner. It looks like:
 
 ```bash
+# Defaults to qxrp/xrpld:btc-spv-v6 (live Falcon testnet 1001 SPV bridge fleet)
 curl -fsSL https://raw.githubusercontent.com/beartec-jpg/qXRP/develop/bin/install/install-qxrp-validator.sh | bash -s -- \
   --payout rYourWalletAddress \
   --node-name my-qxrp-node
@@ -22,7 +23,7 @@ curl -fsSL https://raw.githubusercontent.com/beartec-jpg/qXRP/develop/bin/instal
 
 | Step | Action |
 |------|--------|
-| 1 | Installs Docker and pulls `qxrp/xrpld:falcon` (pinned — never floating `:latest`) |
+| 1 | Installs Docker and pulls `qxrp/xrpld:btc-spv-v6` (pinned SPV fleet image — never floating `:latest`) |
 | 2 | **Falcon smoke tests** — local image sign check + fleet signature check on all bootstrap peers |
 | 3 | Generates validator keys (consensus + Falcon register key + node identity) |
 | 4 | Connects to the live testnet UNL and bootstrap peers |

@@ -26,8 +26,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 SECRET_INPUT="${SECRET_INPUT:-qxrp-val-fresh-$(date +%s)}"
-# Pin fleet image — floating :latest may lack Falcon hex UNL support (see docs/fleet-image-pinning.md).
-DOCKER_IMAGE="${QXRP_XRPLD_IMAGE:-qxrp/xrpld:lending-v5}"
+# Pin fleet image to current public testnet SPV bridge binary (network 1001).
+# Override with QXRP_XRPLD_IMAGE only if you know you need a different build.
+DOCKER_IMAGE="${QXRP_XRPLD_IMAGE:-qxrp/xrpld:btc-spv-v6}"
 PUBLIC_RPC="${QXRP_PUBLIC_RPC:-http://46.224.0.140:6005}"
 FLEET_UNL_URL="${QXRP_FLEET_UNL_URL:-https://raw.githubusercontent.com/beartec-jpg/qXRP/develop/bin/install/testnet-falcon-unl.txt}"
 
@@ -108,6 +109,30 @@ chown -R 1001:1001 /var/lib/qxrp-validator
 
 cd /var/lib/qxrp-validator
 
+# Bitcoin challenger fee wallet (NOT shared reserve)
+INSTALL_RAW_BASE="${QXRP_INSTALL_RAW_BASE:-https://raw.githubusercontent.com/beartec-jpg/qXRP/develop/bin/install}"
+BTC_NETWORK="${QXRP_BTC_NETWORK:-testnet}"
+mkdir -p /var/lib/qxrp-validator/bitvm-challenger /var/lib/qxrp-validator/config
+CH_WALLET=/var/lib/qxrp-validator/config/btc-challenger-wallet.json
+if [[ ! -f "$CH_WALLET" ]]; then
+  echo "Generating Bitcoin challenger fee wallet..."
+  if [[ -f /tmp/generate-btc-challenger-wallet.py ]]; then
+    python3 /tmp/generate-btc-challenger-wallet.py "$CH_WALLET"
+  else
+    curl -fsSL "${INSTALL_RAW_BASE}/generate-btc-challenger-wallet.py" -o /tmp/generate-btc-challenger-wallet.py
+    python3 /tmp/generate-btc-challenger-wallet.py "$CH_WALLET"
+  fi
+fi
+if [[ "$BTC_NETWORK" == "mainnet" ]]; then
+  BTC_FEE_ADDRESS=$(python3 -c "import json; print(json.load(open('${CH_WALLET}'))['address_mainnet'])")
+  BTC_FLOAT_HINT=$(python3 -c "import json; print(json.load(open('${CH_WALLET}')).get('suggested_float_mainnet_btc','0.001'))")
+else
+  BTC_FEE_ADDRESS=$(python3 -c "import json; print(json.load(open('${CH_WALLET}'))['address_testnet'])")
+  BTC_FLOAT_HINT=$(python3 -c "import json; print(json.load(open('${CH_WALLET}')).get('suggested_float_testnet_btc','0.001'))")
+fi
+curl -fsSL "${INSTALL_RAW_BASE}/bitvm-challenger/challenger.py" \
+  -o /var/lib/qxrp-validator/bitvm-challenger/challenger.py || true
+
 # Write docker-compose.yml (public hub ships :latest; override with QXRP_XRPLD_IMAGE)
 cat > docker-compose.yml << EOC
 services:
@@ -121,6 +146,7 @@ services:
       - /var/lib/qxrp-validator:/data
     ports:
       - "51235:51235"
+      - "6005:6005"
     logging:
       driver: "json-file"
       options:
@@ -133,6 +159,28 @@ services:
       retries: 3
       start_period: 60s
     command: ["--conf", "/cfg/xrpld.cfg"]
+    networks:
+      - qxrp
+
+  bitvm-challenger:
+    image: python:3.13-slim
+    container_name: qxrp-bitvm-challenger
+    restart: unless-stopped
+    environment:
+      FALCON_RPC: http://qxrp-validator:6005
+      PUBLIC_RPC: ${PUBLIC_RPC}
+      BTC_NETWORK: ${BTC_NETWORK}
+      CHALLENGER_WALLET: /cfg/btc-challenger-wallet.json
+      CHALLENGER_STATUS: /data/challenger-status.json
+      CHALLENGER_POLL_SEC: "30"
+    volumes:
+      - ./config:/cfg:ro
+      - /var/lib/qxrp-validator:/data
+      - ./bitvm-challenger:/app:ro
+    working_dir: /app
+    command: ["python3", "-u", "/app/challenger.py"]
+    depends_on:
+      - xrpld
     networks:
       - qxrp
 
@@ -420,12 +468,36 @@ EOC
 echo "Enabling Falcon validation and restarting..."
 (cd /var/lib/qxrp-validator && dc up -d --force-recreate)
 
+# Funding sheet (only two user steps)
+cat > /var/lib/qxrp-validator/FUNDING.txt <<FUND
+qXRP validator + BitVM challenger — ONLY TWO FUNDING STEPS
+==========================================================
+
+1) FALCON BOND (required)
+   Send ≥ 1,100 FALCON/qXRP to:
+   ${ACCOUNT}
+
+2) BITCOIN CHALLENGER FEES (for BTC bridge disputes)
+   Network: ${BTC_NETWORK}
+   Send ~${BTC_FLOAT_HINT} BTC to (FEE WALLET ONLY — not the shared reserve):
+   ${BTC_FEE_ADDRESS}
+
+Challenger fee wallet does NOT control the shared BTC reserve.
+Falcon PK: ${FALCON_PK}
+Payout (rewards): ${PAYOUT}
+FUND
+
 echo ""
-echo "=== FUND THIS VALIDATOR ADDRESS (≥1,100 qXRP) ==="
-echo "Validator r-address: $ACCOUNT"
+echo "=== ONLY TWO FUNDING STEPS ==="
+echo "1) FALCON bond — send ≥1,100 FALCON to:"
+echo "   $ACCOUNT"
+echo "2) BITCOIN challenger fees — send ~${BTC_FLOAT_HINT} BTC (${BTC_NETWORK}) to:"
+echo "   $BTC_FEE_ADDRESS"
+echo "   (fee wallet only — NOT the shared reserve)"
+echo ""
 echo "Falcon validator public key (hex): $FALCON_PK"
 echo "Payout address (rewards): $PAYOUT"
-echo ""
+echo "Funding sheet: /var/lib/qxrp-validator/FUNDING.txt"
 echo "Keys saved: $KEYS_FILE"
 echo ""
 
