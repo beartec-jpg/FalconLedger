@@ -730,34 +730,81 @@ else
   warn "Bond failed: ${BOND_RESULT}"
 fi
 
-# ── Reward claimer cron ───────────────────────────────────────────────────────
+# ── Claim + auto-payout cron (node-side, not protocol) ────────────────────────
+# ClaimReward → credits validator operator account.
+# Then Payment sweeps excess free balance to payout_address from keys JSON.
+# Protocol does NOT auto-pay the wallet; this cron does it for the operator.
 CLAIM_SCRIPT="${HOME}/.qxrp/${NODE_NAME}/claim-rewards.sh"
 cat > "$CLAIM_SCRIPT" <<'SCRIPT'
 #!/usr/bin/env bash
+# ClaimReward (if score allows) then Payment surplus → payout_address.
+# tecINSUFF_FEE on claim = score below minimum (not a real fee error).
 set -euo pipefail
 KEYS_FILE="__KEYS_FILE__"
 SERVICE="__SERVICE__"
+# Keep this many drops free for fees/reserve (50 FALCON). Bond is already locked separately.
+KEEP_DROPS="${QXRP_PAYOUT_KEEP_DROPS:-50000000}"
+FEE_DROPS="${QXRP_TX_FEE_DROPS:-12}"
+MIN_SEND="${QXRP_PAYOUT_MIN_DROPS:-1000000}"  # 1 FALCON dust floor
+
 CONSENSUS_KEY=$(python3 -c "import json; print(json.load(open('${KEYS_FILE}'))['consensus_key_hex'])")
 ACCOUNT=$(python3 -c "import json; print(json.load(open('${KEYS_FILE}'))['account_address'])")
 FALCON_SECRET=$(python3 -c "import json; print(json.load(open('${KEYS_FILE}'))['falcon_secret'])")
+PAYOUT=$(python3 -c "import json; print(json.load(open('${KEYS_FILE}')).get('payout_address') or '')")
 
-SIGN=$(docker exec "${SERVICE}" curl -sf -X POST http://127.0.0.1:5005 \
-  -H 'Content-Type: application/json' \
-  -d "{\"method\":\"sign\",\"params\":[{\"tx_json\":{\"TransactionType\":\"ClaimReward\",\"Account\":\"${ACCOUNT}\",\"ConsensusKey\":\"${CONSENSUS_KEY}\",\"Fee\":\"12\"},\"falcon_secret\":\"${FALCON_SECRET}\"}]}")
+docker_cmd() {
+  if docker info >/dev/null 2>&1; then docker "$@"
+  else sudo docker "$@"
+  fi
+}
 
-RESULT=$(echo "$SIGN" | python3 -c "import sys,json; print(json.load(sys.stdin)['result'].get('engine_result',''))")
-[[ "$RESULT" == "tesSUCCESS" ]] || exit 0
-BLOB=$(echo "$SIGN" | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['tx_blob'])")
-docker exec "${SERVICE}" curl -sf -X POST http://127.0.0.1:5005 \
-  -H 'Content-Type: application/json' \
-  -d "{\"method\":\"submit\",\"params\":[{\"tx_blob\":\"${BLOB}\"}]}" >/dev/null
+rpc() {
+  docker_cmd exec "${SERVICE}" curl -sf --max-time 20 -X POST http://127.0.0.1:5005 \
+    -H 'Content-Type: application/json' \
+    -d "$1"
+}
+
+logm() { echo "$(date -Is) $*"; }
+
+# ── 1) ClaimReward (once per epoch when score is high enough) ───────────────
+SIGN=$(rpc "{\"method\":\"sign\",\"params\":[{\"tx_json\":{\"TransactionType\":\"ClaimReward\",\"Account\":\"${ACCOUNT}\",\"ConsensusKey\":\"${CONSENSUS_KEY}\",\"Fee\":\"${FEE_DROPS}\"},\"falcon_secret\":\"${FALCON_SECRET}\"}]}") || true
+BLOB=$(echo "${SIGN:-}" | python3 -c "import sys,json; print(json.load(sys.stdin).get('result',{}).get('tx_blob') or '')" 2>/dev/null || true)
+if [[ -n "${BLOB}" ]]; then
+  SUB=$(rpc "{\"method\":\"submit\",\"params\":[{\"tx_blob\":\"${BLOB}\"}]}") || true
+  logm "claim=$(echo "${SUB:-}" | python3 -c "import sys,json; r=json.load(sys.stdin).get('result',{}); print(r.get('engine_result') or r.get('error') or '?')" 2>/dev/null || echo '?')"
+else
+  logm "claim=skip_no_blob"
+fi
+
+# ── 2) Sweep free balance → payout wallet ───────────────────────────────────
+[[ -n "$PAYOUT" && "$PAYOUT" != "$ACCOUNT" ]] || { logm "payout=skip_no_payout_address"; exit 0; }
+
+AI=$(rpc "{\"method\":\"account_info\",\"params\":[{\"account\":\"${ACCOUNT}\",\"ledger_index\":\"validated\"}]}") || true
+BAL=$(echo "${AI:-}" | python3 -c "import sys,json; d=json.load(sys.stdin).get('result',{}); print(d.get('account_data',{}).get('Balance') or '0')" 2>/dev/null || echo 0)
+SEND=$(python3 -c "b=int('${BAL}'); k=int('${KEEP_DROPS}'); f=int('${FEE_DROPS}'); m=int('${MIN_SEND}'); s=b-k-f; print(s if s>=m else 0)")
+if [[ "${SEND}" -le 0 ]]; then
+  logm "payout=skip_balance bal=${BAL} keep=${KEEP_DROPS}"
+  exit 0
+fi
+
+PSIGN=$(rpc "{\"method\":\"sign\",\"params\":[{\"tx_json\":{\"TransactionType\":\"Payment\",\"Account\":\"${ACCOUNT}\",\"Destination\":\"${PAYOUT}\",\"Amount\":\"${SEND}\",\"Fee\":\"${FEE_DROPS}\"},\"falcon_secret\":\"${FALCON_SECRET}\"}]}") || true
+PBLOB=$(echo "${PSIGN:-}" | python3 -c "import sys,json; print(json.load(sys.stdin).get('result',{}).get('tx_blob') or '')" 2>/dev/null || true)
+if [[ -z "${PBLOB}" ]]; then
+  logm "payout=sign_failed"
+  exit 0
+fi
+PSUB=$(rpc "{\"method\":\"submit\",\"params\":[{\"tx_blob\":\"${PBLOB}\"}]}") || true
+logm "payout=$(echo "${PSUB:-}" | python3 -c "import sys,json; r=json.load(sys.stdin).get('result',{}); print(r.get('engine_result') or r.get('error') or '?')" 2>/dev/null || echo '?') amount_drops=${SEND} to=${PAYOUT}"
 SCRIPT
 sed -i "s|__KEYS_FILE__|${KEYS_FILE}|g; s|__SERVICE__|${SERVICE_NAME}|g" "$CLAIM_SCRIPT"
 chmod +x "$CLAIM_SCRIPT"
 
-CRON_LINE="17 * * * * ${CLAIM_SCRIPT} >> ${HOME}/.qxrp/${NODE_NAME}/claim.log 2>&1"
-( crontab -l 2>/dev/null | grep -vF "$CLAIM_SCRIPT"; echo "$CRON_LINE" ) | crontab -
-log "Reward claimer installed (hourly cron)"
+# Daily at 06:17 UTC — claim once/day is enough (ClaimReward is once per epoch);
+# same job sweeps surplus to payout. Override: QXRP_CLAIM_CRON='17 * * * *' for hourly.
+CRON_SCHED="${QXRP_CLAIM_CRON:-17 6 * * *}"
+CRON_LINE="${CRON_SCHED} ${CLAIM_SCRIPT} >> ${HOME}/.qxrp/${NODE_NAME}/claim.log 2>&1"
+( crontab -l 2>/dev/null | grep -vF "$CLAIM_SCRIPT" || true; echo "$CRON_LINE" ) | crontab -
+log "Claim+payout cron installed (${CRON_SCHED}) → ${PAYOUT_ADDRESS}"
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 STATE=$(rpc_local server_info | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['info']['server_state'])" 2>/dev/null || echo "unknown")
