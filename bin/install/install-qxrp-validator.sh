@@ -90,16 +90,20 @@ rpc_to() {
 # Image runs as uid 1001 (xrpld). Host bind mounts must be readable/writable
 # by that user. mktemp is 0700 by default → Permission denied inside the container.
 # Parent dir must be writable too (peerfinder.sqlite, debug.log live next to db/).
+# Prefer chmod 777 over chown 1001 — chown leaves files the host user cannot delete
+# (breaks traps under set -e and prints "Operation not permitted").
 prepare_xrpld_mount() {
   local dir="$1"
   mkdir -p "${dir}/db"
-  # World rwx when host uid ≠ 1001 (chown often fails under plain docker without root).
   chmod 777 "$dir" "${dir}/db" 2>/dev/null || true
-  if command -v sudo &>/dev/null; then
-    sudo chown -R 1001:1001 "$dir" 2>/dev/null || true
-  else
-    chown -R 1001:1001 "$dir" 2>/dev/null || true
-  fi
+}
+
+# Safe cleanup when container created root/1001-owned files under a host mount.
+safe_rm_rf() {
+  local p="$1"
+  [[ -n "$p" && -e "$p" ]] || return 0
+  rm -rf "$p" 2>/dev/null && return 0
+  command sudo rm -rf "$p" 2>/dev/null || true
 }
 
 # Verify the pulled image can sign/simulate Falcon txs (local).
@@ -107,7 +111,7 @@ smoke_test_local_image() {
   log "Falcon smoke test — local image (${DOCKER_IMAGE})..."
   local smoke_dir
   smoke_dir=$(mktemp -d)
-  trap 'docker rm -f qxrp_falcon_smoke >/dev/null 2>&1 || true; rm -rf "$smoke_dir"' RETURN
+  trap 'docker rm -f qxrp_falcon_smoke >/dev/null 2>&1 || true; safe_rm_rf "$smoke_dir"' RETURN
 
   # Paths must be container paths (/data/...), not host mktemp paths
   cat > "${smoke_dir}/xrpld.cfg" <<'CFG'
@@ -298,7 +302,7 @@ if [[ -f "$KEYS_FILE" ]]; then
 else
   log "Generating validator keys..."
   BOOT_DIR=$(mktemp -d)
-  trap 'docker rm -f qxrp_keygen_boot >/dev/null 2>&1 || true; rm -rf "$BOOT_DIR"' EXIT
+  trap 'docker rm -f qxrp_keygen_boot >/dev/null 2>&1 || true; safe_rm_rf "$BOOT_DIR"' EXIT
 
   cat > "${BOOT_DIR}/xrpld.cfg" <<'CFG'
 [server]
@@ -345,7 +349,7 @@ CFG
 
   # ZERO classical keys — no node_seed generation.
   docker stop qxrp_keygen_boot >/dev/null 2>&1 || true
-  rm -rf "$BOOT_DIR"
+  safe_rm_rf "$BOOT_DIR"
   trap - EXIT
 
   python3 - <<PY
