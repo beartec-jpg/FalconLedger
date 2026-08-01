@@ -1,10 +1,10 @@
 #!/bin/bash
-# Check that this host runs the Falcon testnet pin (mainnet-v2).
+# Check that this host runs the Falcon testnet SPV pin (btc-spv-v6).
 # Usage: bash check-falcon-version.sh
 set -euo pipefail
 
-EXPECTED_DIGEST="sha256:9362005f1360ad102d0cd76ff53f19ce7548d8149263e50f241489e4b73f3ea5"
-EXPECTED_TAG="qxrp/xrpld:mainnet-v2"
+EXPECTED_DIGEST="sha256:f4e7542e2ab1dc99eedeb70608994876331fdf82799ead8e7558a14a5c64bf2d"
+EXPECTED_TAG="qxrp/xrpld:btc-spv-v6"
 EXPECTED_NETWORK=1001
 
 echo "=== Falcon testnet version check ==="
@@ -31,7 +31,7 @@ if [[ -z "$CNAME" ]]; then
   echo "FAIL: no qxrp/xrpld container running"
   echo "Update / reinstall with the portal one-liner or:"
   echo "  docker pull ${EXPECTED_TAG}"
-  echo "  # then set compose image to ${EXPECTED_DIGEST} and: docker compose up -d"
+  echo "  # then set compose image to ${EXPECTED_TAG} and: docker compose up -d"
   exit 1
 fi
 
@@ -63,7 +63,7 @@ fi
 MATCH=0
 if echo "${DIGEST}" | grep -q "${EXPECTED_DIGEST#sha256:}"; then
   MATCH=1
-elif echo "${IMAGE}" | grep -q "mainnet-v2"; then
+elif echo "${IMAGE}" | grep -q "btc-spv-v6"; then
   MATCH=1
 elif echo "${IMAGE}" | grep -q "${EXPECTED_DIGEST}"; then
   MATCH=1
@@ -71,17 +71,16 @@ fi
 
 echo
 if [[ "$MATCH" -eq 1 ]]; then
-  echo "OK — running expected Falcon testnet pin (mainnet-v2)."
+  echo "OK — running expected Falcon testnet pin (btc-spv-v6)."
   exit 0
 fi
 
 echo "NOT OK — image does not match expected pin."
 echo
 echo "Update with:"
-echo "  export IMG='qxrp/xrpld@${EXPECTED_DIGEST}'"
+echo "  export IMG='${EXPECTED_TAG}'"
 echo "  docker pull \"\$IMG\""
-echo "  docker tag \"\$IMG\" ${EXPECTED_TAG}"
-echo "  # edit docker-compose.yml image: line to \$IMG or ${EXPECTED_TAG}"
-echo "  cd /var/lib/qxrp-validator   # or /var/lib/falcon-validator"
+echo "  # edit docker-compose.yml image: line to \$IMG"
+echo "  cd /var/lib/qxrp-validator   # or /var/lib/falcon-validator or ~/.qxrp/<node>"
 echo "  docker compose up -d --force-recreate"
 exit 2

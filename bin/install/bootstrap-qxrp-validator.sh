@@ -331,7 +331,7 @@ for attempt in 1 2 3; do
 done
 if [[ "$PULL_OK" -ne 1 ]]; then
   echo "ERROR: could not pull ${DOCKER_IMAGE}" >&2
-  echo "  Expected Falcon testnet pin: mainnet-v2 @ sha256:9362005f1360…" >&2
+  echo "  Expected Falcon testnet pin: qxrp/xrpld:btc-spv-v6 (SPV bridge fleet)" >&2
   exit 1
 fi
 # Local alias so docker-compose / docker ps show a readable tag.
@@ -357,7 +357,7 @@ for i in $(seq 1 30); do
 done
 if [[ "$RPC_READY" -ne 1 ]]; then
   echo "ERROR: qxrp-validator RPC not ready. Check: docker logs qxrp-validator" >&2
-  echo "  Common cause: wrong image (need mainnet-v2 / sha256:9362005f…, not lending-v5 or :latest)." >&2
+  echo "  Common cause: wrong image (need qxrp/xrpld:btc-spv-v6, not lending-v5 / mainnet-v2 / :latest)." >&2
   exit 1
 fi
 
