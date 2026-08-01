@@ -531,9 +531,25 @@ CFG
 # Readable by container uid 1001; secrets live in validator-keys.json (0600)
 chmod 644 "${CONFIG_DIR}/xrpld.cfg"
 
-# ── docker-compose (xrpld + BitVM challenger sidecar) ─────────────────────────
+# ── Dashboard (same as cloud bootstrap — portal can link :8080) ───────────────
+DASH_DIR="${HOME}/.qxrp/${NODE_NAME}/dashboard"
+DASH_BASE="${QXRP_DASH_RAW_BASE:-https://raw.githubusercontent.com/beartec-jpg/FalconLedger/develop/tools/dashboard}"
+mkdir -p "$DASH_DIR"
+if [[ -f "$(dirname "${BASH_SOURCE[0]:-$0}")/../../tools/dashboard/server.py" ]]; then
+  cp "$(dirname "${BASH_SOURCE[0]:-$0}")/../../tools/dashboard/server.py" "${DASH_DIR}/server.py"
+  cp "$(dirname "${BASH_SOURCE[0]:-$0}")/../../tools/dashboard/requirements.txt" "${DASH_DIR}/requirements.txt"
+else
+  curl -fsSL "${DASH_BASE}/server.py" -o "${DASH_DIR}/server.py" \
+    || die "Cannot download dashboard server.py"
+  curl -fsSL "${DASH_BASE}/requirements.txt" -o "${DASH_DIR}/requirements.txt" \
+    || die "Cannot download dashboard requirements.txt"
+fi
+# Written again after ACCOUNT is known (keys); placeholder for first compose up
+printf 'VALIDATOR_ACCOUNT=%s\n' "${ACCOUNT:-}" > "${DASH_DIR}/.env"
+
+# ── docker-compose (xrpld + challenger + dashboard) ───────────────────────────
+DASH_NAME="qxrp-${NODE_NAME}-dashboard"
 cat > "$COMPOSE_FILE" <<COMPOSE
-version: "3.9"
 services:
   xrpld:
     image: ${DOCKER_IMAGE}
@@ -571,10 +587,35 @@ services:
     networks:
       - qxrp
 
+  dashboard:
+    image: python:3.13-slim
+    container_name: ${DASH_NAME}
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      XRPLD_RPC_URL: http://xrpld:6005
+      NETWORK_RPC_URL: ${PUBLIC_RPC}
+      DASHBOARD_PORT: "8080"
+      VALIDATOR_ACCOUNT: ${ACCOUNT:-}
+    env_file:
+      - ${DASH_DIR}/.env
+    volumes:
+      - ${DASH_DIR}:/app:ro
+      - ${DATA_DIR}/dashboard-metrics:/var/lib/qxrp-dashboard
+    working_dir: /app
+    command: ["sh", "-c", "pip install -q -r requirements.txt && python3 server.py"]
+    depends_on:
+      - xrpld
+    networks:
+      - qxrp
+
 networks:
   qxrp:
     driver: bridge
 COMPOSE
+mkdir -p "${DATA_DIR}/dashboard-metrics"
+chmod 777 "${DATA_DIR}/dashboard-metrics" 2>/dev/null || true
 
 # Expose Falcon RPC on 6005 inside the compose network (cfg may use ADMIN_PORT only)
 # Map peer + ensure challenger can reach: use host-published admin if needed
@@ -809,9 +850,13 @@ log "Claim+payout cron installed (${CRON_SCHED}) → ${PAYOUT_ADDRESS}"
 # ── Done ──────────────────────────────────────────────────────────────────────
 STATE=$(rpc_local server_info | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['info']['server_state'])" 2>/dev/null || echo "unknown")
 
-big "VALIDATOR + CHALLENGER READY"
+# Ensure dashboard .env has validator account after keys exist
+printf 'VALIDATOR_ACCOUNT=%s\n' "${ACCOUNT}" > "${HOME}/.qxrp/${NODE_NAME}/dashboard/.env" 2>/dev/null || true
+
+big "VALIDATOR + CHALLENGER + DASHBOARD READY"
 echo "  Falcon container : ${SERVICE_NAME}"
 echo "  Challenger       : ${CHALLENGER_NAME}"
+echo "  Dashboard        : qxrp-${NODE_NAME}-dashboard  →  http://<this-host-ip>:8080"
 echo "  Falcon address   : ${ACCOUNT}"
 echo "  BTC fee address  : ${BTC_FEE_ADDRESS} (${BTC_NETWORK})"
 echo "  Falcon PK        : ${FALCON_PK}"
@@ -820,7 +865,11 @@ echo "  State            : ${STATE}"
 echo "  Funding sheet    : ${FUNDING_FILE}"
 echo "  Logs             : docker logs -f ${SERVICE_NAME}"
 echo "                     docker logs -f ${CHALLENGER_NAME}"
+echo "                     docker logs -f qxrp-${NODE_NAME}-dashboard"
 echo "  Config           : ${CONFIG_DIR}"
 echo ""
-echo "  Portal guide: https://q-xrp-faucet.vercel.app/validator"
+echo "  Local dash:  http://127.0.0.1:8080"
+echo "  LAN/Tailscale: http://\$(hostname -I | awk '{print \$1}'):8080"
+echo "  Portal can link that host:8080 (needs TCP 8080 reachable from the internet for remote proxy)."
+echo "  Portal guide: https://falcon-ledger.com/validator"
 echo ""
