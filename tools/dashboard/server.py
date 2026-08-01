@@ -779,6 +779,10 @@ def collect_stats() -> Dict[str, Any]:
             "load_factor": net_info.get("load_factor"),
             "bonded_validator_count": bonded_count,
             "total_validator_entries": len(validators),
+            # Live consensus participation (last closed ledger), not bond count.
+            "proposing_count": int(
+                ((net_info.get("last_close") or {}).get("proposers")) or 0
+            ),
             "validators": validators,
             "epoch": fetch_epoch(),
             "tx_per_sec": tx_metrics["tx_per_sec"],
@@ -834,6 +838,7 @@ def _sample_point(stats: Dict[str, Any]) -> Dict[str, Any]:
         "traffic_submitted": int(traffic.get("submitted") or 0),
         "traffic_validated": int(traffic.get("validated") or 0),
         "bonded_validators": int(net.get("bonded_validator_count") or 0),
+        "proposing_validators": int(net.get("proposing_count") or 0),
         # Only chart a real score; missing bond → omit (avoids flat orange "0" line).
         "composite_score": int(composite) if composite is not None else None,
         # Capacity history for growth charts.
@@ -1000,7 +1005,11 @@ a { color:var(--accent); text-decoration:none; }
     <div class="grid" id="trafficGrid"></div>
   </div>
 
-  <div class="section-title">Bonded validators</div>
+  <div class="section-title" id="valSectionTitle">Validators</div>
+  <p style="color:var(--muted);font-size:12px;margin:-6px 0 12px;line-height:1.4">
+    <strong>Bonded</strong> = stake on ledger (still listed if the machine is off).
+    <strong>Active</strong> = proposed in the last consensus close.
+  </p>
   <div class="panel">
     <table>
       <thead><tr><th>Account</th><th>Status</th><th>Bond</th><th>Score</th></tr></thead>
@@ -1033,7 +1042,8 @@ const METRICS = {
   total_txs: { title: 'Total txs on ledger', color: '#b5179e' },
   tx_per_min: { title: 'Traffic generator tx rate (/min)', color: '#f72585' },
   traffic_validated: { title: 'Traffic generator validated txs', color: '#b5179e' },
-  bonded_validators: { title: 'Bonded validators', color: '#560bad' },
+  bonded_validators: { title: 'Total bonded validators', color: '#560bad' },
+  proposing_validators: { title: 'Active proposing (last close)', color: '#3dd68c' },
   composite_score: { title: 'Composite score', color: '#4cc9f0' },
   disk_used_percent: { title: 'Disk used %', color: '#f5b942' },
   disk_free_bytes: { title: 'Disk free (bytes)', color: '#3dd68c' },
@@ -1268,10 +1278,17 @@ async function refresh() {
   const archSub = archGrowth
     ? ('full-history archive · ' + archGrowth)
     : 'full-history archive size (measured)';
+  const bondedN = Number(net.bonded_validator_count || 0);
+  const activeN = Number(net.proposing_count || 0);
+  const valTitle = document.getElementById('valSectionTitle');
+  if (valTitle) {
+    valTitle.textContent = 'Validators · ' + bondedN + ' bonded total · ' + activeN + ' active proposing';
+  }
   const netCards = [
     tile('n_ledger', 'Network ledger', '#' + ledger.toLocaleString(), net.complete_ledgers || '', 'ledger_seq', 'good'),
     tile('n_state', 'Network state', net.server_state || '—', net.rpc || '', 'net_peers'),
-    tile('n_validators', 'Bonded validators', String(net.bonded_validator_count||0), (net.total_validator_entries||0) + ' on ledger', 'bonded_validators', 'good'),
+    tile('n_bonded', 'Total bonded', String(bondedN), 'on-ledger stake (incl. offline)', 'bonded_validators', 'good'),
+    tile('n_active', 'Active proposing', String(activeN), 'last consensus close', 'proposing_validators', activeN > 0 ? 'good' : 'warn'),
     tile('n_load', 'Load factor', String(net.load_factor || 1), 'network pressure', 'load_factor'),
     tile('n_rate', 'Ledger rate', '…', 'closes per minute', 'ledger_rate_per_min', 'good'),
     tile('n_tps', 'Tx rate', fmtTxPerSec(txPerSec), 'network-wide closes' + (net.last_ledger_txs != null ? ' · last ledger ' + net.last_ledger_txs : ''), 'net_tx_per_sec', (Number(txPerSec)||0) > 0 ? 'good' : ''),
