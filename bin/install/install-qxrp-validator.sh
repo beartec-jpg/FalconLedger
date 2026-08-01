@@ -240,7 +240,22 @@ DISK_GB=$(df --output=avail -BG "${HOME}" | tail -1 | tr -d 'G ')
 if ! command -v docker &>/dev/null; then
   log "Installing Docker..."
   curl -fsSL https://get.docker.com | sh
+fi
+
+# Fresh Docker install: user is not in the docker group until re-login.
+# usermod alone does not fix the current shell — use sudo docker for this run.
+if ! docker info &>/dev/null 2>&1; then
   sudo usermod -aG docker "$USER" 2>/dev/null || true
+  if sudo docker info &>/dev/null 2>&1; then
+    log "Docker socket needs group access — using sudo docker for this install"
+    log "After install finishes, run once: newgrp docker   (or log out/in)"
+    docker() { command sudo docker "$@"; }
+  else
+    die "Cannot access Docker. Fix with:
+  sudo usermod -aG docker \$USER
+  newgrp docker
+then re-run this installer."
+  fi
 fi
 
 mkdir -p "$CONFIG_DIR" "$DATA_DIR"
