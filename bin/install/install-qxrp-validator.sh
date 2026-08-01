@@ -627,12 +627,31 @@ echo "  Saved: ${FUNDING_FILE}"
 echo "  Payout (rewards): ${PAYOUT_ADDRESS}"
 echo ""
 
+# Prefer local node for balance + submit (home networks often cannot hit PUBLIC_RPC :6005).
+account_balance_drops() {
+  local acct="$1" bal=""
+  bal=$(rpc_local account_info "{\"account\":\"${acct}\",\"ledger_index\":\"validated\"}" 2>/dev/null \
+    | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('result',{}).get('account_data',{}).get('Balance','0'))" 2>/dev/null || true)
+  if [[ -z "${bal}" || "${bal}" == "0" || "${bal}" == "None" ]]; then
+    bal=$(rpc_public account_info "{\"account\":\"${acct}\",\"ledger_index\":\"validated\"}" 2>/dev/null \
+      | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('result',{}).get('account_data',{}).get('Balance','0'))" 2>/dev/null || echo "0")
+  fi
+  echo "${bal:-0}"
+}
+
+submit_blob() {
+  local blob="$1"
+  # Local first (always available once container is up), then public
+  rpc_local submit "{\"tx_blob\":\"${blob}\"}" >/dev/null 2>&1 \
+    || rpc_public submit "{\"tx_blob\":\"${blob}\"}" >/dev/null 2>&1 \
+    || warn "submit failed (local + public) — re-run bond when node is synced"
+}
+
 # ── Wait for funding + auto bond ──────────────────────────────────────────────
-log "Waiting for funding on ${ACCOUNT} (polling ${PUBLIC_RPC})..."
+log "Waiting for funding on ${ACCOUNT} (local RPC first, then ${PUBLIC_RPC})..."
 FUNDED=0
 for i in $(seq 1 180); do
-  BAL=$(rpc_public account_info "{\"account\":\"${ACCOUNT}\",\"ledger_index\":\"validated\"}" 2>/dev/null \
-    | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('result',{}).get('account_data',{}).get('Balance','0'))" 2>/dev/null || echo "0")
+  BAL=$(account_balance_drops "${ACCOUNT}")
   if [[ "${BAL:-0}" -ge "$MIN_FUND_DROPS" ]]; then
     FUNDED=1
     log "Funded: $(python3 -c "print(${BAL}/1000000)") qXRP"
@@ -643,8 +662,10 @@ for i in $(seq 1 180); do
 done
 
 if [[ "$FUNDED" -eq 0 ]]; then
-  warn "Timed out waiting for funding. Bond manually when ready:"
-  warn "  python3 ${HOME}/.qxrp/${NODE_NAME}/bond-validator.py"
+  warn "Timed out waiting for funding. If you already sent FALCON, your network may block"
+  warn "public RPC; check balance once the local node is synced, then bond:"
+  warn "  # on this machine:"
+  warn "  docker exec ${SERVICE_NAME} curl -sf -X POST http://127.0.0.1:5005 -H 'Content-Type: application/json' -d '{\"method\":\"account_info\",\"params\":[{\"account\":\"${ACCOUNT}\",\"ledger_index\":\"validated\"}]}'"
   exit 0
 fi
 
@@ -655,7 +676,7 @@ log "  ValidatorRegister: ${REG_RESULT}"
 
 if [[ "$REG_RESULT" == "tesSUCCESS" || "$REG_RESULT" == "terQUEUED" ]]; then
   BLOB=$(echo "$REG" | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['tx_blob'])")
-  rpc_public submit "{\"tx_blob\":\"${BLOB}\"}" >/dev/null
+  submit_blob "$BLOB"
   sleep 4
 fi
 
@@ -667,7 +688,7 @@ log "  ValidatorBond: ${BOND_RESULT}"
 if [[ "$BOND_RESULT" == "tesSUCCESS" || "$BOND_RESULT" == "terQUEUED" || "$BOND_RESULT" == "tecNO_PERMISSION" ]]; then
   if [[ "$BOND_RESULT" != "tecNO_PERMISSION" ]]; then
     BLOB=$(echo "$BOND" | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['tx_blob'])")
-    rpc_public submit "{\"tx_blob\":\"${BLOB}\"}" >/dev/null
+    submit_blob "$BLOB"
   else
     log "  Already bonded"
   fi
