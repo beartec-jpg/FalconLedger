@@ -99,11 +99,13 @@ prepare_xrpld_mount() {
 }
 
 # Safe cleanup when container created root/1001-owned files under a host mount.
+# Always returns 0 — never abort the install under set -e.
 safe_rm_rf() {
   local p="$1"
   [[ -n "$p" && -e "$p" ]] || return 0
-  rm -rf "$p" 2>/dev/null && return 0
-  command sudo rm -rf "$p" 2>/dev/null || true
+  # Prefer sudo first when files may be uid 1001; never print errors.
+  command sudo rm -rf "$p" >/dev/null 2>&1 || rm -rf "$p" >/dev/null 2>&1 || true
+  return 0
 }
 
 # Verify the pulled image can sign/simulate Falcon txs (local).
@@ -111,7 +113,8 @@ smoke_test_local_image() {
   log "Falcon smoke test — local image (${DOCKER_IMAGE})..."
   local smoke_dir
   smoke_dir=$(mktemp -d)
-  trap 'docker rm -f qxrp_falcon_smoke >/dev/null 2>&1 || true; safe_rm_rf "$smoke_dir"' RETURN
+  # RETURN trap must not fail (set -e): only docker cleanup is required.
+  trap 'docker rm -f qxrp_falcon_smoke >/dev/null 2>&1 || true; safe_rm_rf "$smoke_dir" || true' RETURN
 
   # Paths must be container paths (/data/...), not host mktemp paths
   cat > "${smoke_dir}/xrpld.cfg" <<'CFG'
@@ -302,7 +305,7 @@ if [[ -f "$KEYS_FILE" ]]; then
 else
   log "Generating validator keys..."
   BOOT_DIR=$(mktemp -d)
-  trap 'docker rm -f qxrp_keygen_boot >/dev/null 2>&1 || true; safe_rm_rf "$BOOT_DIR"' EXIT
+  trap 'docker rm -f qxrp_keygen_boot >/dev/null 2>&1 || true; safe_rm_rf "$BOOT_DIR" || true' EXIT
 
   cat > "${BOOT_DIR}/xrpld.cfg" <<'CFG'
 [server]
