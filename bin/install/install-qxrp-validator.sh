@@ -87,14 +87,30 @@ rpc_to() {
     -d "{\"method\":\"${method}\",\"params\":[${params}]}"
 }
 
+# Image runs as uid 1001 (xrpld). Host bind mounts must be readable/writable
+# by that user. mktemp is 0700 by default → Permission denied inside the container.
+# Parent dir must be writable too (peerfinder.sqlite, debug.log live next to db/).
+prepare_xrpld_mount() {
+  local dir="$1"
+  mkdir -p "${dir}/db"
+  # World rwx when host uid ≠ 1001 (chown often fails under plain docker without root).
+  chmod 777 "$dir" "${dir}/db" 2>/dev/null || true
+  if command -v sudo &>/dev/null; then
+    sudo chown -R 1001:1001 "$dir" 2>/dev/null || true
+  else
+    chown -R 1001:1001 "$dir" 2>/dev/null || true
+  fi
+}
+
 # Verify the pulled image can sign/simulate Falcon txs (local).
 smoke_test_local_image() {
   log "Falcon smoke test — local image (${DOCKER_IMAGE})..."
   local smoke_dir
   smoke_dir=$(mktemp -d)
-  trap 'rm -rf "$smoke_dir"' RETURN
+  trap 'docker rm -f qxrp_falcon_smoke >/dev/null 2>&1 || true; rm -rf "$smoke_dir"' RETURN
 
-  cat > "${smoke_dir}/xrpld.cfg" <<CFG
+  # Paths must be container paths (/data/...), not host mktemp paths
+  cat > "${smoke_dir}/xrpld.cfg" <<'CFG'
 [server]
 port_rpc
 [port_rpc]
@@ -104,22 +120,29 @@ admin = 127.0.0.1
 protocol = http
 [node_db]
 type = NuDB
-path = ${smoke_dir}/db
+path = /data/db
 [database_path]
-${smoke_dir}
+/data
 [debug_logfile]
-${smoke_dir}/debug.log
+/data/debug.log
 CFG
+  prepare_xrpld_mount "$smoke_dir"
+  chmod 644 "${smoke_dir}/xrpld.cfg" 2>/dev/null || true
 
+  docker rm -f qxrp_falcon_smoke >/dev/null 2>&1 || true
   docker run --rm -d --name qxrp_falcon_smoke \
     -v "${smoke_dir}:/data" \
     "${DOCKER_IMAGE}" \
     --conf /data/xrpld.cfg --standalone >/dev/null
 
-  for i in $(seq 1 30); do
+  for i in $(seq 1 45); do
     docker exec qxrp_falcon_smoke curl -sf -X POST http://127.0.0.1:5998 \
       -H 'Content-Type: application/json' -d '{"method":"server_info","params":[{}]}' >/dev/null 2>&1 && break
-    [[ $i -eq 30 ]] && die "Falcon smoke test: ephemeral node did not start"
+    if [[ $i -eq 45 ]]; then
+      warn "Smoke container logs:"
+      docker logs qxrp_falcon_smoke 2>&1 | tail -30 || true
+      die "Falcon smoke test: ephemeral node did not start"
+    fi
     sleep 1
   done
 
@@ -259,6 +282,10 @@ then re-run this installer."
 fi
 
 mkdir -p "$CONFIG_DIR" "$DATA_DIR"
+# Data dir only — config stays owned by installing user so we can write keys/cfg.
+prepare_xrpld_mount "$DATA_DIR"
+# Config must be readable by container uid 1001
+chmod 755 "$CONFIG_DIR" 2>/dev/null || true
 
 log "Pulling ${DOCKER_IMAGE}..."
 docker pull "$DOCKER_IMAGE" >/dev/null
@@ -271,9 +298,9 @@ if [[ -f "$KEYS_FILE" ]]; then
 else
   log "Generating validator keys..."
   BOOT_DIR=$(mktemp -d)
-  trap 'rm -rf "$BOOT_DIR"' EXIT
+  trap 'docker rm -f qxrp_keygen_boot >/dev/null 2>&1 || true; rm -rf "$BOOT_DIR"' EXIT
 
-  cat > "${BOOT_DIR}/xrpld.cfg" <<CFG
+  cat > "${BOOT_DIR}/xrpld.cfg" <<'CFG'
 [server]
 port_rpc
 [port_rpc]
@@ -283,22 +310,29 @@ admin = 127.0.0.1
 protocol = http
 [node_db]
 type = NuDB
-path = ${BOOT_DIR}/db
+path = /data/db
 [database_path]
-${BOOT_DIR}
+/data
 [debug_logfile]
-${BOOT_DIR}/debug.log
+/data/debug.log
 CFG
+  prepare_xrpld_mount "$BOOT_DIR"
+  chmod 644 "${BOOT_DIR}/xrpld.cfg" 2>/dev/null || true
 
+  docker rm -f qxrp_keygen_boot >/dev/null 2>&1 || true
   docker run --rm -d --name qxrp_keygen_boot \
     -v "${BOOT_DIR}:/data" \
     "$DOCKER_IMAGE" \
     --conf /data/xrpld.cfg --standalone >/dev/null
 
-  for i in $(seq 1 30); do
+  for i in $(seq 1 45); do
     docker exec qxrp_keygen_boot curl -sf -X POST http://127.0.0.1:5999 \
       -H 'Content-Type: application/json' -d '{"method":"server_info","params":[{}]}' >/dev/null 2>&1 && break
-    [[ $i -eq 30 ]] && die "Keygen bootstrap timed out"
+    if [[ $i -eq 45 ]]; then
+      warn "Keygen container logs:"
+      docker logs qxrp_keygen_boot 2>&1 | tail -30 || true
+      die "Keygen bootstrap timed out"
+    fi
     sleep 1
   done
 
@@ -447,7 +481,8 @@ advisory_delete = 0
 [ips_fixed]
 ${IPS_BLOCK}
 CFG
-chmod 600 "${CONFIG_DIR}/xrpld.cfg"
+# Readable by container uid 1001; secrets live in validator-keys.json (0600)
+chmod 644 "${CONFIG_DIR}/xrpld.cfg"
 
 # ── docker-compose (xrpld + BitVM challenger sidecar) ─────────────────────────
 cat > "$COMPOSE_FILE" <<COMPOSE
