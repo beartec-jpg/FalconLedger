@@ -436,16 +436,32 @@ else
     || die "Cannot download bitvm-challenger/challenger.py"
 fi
 
-# ── validators.txt ────────────────────────────────────────────────────────────
-{
-  echo "[validators]"
-  echo "$FALCON_PK"
+# ── validators.txt (FLEET UNL — never self-only or the node solo-forks) ───────
+# Download official testnet UNL; optional TRUSTED_KEYS appends extras.
+FLEET_UNL_URL="${QXRP_FLEET_UNL_URL:-https://raw.githubusercontent.com/beartec-jpg/FalconLedger/develop/bin/install/testnet-falcon-unl.txt}"
+if [[ -f "$(dirname "${BASH_SOURCE[0]:-$0}")/testnet-falcon-unl.txt" ]]; then
+  cp "$(dirname "${BASH_SOURCE[0]:-$0}")/testnet-falcon-unl.txt" "$VALIDATORS_FILE"
+elif curl -fsSL "$FLEET_UNL_URL" -o "$VALIDATORS_FILE"; then
+  log "Downloaded fleet UNL → $VALIDATORS_FILE"
+else
+  die "Cannot load fleet UNL (set QXRP_TRUSTED_FALCON_KEYS or fix network). Self-only UNL causes a solo chain."
+fi
+# Ensure [validators] header
+if ! head -1 "$VALIDATORS_FILE" | grep -qi '\[validators\]'; then
+  { echo "[validators]"; cat "$VALIDATORS_FILE"; } > "${VALIDATORS_FILE}.tmp"
+  mv "${VALIDATORS_FILE}.tmp" "$VALIDATORS_FILE"
+fi
+if [[ -n "$TRUSTED_KEYS" ]]; then
   IFS=',' read -ra KEYS <<< "$TRUSTED_KEYS"
   for k in "${KEYS[@]}"; do
     k="${k//[[:space:]]/}"
-    [[ -n "$k" && "$k" != "$FALCON_PK" ]] && echo "$k"
+    [[ -n "$k" ]] && echo "$k" >> "$VALIDATORS_FILE"
   done
-} > "$VALIDATORS_FILE"
+fi
+# Do NOT add only this node's key as the sole UNL entry.
+nkeys=$(grep -cE '^FB[0-9A-F]+' "$VALIDATORS_FILE" 2>/dev/null || echo 0)
+[[ "${nkeys}" -ge 3 ]] || die "Fleet UNL looks empty (${nkeys} keys). Aborting to avoid solo fork."
+log "UNL keys loaded: ${nkeys}"
 
 # ── xrpld.cfg ─────────────────────────────────────────────────────────────────
 IPS_BLOCK=""
@@ -462,13 +478,16 @@ ${NETWORK_ID}
 medium
 
 [ledger_history]
-256
+full
 
 [validation_quorum]
 ${QUORUM}
 
-[validation_falcon_secret]
-${FALCON_SECRET}
+# Do NOT enable validation_falcon_secret on first boot — a self-only or
+# early-proposing node solo-forks (ledgers 5–10) and never sees network funds.
+# Keys stay in validator-keys.json; finish-bond / post-sync enables proposing.
+[#validation_falcon_secret_disabled_until_synced]
+# ${FALCON_SECRET}
 
 # P2P identity reuses Falcon validation key (classical [node_seed] forbidden)
 

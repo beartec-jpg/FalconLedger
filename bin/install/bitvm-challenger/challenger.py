@@ -32,12 +32,17 @@ from pathlib import Path
 
 # Allow importing engine when mounted next to this file or from repo
 _HERE = Path(__file__).resolve().parent
-for p in (
+_CANDIDATES = [
     _HERE,
     _HERE / "bitvm",
     Path("/opt/bitvm"),
-    Path(__file__).resolve().parents[3] / "scripts" / "btc-spv" / "bitvm",
-):
+]
+# parents[n] throws if path is too shallow (e.g. mounted at /app in container)
+try:
+    _CANDIDATES.append(Path(__file__).resolve().parents[3] / "scripts" / "btc-spv" / "bitvm")
+except (IndexError, TypeError):
+    pass
+for p in _CANDIDATES:
     if p.is_dir() and str(p) not in sys.path:
         sys.path.insert(0, str(p))
 
