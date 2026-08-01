@@ -11,26 +11,26 @@
 #
 # What it does:
 #   1. Installs Docker (if needed) and pulls the pinned Falcon image (never :latest)
-#   2. Falcon smoke tests (local image + validator fleet signature check) — see docs/fleet-image-pinning.md
-#   3. Generates validator + node identity keys
-#   4. Writes config (UNL, bootstrap peers, network 1001)
-#   5. Starts the validator container
-#   6. Prints the validator r-address to fund
-#   7. Polls the public RPC until ≥1,100 qXRP, then ValidatorRegister + ValidatorBond(1000)
-#   8. Installs an hourly reward-claim cron job
+#   2. Falcon smoke tests (local image + validator fleet signature check)
+#   3. Generates Falcon validator keys + Bitcoin challenger fee wallet
+#   4. Writes config (UNL, peers, network 1001)
+#   5. Starts xrpld + BitVM challenger sidecar (watch-only until fee wallet funded)
+#   6. Prints ONLY two fund steps:
+#        • FALCON (qXRP) → validator r-address for bond
+#        • BTC (testnet) → challenger fee address
+#   7. Auto-bonds when Falcon funded; challenger uses BTC float for dispute fees only
 #
-# Recommended: fund the validator address from the faucet (2,000 qXRP drip) BEFORE
-# or AFTER running this script — bonding starts automatically once funded.
+# Challenger BTC is NOT the shared reserve key — fee wallet only.
 #
 # Mainnet / launch: set QXRP_XRPLD_IMAGE to a digest from IMAGE_DIGEST.txt
 #   export QXRP_XRPLD_IMAGE='qxrp/xrpld@sha256:…'
 
 set -euo pipefail
 
-# ── Defaults (Falcon testnet = mainnet-v2 pin) ────────────────────────────────
-# Never floating :latest. Digest pin matches live fleet (AccountNames + score pay).
-# Override with QXRP_XRPLD_IMAGE only for intentional skew / next pin.
-DOCKER_IMAGE="${QXRP_XRPLD_IMAGE:-qxrp/xrpld@sha256:9362005f1360ad102d0cd76ff53f19ce7548d8149263e50f241489e4b73f3ea5}"
+# ── Defaults (Falcon testnet 1001 SPV bridge fleet) ───────────────────────────
+# Pin to current public testnet SPV bridge binary. Never floating :latest.
+# Override with QXRP_XRPLD_IMAGE only if you know you need a different build.
+DOCKER_IMAGE="${QXRP_XRPLD_IMAGE:-qxrp/xrpld:btc-spv-v6}"
 NETWORK_ID=1001
 PUBLIC_RPC="${QXRP_PUBLIC_RPC:-http://46.224.0.140:6005}"
 BOOTSTRAP_PEERS="46.224.0.140:51235,167.233.55.43:51235,204.168.175.194:51235,89.167.109.241:51235"
@@ -50,9 +50,15 @@ CONFIG_DIR="${HOME}/.qxrp/${NODE_NAME}/config"
 DATA_DIR="${HOME}/.qxrp/${NODE_NAME}/data"
 COMPOSE_FILE="${HOME}/.qxrp/${NODE_NAME}/docker-compose.yml"
 KEYS_FILE="${CONFIG_DIR}/validator-keys.json"
+BTC_CHALLENGER_WALLET="${CONFIG_DIR}/btc-challenger-wallet.json"
+CHALLENGER_DIR="${HOME}/.qxrp/${NODE_NAME}/bitvm-challenger"
 VALIDATORS_FILE="${CONFIG_DIR}/validators.txt"
 SERVICE_NAME="qxrp-${NODE_NAME}"
+CHALLENGER_NAME="qxrp-${NODE_NAME}-challenger"
 ADMIN_PORT=5005
+# Raw install assets (works with curl | bash)
+INSTALL_RAW_BASE="${QXRP_INSTALL_RAW_BASE:-https://raw.githubusercontent.com/beartec-jpg/qXRP/develop/bin/install}"
+BTC_NETWORK="${QXRP_BTC_NETWORK:-testnet}"
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 log()  { echo -e "\033[1;32m[qxrp]\033[0m $*"; }
@@ -203,7 +209,7 @@ run_falcon_smoke_tests() {
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --payout)       PAYOUT_ADDRESS="$2"; shift 2 ;;
-    --node-name)    NODE_NAME="$2"; CONFIG_DIR="${HOME}/.qxrp/${NODE_NAME}/config"; DATA_DIR="${HOME}/.qxrp/${NODE_NAME}/data"; COMPOSE_FILE="${HOME}/.qxrp/${NODE_NAME}/docker-compose.yml"; KEYS_FILE="${CONFIG_DIR}/validator-keys.json"; VALIDATORS_FILE="${CONFIG_DIR}/validators.txt"; SERVICE_NAME="qxrp-${NODE_NAME}"; shift 2 ;;
+    --node-name)    NODE_NAME="$2"; CONFIG_DIR="${HOME}/.qxrp/${NODE_NAME}/config"; DATA_DIR="${HOME}/.qxrp/${NODE_NAME}/data"; COMPOSE_FILE="${HOME}/.qxrp/${NODE_NAME}/docker-compose.yml"; KEYS_FILE="${CONFIG_DIR}/validator-keys.json"; BTC_CHALLENGER_WALLET="${CONFIG_DIR}/btc-challenger-wallet.json"; CHALLENGER_DIR="${HOME}/.qxrp/${NODE_NAME}/bitvm-challenger"; VALIDATORS_FILE="${CONFIG_DIR}/validators.txt"; SERVICE_NAME="qxrp-${NODE_NAME}"; CHALLENGER_NAME="qxrp-${NODE_NAME}-challenger"; shift 2 ;;
     --rpc-url)      PUBLIC_RPC="$2"; shift 2 ;;
     --peers)        BOOTSTRAP_PEERS="$2"; shift 2 ;;
     --trusted-keys) TRUSTED_KEYS="$2"; shift 2 ;;
@@ -317,6 +323,42 @@ FALCON_PK=$(python3 -c "import json; print(json.load(open('${KEYS_FILE}'))['falc
 ACCOUNT=$(python3 -c "import json; print(json.load(open('${KEYS_FILE}'))['account_address'])")
 CONSENSUS_KEY=$(python3 -c "import json; print(json.load(open('${KEYS_FILE}'))['consensus_key_hex'])")
 
+# ── Bitcoin challenger fee wallet (NOT reserve / NOT custody) ─────────────────
+if [[ ! -f "$BTC_CHALLENGER_WALLET" ]]; then
+  log "Generating Bitcoin challenger fee wallet..."
+  python3 -m pip install -q ecdsa 2>/dev/null || true
+  GEN_PY="${CHALLENGER_DIR}/generate-btc-challenger-wallet.py"
+  mkdir -p "$CHALLENGER_DIR"
+  if [[ -f "$(dirname "${BASH_SOURCE[0]:-$0}")/generate-btc-challenger-wallet.py" ]]; then
+    cp "$(dirname "${BASH_SOURCE[0]:-$0}")/generate-btc-challenger-wallet.py" "$GEN_PY"
+  else
+    curl -fsSL "${INSTALL_RAW_BASE}/generate-btc-challenger-wallet.py" -o "$GEN_PY" \
+      || die "Cannot download generate-btc-challenger-wallet.py"
+  fi
+  python3 "$GEN_PY" "$BTC_CHALLENGER_WALLET"
+  log "BTC challenger wallet → $BTC_CHALLENGER_WALLET"
+else
+  log "Reusing BTC challenger wallet at $BTC_CHALLENGER_WALLET"
+fi
+
+if [[ "$BTC_NETWORK" == "mainnet" ]]; then
+  BTC_FEE_ADDRESS=$(python3 -c "import json; print(json.load(open('${BTC_CHALLENGER_WALLET}'))['address_mainnet'])")
+  BTC_FLOAT_HINT=$(python3 -c "import json; print(json.load(open('${BTC_CHALLENGER_WALLET}')).get('suggested_float_mainnet_btc','0.001'))")
+else
+  BTC_FEE_ADDRESS=$(python3 -c "import json; print(json.load(open('${BTC_CHALLENGER_WALLET}'))['address_testnet'])")
+  BTC_FLOAT_HINT=$(python3 -c "import json; print(json.load(open('${BTC_CHALLENGER_WALLET}')).get('suggested_float_testnet_btc','0.001'))")
+fi
+
+# Challenger sidecar sources
+mkdir -p "$CHALLENGER_DIR"
+if [[ -f "$(dirname "${BASH_SOURCE[0]:-$0}")/bitvm-challenger/challenger.py" ]]; then
+  cp "$(dirname "${BASH_SOURCE[0]:-$0}")/bitvm-challenger/challenger.py" "$CHALLENGER_DIR/"
+  cp "$(dirname "${BASH_SOURCE[0]:-$0}")/bitvm-challenger/requirements.txt" "$CHALLENGER_DIR/" 2>/dev/null || true
+else
+  curl -fsSL "${INSTALL_RAW_BASE}/bitvm-challenger/challenger.py" -o "${CHALLENGER_DIR}/challenger.py" \
+    || die "Cannot download bitvm-challenger/challenger.py"
+fi
+
 # ── validators.txt ────────────────────────────────────────────────────────────
 {
   echo "[validators]"
@@ -392,7 +434,7 @@ ${IPS_BLOCK}
 CFG
 chmod 600 "${CONFIG_DIR}/xrpld.cfg"
 
-# ── docker-compose ────────────────────────────────────────────────────────────
+# ── docker-compose (xrpld + BitVM challenger sidecar) ─────────────────────────
 cat > "$COMPOSE_FILE" <<COMPOSE
 version: "3.9"
 services:
@@ -407,9 +449,52 @@ services:
       - "${ADMIN_PORT}:${ADMIN_PORT}"
       - "51235:51235"
     command: ["--conf", "/cfg/xrpld.cfg"]
+    networks:
+      - qxrp
+
+  bitvm-challenger:
+    image: python:3.13-slim
+    container_name: ${CHALLENGER_NAME}
+    restart: unless-stopped
+    environment:
+      FALCON_RPC: http://xrpld:6005
+      PUBLIC_RPC: ${PUBLIC_RPC}
+      BTC_NETWORK: ${BTC_NETWORK}
+      CHALLENGER_WALLET: /cfg/btc-challenger-wallet.json
+      CHALLENGER_STATUS: /data/challenger-status.json
+      CHALLENGER_POLL_SEC: "30"
+    volumes:
+      - ${CONFIG_DIR}:/cfg:ro
+      - ${DATA_DIR}:/data
+      - ${CHALLENGER_DIR}:/app:ro
+    working_dir: /app
+    command: ["python3", "-u", "/app/challenger.py"]
+    depends_on:
+      - xrpld
+    networks:
+      - qxrp
+
+networks:
+  qxrp:
+    driver: bridge
 COMPOSE
 
-log "Starting validator container..."
+# Expose Falcon RPC on 6005 inside the compose network (cfg may use ADMIN_PORT only)
+# Map peer + ensure challenger can reach: use host-published admin if needed
+# Challenger uses service name xrpld — need port 6005 in container.
+# If ADMIN_PORT is 5005 only, add public rpc in cfg or point FALCON_RPC to host.
+# Prefer adding port_rpc on 6005 in container for sidecar:
+if ! grep -q 'port = 6005' "${CONFIG_DIR}/xrpld.cfg" 2>/dev/null; then
+  cat >> "${CONFIG_DIR}/xrpld.cfg" <<'RPC6005'
+
+[port_rpc_public]
+port = 6005
+ip = 0.0.0.0
+protocol = http
+RPC6005
+fi
+
+log "Starting validator + BitVM challenger..."
 docker compose -f "$COMPOSE_FILE" pull
 docker compose -f "$COMPOSE_FILE" up -d
 
@@ -419,14 +504,49 @@ for i in $(seq 1 60); do
   sleep 2
 done
 log "Validator RPC is up"
+log "Challenger: docker logs -f ${CHALLENGER_NAME}"
 
-# ── Print funding address ─────────────────────────────────────────────────────
-big "FUND THIS VALIDATOR ADDRESS"
-echo -e "  \033[1;33m${ACCOUNT}\033[0m"
+# Persist human funding sheet
+FUNDING_FILE="${HOME}/.qxrp/${NODE_NAME}/FUNDING.txt"
+cat > "$FUNDING_FILE" <<FUND
+qXRP validator + BitVM challenger — FUNDING (only steps left)
+==============================================================
+
+1) FALCON BOND (required for validator)
+   Send at least 1,100 FALCON/qXRP to:
+   ${ACCOUNT}
+
+   (1,000 bond + reserve/fees). Auto-bond runs once funded.
+
+2) BITCOIN CHALLENGER FEES (required to challenge BTC bridge txs)
+   Network: ${BTC_NETWORK}
+   Send ~${BTC_FLOAT_HINT} BTC to (FEE WALLET ONLY — not the shared reserve):
+   ${BTC_FEE_ADDRESS}
+
+   Day-to-day cost ≈ 0 if no attacks. This pays rare challenge tx fees only.
+   This address does NOT control the shared BTC reserve.
+
+Payout (rewards): ${PAYOUT_ADDRESS}
+Node: ${NODE_NAME}
+Keys: ${KEYS_FILE}
+BTC wallet: ${BTC_CHALLENGER_WALLET}
+Status: ${DATA_DIR}/challenger-status.json
+FUND
+
+# ── Print funding addresses ───────────────────────────────────────────────────
+big "ONLY TWO FUNDING STEPS"
+echo -e "  \033[1;37m1) FALCON — bond / run validator\033[0m"
+echo -e "     Send \033[1;33m≥ 1,100 FALCON\033[0m to:"
+echo -e "     \033[1;33m${ACCOUNT}\033[0m"
 echo ""
-echo "  Send at least 1,100 qXRP (1,100,000,000 drops) to this address."
-echo "  Recommended: claim 2,000 qXRP from the faucet to your wallet, then send 1,100+ here."
-echo "  Payout / withdraw destination saved: ${PAYOUT_ADDRESS}"
+echo -e "  \033[1;37m2) BITCOIN — BitVM challenger fees\033[0m"
+echo -e "     Network: \033[1;33m${BTC_NETWORK}\033[0m"
+echo -e "     Send ~\033[1;33m${BTC_FLOAT_HINT} BTC\033[0m to (fee wallet only):"
+echo -e "     \033[1;33m${BTC_FEE_ADDRESS}\033[0m"
+echo ""
+echo "  Challenger fee wallet ≠ shared reserve. No custody key for the bridge."
+echo "  Saved: ${FUNDING_FILE}"
+echo "  Payout (rewards): ${PAYOUT_ADDRESS}"
 echo ""
 
 # ── Wait for funding + auto bond ──────────────────────────────────────────────
@@ -509,14 +629,18 @@ log "Reward claimer installed (hourly cron)"
 # ── Done ──────────────────────────────────────────────────────────────────────
 STATE=$(rpc_local server_info | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['info']['server_state'])" 2>/dev/null || echo "unknown")
 
-big "VALIDATOR READY"
-echo "  Container : ${SERVICE_NAME}"
-echo "  Address   : ${ACCOUNT}"
-echo "  Falcon PK : ${FALCON_PK}"
-echo "  Payout    : ${PAYOUT_ADDRESS}"
-echo "  State     : ${STATE}"
-echo "  Logs      : docker logs -f ${SERVICE_NAME}"
-echo "  Config    : ${CONFIG_DIR}"
+big "VALIDATOR + CHALLENGER READY"
+echo "  Falcon container : ${SERVICE_NAME}"
+echo "  Challenger       : ${CHALLENGER_NAME}"
+echo "  Falcon address   : ${ACCOUNT}"
+echo "  BTC fee address  : ${BTC_FEE_ADDRESS} (${BTC_NETWORK})"
+echo "  Falcon PK        : ${FALCON_PK}"
+echo "  Payout           : ${PAYOUT_ADDRESS}"
+echo "  State            : ${STATE}"
+echo "  Funding sheet    : ${FUNDING_FILE}"
+echo "  Logs             : docker logs -f ${SERVICE_NAME}"
+echo "                     docker logs -f ${CHALLENGER_NAME}"
+echo "  Config           : ${CONFIG_DIR}"
 echo ""
 echo "  Portal guide: https://q-xrp-faucet.vercel.app/validator"
 echo ""
